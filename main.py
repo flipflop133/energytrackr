@@ -3,6 +3,8 @@ import subprocess
 import git
 import argparse
 import pandas as pd
+from time import sleep
+import statistics
 
 
 def run_energy_test(
@@ -61,6 +63,73 @@ def analyze_results(output_file: str) -> None:
         print("\n✅ No significant regressions detected.")
 
 
+def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -> bool:
+    """
+    Checks if the system's power consumption is stable using the Modified Z-Score.
+
+    Args:
+        k (float): Threshold for the Modified Z-score (default = 3.5).
+        warmup_time (int): Time in seconds for initial power observation.
+        duration (int): Total monitoring duration in seconds.
+
+    Returns:
+        bool: True if system is stable, False otherwise.
+    """
+
+    def get_energy_uj() -> int:
+        """Reads the current energy consumption value in microjoules."""
+        return int(
+            subprocess.run(
+                ["sudo", "cat", "/sys/class/powercap/intel-rapl:0/energy_uj"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+        )
+
+    # Warm-up phase to collect baseline power samples
+    power_samples = []
+    prev_energy = get_energy_uj()
+
+    print(f"Gathering baseline power data for {warmup_time} seconds...")
+    for _ in range(warmup_time):
+        sleep(1)
+        current_energy = get_energy_uj()
+        power = current_energy - prev_energy  # Power per second (μJ/s)
+        power_samples.append(power)
+        prev_energy = current_energy
+
+    # Compute median and MAD
+    median_power = statistics.median(power_samples)
+    mad_power = (
+        statistics.median([abs(x - median_power) for x in power_samples]) or 1
+    )  # Avoid division by zero
+
+    print(f"Baseline median power: {median_power / 1_000_000} W")
+    print(f"Baseline MAD: {mad_power / 1_000_000} W")
+
+    # Monitoring phase
+    for _ in range(duration - warmup_time):
+        sleep(1)
+        current_energy = get_energy_uj()
+        power = current_energy - prev_energy
+        prev_energy = current_energy
+
+        # Compute Modified Z-Score
+        mz_score = 0.6745 * (power - median_power) / mad_power
+
+        print(f"Power consumption: {power / 1_000_000} W")
+        print(f"Modified Z-Score: {mz_score}")
+
+        if abs(mz_score) > k:
+            print("⚠️ System is NOT stable!")
+            return False
+
+        print("✅ System is stable.\n")
+
+    return True
+
+
 def main(
     repo_url: str, branch: str, test_command: str, num_commits: int, num_runs: int
 ) -> None:
@@ -77,6 +146,10 @@ def main(
     Returns:
         None
     """
+    # Check if the system is stable before running the test
+    if not is_system_stable():
+        print("❌ System is not stable. Exiting...")
+        return
     project_name = os.path.basename(repo_url).replace(".git", "")
     project_dir = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
