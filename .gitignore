@@ -1,3 +1,4 @@
 .venv/
 .cache*/
 .mypy_cache/
+samples/

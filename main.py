@@ -5,30 +5,92 @@ import argparse
 import pandas as pd
 from time import sleep
 import statistics
+import json
+
+from pyparsing import Any
+
+
+def load_config(config_path: str) -> dict:
+    """Load configuration from a JSON file."""
+    with open(config_path, "r") as file:
+        return json.load(file)
 
 
 def run_energy_test(
-    repo_path: str, test_command: str, output_file: str, num_runs: int
+    repo_path: str,
+    output_file: str,
+    config: dict[Any, Any],
 ) -> None:
     """
     Runs the Bash script for energy measurement multiple times.
 
     Args:
         repo_path (str): Path to the repository being tested.
-        test_command (str): Command to run the test under.
-        output_file (str): Path to the CSV file to write the results to.
-        num_runs (int): Number of times to run the energy measurement.
+        output_file (str): Path to the CSV file to store the energy measurement results
+        config (dict): Configuration dictionary.
     """
     # Path to the Bash script to run for energy measurement
     script_path = os.path.join(os.getcwd(), "measure_energy.sh")
 
     # Run the Bash script for energy measurement multiple times
-    for _ in range(num_runs):
+    for _ in range(config["test"]["num_runs"]):
+        # Check if temperature is within safe limits (cpu not throttling)
+        while not is_temperature_safe(config):
+            print("⚠️ CPU temperature is too high. Waiting for it to cool down...")
+            sleep(1)
+        # Run pre-command
+        if config["test"]["pre_command"]:
+            subprocess.run(
+                config["test"]["pre_command"],
+                shell=True,
+                check=True,
+            )
+        # Run the actual energy measurement script
         subprocess.run(
             # Use sudo to run the script, and pass the necessary arguments
-            ["sudo", "bash", script_path, repo_path, test_command, output_file],
+            [
+                "sudo",
+                "bash",
+                script_path,
+                repo_path,
+                config["test"]["command"],
+                output_file,
+            ],
             check=True,
         )
+        # Run post-command
+        if config["test"]["post_command"]:
+            subprocess.run(
+                config["test"]["post_command"],
+                shell=True,
+                check=True,
+            )
+        # Display current progress
+        print(f"Current commit progress: {_ + 1}/{config['test']['num_runs']}")
+
+
+def is_temperature_safe(config: dict[Any, Any]) -> bool:
+    """Check if temperature is within safe limits.
+    Safe means the CPU is not throttling.
+
+    Returns:
+        bool: _description_
+    """
+    # Read the current temperature from the thermal zone file
+    temperature = int(
+        subprocess.run(
+            ["cat", f"/sys/class/thermal/{config['cpu_themal_zone']}/temp"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    )
+
+    # Check if the temperature is within safe limits
+    if temperature < config["thresholds"]["temperature_safe_limit"]:
+        return True
+    else:
+        return False
 
 
 def analyze_results(output_file: str) -> None:
@@ -39,7 +101,11 @@ def analyze_results(output_file: str) -> None:
         output_file (str): Path to the CSV file containing the results of the energy measurements.
     """
     # Read the CSV file into a DataFrame, specifying column names
-    df = pd.read_csv(output_file, names=["commit", "energy_used", "exit_code"])
+    df = pd.read_csv(
+        output_file,
+        header=None,
+        names=["commit", "energy_used", "exit_code"],
+    )
 
     # Convert the 'energy_used' column to integer type
     df["energy_used"] = df["energy_used"].astype(int)
@@ -130,8 +196,16 @@ def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -
     return True
 
 
+def commit_contains_c_code(commit: git.Commit, config: dict[Any, Any]) -> bool:
+    files = commit.stats.files
+    for file in files.keys():
+        if file.endswith(tuple(config["file_extensions"])):
+            return True
+    return False
+
+
 def main(
-    repo_url: str, branch: str, test_command: str, num_commits: int, num_runs: int
+    config_path: str,
 ) -> None:
     """
     Runs the energy measurement test on a given Git repository.
@@ -146,26 +220,40 @@ def main(
     Returns:
         None
     """
+    # Setup computer for energy measurement
+    subprocess.run(
+        [
+            "sudo",
+            "bash",
+            "system_setup.sh",
+        ],
+        check=True,
+    )
     # Check if the system is stable before running the test
-    if not is_system_stable():
-        print("❌ System is not stable. Exiting...")
-        return
-    project_name = os.path.basename(repo_url).replace(".git", "")
+    # if not is_system_stable():
+    #    print("❌ System is not stable. Exiting...")
+    #    return
+    config: dict[Any, Any] = load_config(config_path)
+    project_name = os.path.basename(config["repository"]["url"]).replace(".git", "")
     project_dir = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
 
     repo_path = os.path.join(project_dir, ".cache" + project_name)
-    output_file = os.path.join(project_dir, "energy_results.csv")
+    output_file = os.path.join(project_dir, config["output"]["file"])
 
     # Clone repo if not already present
     if not os.path.exists(repo_path):
-        print(f"Cloning {repo_url} into {repo_path}...")
-        repo = git.Repo.clone_from(repo_url, repo_path)
+        print(f"Cloning {config['repository']['url']} into {repo_path}...")
+        repo = git.Repo.clone_from(config["repository"]["url"], repo_path)
     else:
         print(f"Using existing repo at {repo_path}...")
         repo = git.Repo(repo_path)
 
-    commits = list(repo.iter_commits(branch, max_count=num_commits))
+    commits = list(
+        repo.iter_commits(
+            config["repository"]["branch"], max_count=config["test"]["num_commits"]
+        )
+    )
 
     # Clear previous results
     if os.path.exists(output_file):
@@ -174,10 +262,31 @@ def main(
     for commit in commits:
         print(f"\n🔄 Checking out {commit.hexsha}...")
         repo.git.checkout(commit.hexsha)
-        run_energy_test(repo_path, test_command, output_file, num_runs)
+        # Get the paths of the files changed in the commit
+        if not commit_contains_c_code(commit, config):
+            print("Skipping commit as it does not contain C code.")
+            continue
+        # build the project
+        print("Building the project...")
+        for command in config["compile_commands"]:
+            subprocess.run(
+                command,
+                shell=True,
+                cwd=repo_path,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        # Run the energy test
+        run_energy_test(
+            repo_path,
+            output_file,
+            config,
+        )
+        # Display current progress
+        print(f"Global progress: {commits.index(commit) + 1}/{len(commits)}")
 
     # Checkout back to latest
-    repo.git.checkout(branch)
+    repo.git.checkout(config["repository"]["branch"])
     print("\n✅ Restored to latest commit.")
 
     # Analyze energy trends
@@ -188,14 +297,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Test energy consumption across Git commits."
     )
-    parser.add_argument("repo_url", help="Git repository URL")
-    parser.add_argument("branch", help="Branch to test")
-    parser.add_argument("test_command", help="Command to run tests")
-    parser.add_argument("num_commits", type=int, help="Number of commits to test")
-    parser.add_argument(
-        "num_runs", type=int, help="Number of times to measure per commit"
-    )
-
+    parser.add_argument("config_path", help="Path to the configuration JSON file")
     args = parser.parse_args()
-
-    main(args.repo_url, args.branch, args.test_command, args.num_commits, args.num_runs)
+    main(args.config_path)
