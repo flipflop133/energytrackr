@@ -6,7 +6,7 @@ import pandas as pd
 from time import sleep
 import statistics
 import json
-
+import time
 from pyparsing import Any
 
 
@@ -220,6 +220,8 @@ def main(
     Returns:
         None
     """
+    # Save start time
+    start_time = time.time()
     # Setup computer for energy measurement
     subprocess.run(
         [
@@ -227,7 +229,7 @@ def main(
             "bash",
             "system_setup.sh",
         ],
-        check=True,
+        check=False,
     )
     # Check if the system is stable before running the test
     # if not is_system_stable():
@@ -284,7 +286,13 @@ def main(
         )
         # Display current progress
         print(f"Global progress: {commits.index(commit) + 1}/{len(commits)}")
+        # Display elapsed time
+        elapsed_time = int(time.time() - start_time)  # Convert to integer seconds
 
+        # Format as HH:MM:SS
+        formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
+
+        print(f"Elapsed time: {formatted_time}")
     # Checkout back to latest
     repo.git.checkout(config["repository"]["branch"])
     print("\n✅ Restored to latest commit.")

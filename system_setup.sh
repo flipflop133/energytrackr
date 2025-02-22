@@ -4,8 +4,8 @@
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
-# TODO : add this to kernel parameters : cpuidle.off=1
-
+# TODO : add this to kernel parameters : cpuidle.off=1, idle=poll
+# TODO : look at this /sys/devices/system/cpu/intel_uncore_frequency/
 # Disable Intel pstate
 disable_intel_pstate() {
     # Check current CPU driver
@@ -54,12 +54,16 @@ configure_stable_measurement() {
     systemctl mask --now power-profiles-daemon
     systemctl mask --now powerd
     systemctl mask --now upower
-    echo "performance" | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-    echo 1000000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_min_freq
-    echo 1000000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq
-    echo 1000000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_setspeed
+    echo "userspace" | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+    echo 2500000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_min_freq
+    echo 2500000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq
+    echo 2500000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_setspeed
     echo 0 | tee /sys/devices/system/cpu/cpu*/cpufreq/boost
     echo 0 > /sys/devices/system/cpu/cpufreq/boost
+
+    echo 2500000 > /sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/min_freq_khz
+    echo 2500000 > /sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/max_freq_khz
+
 
     echo 0 | tee /sys/devices/system/cpu/cpu*/power/energy_perf_bias
 
