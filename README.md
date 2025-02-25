@@ -57,3 +57,10 @@ This command will:
 
 docker buildx build -t pipeline .
 docker run -it --privileged pipeline:latest
+
+## Conf
+
+Temperature files examples:
+
+- /sys/class/thermal/thermal_zone5/temp
+- /sys/class/hwmon/hwmon2/temp1_input
