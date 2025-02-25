@@ -82,10 +82,11 @@ def is_temperature_safe(config: dict[Any, Any]) -> bool:
     Returns:
         bool: _description_
     """
+    # Determine temperature path
     # Read the current temperature from the thermal zone file
     temperature = int(
         subprocess.run(
-            ["cat", f"/sys/class/thermal/{config['cpu_themal_zone']}/temp"],
+            ["cat", config["cpu_themal_file_path"]],
             check=True,
             capture_output=True,
             text=True,

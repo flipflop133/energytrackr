@@ -24,7 +24,7 @@
         "sh",
         "ac"
     ],
-    "cpu_themal_zone": "thermal_zone5",
+    "cpu_themal_file_path": "/sys/class/hwmon/hwmon2/temp1_input",
     "compile_commands": [
         "make clean",
         "./autogen.sh",
