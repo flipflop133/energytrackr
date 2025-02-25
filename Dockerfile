@@ -2,7 +2,7 @@ FROM ubuntu:22.04
 
 RUN apt-get update && \
     apt-get install -y \
-    python3.11 \
+    python3.13 \
     python3-pip \
     python3-venv \
     git \
@@ -23,4 +23,4 @@ COPY . .
 
 RUN chmod +x measure_energy.sh
 
-CMD ["python", "main.py", "measure", "conf.json"]
+CMD ["python3", "main.py", "measure", "conf.json"]
