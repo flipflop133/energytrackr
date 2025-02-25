@@ -7,11 +7,10 @@ RUN apt-get update && \
     python3-venv \
     git \
     sudo \
+    linux-perf \
     linux-tools-common \
     linux-tools-generic \
-    linux-tools-$(uname -r) && \
-    rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir --upgrade pip
+    linux-tools-6.8.0-40-generic
 
 WORKDIR /app
 

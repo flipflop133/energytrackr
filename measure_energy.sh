@@ -4,12 +4,6 @@ REPO_PATH=$1
 TEST_COMMAND=$2
 OUTPUT_FILE=$3
 
-# Check if perf is installed
-if ! command -v linux-perf &>/dev/null; then
-    echo "Error: perf is not installed. Please install it with 'sudo apt install linux-perf' or your distro's equivalent."
-    exit 1
-fi
-
 # Run the test command with perf to measure energy consumption
 echo "$TEST_COMMAND"
 PERF_OUTPUT=$(perf stat -e power/energy-pkg/ -e power/energy-cores/ -e power/energy-gpu/ $TEST_COMMAND 2>&1)

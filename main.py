@@ -66,11 +66,18 @@ def run_energy_test(
             print(f"Standard Error:\n{e.stderr}")
         # Run post-command
         if config["test"]["post_command"]:
-            subprocess.run(
-                config["test"]["post_command"],
-                shell=True,
-                check=True,
-            )
+            try:
+                subprocess.run(
+                    config["test"]["post_command"],
+                    shell=True,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as e:
+                print(f"Error: Command failed with exit code {e.returncode}")
+                print(f"Standard Output:\n{e.stdout}")
+                print(f"Standard Error:\n{e.stderr}")
         # Display current progress
         print(f"Current commit progress: {_ + 1}/{config['test']['num_runs']}")
 

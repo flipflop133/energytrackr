@@ -52,3 +52,8 @@ This command will:
 
 - Energy measurement results are stored in `projects/<project_name>/energy_results.csv`.
 - The script analyzes results and flags regressions (increases > 20%).
+
+## Docker
+
+docker buildx build -t pipeline .
+docker run -it pipeline:latest
