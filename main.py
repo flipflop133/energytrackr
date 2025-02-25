@@ -46,18 +46,24 @@ def run_energy_test(
                 check=True,
             )
         # Run the actual energy measurement script
-        subprocess.run(
-            # Use sudo to run the script, and pass the necessary arguments
-            [
-                "sudo",
-                "bash",
-                script_path,
-                repo_path,
-                config["test"]["command"],
-                output_file,
-            ],
-            check=True,
-        )
+        try:
+            subprocess.run(
+                [
+                    "sudo",
+                    "sh",
+                    script_path,
+                    repo_path,
+                    config["test"]["command"],
+                    output_file,
+                ],
+                check=True,  # Raise an exception if the command fails
+                capture_output=True,  # Capture both stdout and stderr
+                text=True,  # Ensure output is treated as text (not bytes)
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"Error: Command failed with exit code {e.returncode}")
+            print(f"Standard Output:\n{e.stdout}")
+            print(f"Standard Error:\n{e.stderr}")
         # Run post-command
         if config["test"]["post_command"]:
             subprocess.run(
@@ -223,14 +229,14 @@ def main(
     # Save start time
     start_time = time.time()
     # Setup computer for energy measurement
-    subprocess.run(
-        [
-            "sudo",
-            "bash",
-            "system_setup.sh",
-        ],
-        check=False,
-    )
+    # subprocess.run(
+    #     [
+    #         "sudo",
+    #         "bash",
+    #         "system_setup.sh",
+    #     ],
+    #     check=False,
+    # )
     # Check if the system is stable before running the test
     # if not is_system_stable():
     #    print("❌ System is not stable. Exiting...")

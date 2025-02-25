@@ -1,0 +1,7 @@
+gitpython
+pandas
+pyparsing
+numpy
+matplotlib
+pandas
+scipy
