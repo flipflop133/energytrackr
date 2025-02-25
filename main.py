@@ -290,8 +290,7 @@ def main(
                     command,
                     shell=True,
                     cwd=repo_path,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    check=True,
                     capture_output=True,
                     text=True,
                 )

@@ -9,7 +9,18 @@ RUN apt-get update && \
     sudo \
     linux-tools-common \
     linux-tools-generic \
-    linux-tools-6.8.0-40-generic
+    linux-tools-6.8.0-40-generic \
+    build-essential \
+    m4 \
+    libtool \
+    ccache \
+    pkg-config \
+    autopoint \
+    build-essential \
+    autoconf \
+    automake \
+    gcc \
+    make
 
 WORKDIR /app
 
