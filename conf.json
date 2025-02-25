@@ -7,7 +7,7 @@
         "pre_command": "cp projects/xz/samples/sample.mp4 projects/xz/samples/sample_copy.mp4",
         "command": "./projects/xz/.cachexz/src/xz/xz projects/xz/samples/sample.mp4",
         "post_command": "rm projects/xz/samples/sample.mp4.xz && cp projects/xz/samples/sample_copy.mp4 projects/xz/samples/sample.mp4",
-        "num_commits": 50,
+        "num_commits": 100,
         "num_runs": 5
     },
     "output": {

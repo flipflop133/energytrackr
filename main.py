@@ -305,6 +305,23 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Test energy consumption across Git commits."
     )
-    parser.add_argument("config_path", help="Path to the configuration JSON file")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    stability_parser = subparsers.add_parser(
+        "stability-test", help="Run the system stability test"
+    )
+
+    measure_parser = subparsers.add_parser(
+        "measure", help="Run the energy measurement test"
+    )
+    measure_parser.add_argument(
+        "config_path", help="Path to the configuration JSON file"
+    )
+
     args = parser.parse_args()
-    main(args.config_path)
+
+    if args.command == "measure":
+        main(args.config_path)
+    elif args.command == "stability-test":
+        is_system_stable()
+        #    print("❌ System is not stable. Exiting...")

@@ -9,8 +9,8 @@ def create_energy_plot(df, energy_column, output_filename, sigma=2):
     Create a plot of median energy consumption with outlier detection and smoothing.
     """
     # Compute median and std for the specified energy_column
-    df_median = df.groupby("commit")[energy_column].median().reset_index()
-    df_std = df.groupby("commit")[energy_column].std().reset_index()
+    df_median = df.groupby("commit", sort=False)[energy_column].median().reset_index()
+    df_std = df.groupby("commit", sort=False)[energy_column].std().reset_index()
 
     # Merge median and standard deviation data
     df_median = df_median.merge(df_std, on="commit", suffixes=("", "_std"))
