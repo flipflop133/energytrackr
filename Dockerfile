@@ -7,7 +7,6 @@ RUN apt-get update && \
     python3-venv \
     git \
     sudo \
-    linux-perf \
     linux-tools-common \
     linux-tools-generic \
     linux-tools-6.8.0-40-generic
@@ -22,4 +21,4 @@ COPY . .
 
 RUN chmod +x measure_energy.sh
 
-CMD ["python3", "main.py", "measure", "conf.json"]
+#CMD ["python3", "main.py", "measure", "conf.json"]

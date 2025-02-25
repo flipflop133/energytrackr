@@ -56,4 +56,4 @@ This command will:
 ## Docker
 
 docker buildx build -t pipeline .
-docker run -it pipeline:latest
+docker run -it --privileged pipeline:latest
