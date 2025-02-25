@@ -285,13 +285,20 @@ def main(
         # build the project
         print("Building the project...")
         for command in config["compile_commands"]:
-            subprocess.run(
-                command,
-                shell=True,
-                cwd=repo_path,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            try:
+                subprocess.run(
+                    command,
+                    shell=True,
+                    cwd=repo_path,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as e:
+                print(f"Error: Command failed with exit code {e.returncode}")
+                print(f"Standard Output:\n{e.stdout}")
+                print(f"Standard Error:\n{e.stderr}")
         # Run the energy test
         run_energy_test(
             repo_path,
