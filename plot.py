@@ -70,11 +70,22 @@ def create_energy_plot(df, energy_column, output_filename, sigma=2):
         )
 
     # Plot smoothed upper/lower bounds
-    plt.plot(
-        x_indices, y_upper_smooth, linestyle="--", color="r", label="Upper Bound (+1σ)"
-    )
-    plt.plot(
-        x_indices, y_lower_smooth, linestyle="--", color="r", label="Lower Bound (-1σ)"
+    # plt.plot(
+    #     x_indices, y_upper_smooth, linestyle="--", color="r", label="Upper Bound (+1σ)"
+    # )
+    # plt.plot(
+    #     x_indices, y_lower_smooth, linestyle="--", color="r", label="Lower Bound (-1σ)"
+    # )
+
+    # Plot error bars
+    plt.errorbar(
+        x_indices,
+        y,
+        yerr=y_std,
+        fmt="o",
+        color="b",
+        label="Standard Deviation",
+        zorder=2,
     )
 
     # Plot standard deviation lines based on the entire dataset
@@ -84,7 +95,7 @@ def create_energy_plot(df, energy_column, output_filename, sigma=2):
     plt.axhline(median_val - sd_val, color="r", linestyle="--")
 
     # Fill the area between the smoothed bounds
-    plt.fill_between(x_indices, y_lower_smooth, y_upper_smooth, color="r", alpha=0.2)
+    # plt.fill_between(x_indices, y_lower_smooth, y_upper_smooth, color="r", alpha=0.2)
 
     # Adjust X-axis to show commit hashes
     plt.xticks(ticks=x_indices, labels=x, rotation=45, ha="right")
@@ -110,7 +121,7 @@ def create_energy_plot(df, energy_column, output_filename, sigma=2):
 if __name__ == "__main__":
     # Load CSV file (Assumes no headers)
     df = pd.read_csv(
-        "projects/xz/energy_usage.csv",
+        "server_results.csv",
         header=None,
         names=["commit", "energy-pkg", "energy-core", "energy-gpu"],
     )
