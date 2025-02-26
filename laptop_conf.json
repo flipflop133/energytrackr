@@ -9,7 +9,9 @@
         "post_command": "rm projects/xz/samples/sample.mp4.xz && cp projects/xz/samples/sample_copy.mp4 projects/xz/samples/sample.mp4",
         "num_commits": 100,
         "num_runs": 5,
-        "num_repeats": 1
+        "num_repeats": 1,
+        "randomize_commits": true,
+        "batch_size": 100
     },
     "output": {
         "file": "energy_usage.csv"
