@@ -276,43 +276,46 @@ def main(
         os.remove(output_file)
 
     for commit in commits:
-        print(f"\n🔄 Checking out {commit.hexsha}...")
-        repo.git.checkout(commit.hexsha)
-        # Get the paths of the files changed in the commit
-        if not commit_contains_c_code(commit, config):
-            print("Skipping commit as it does not contain C code.")
-            continue
-        # build the project
-        print("Building the project...")
-        for command in config["compile_commands"]:
-            try:
-                subprocess.run(
-                    command,
-                    shell=True,
-                    cwd=repo_path,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-            except subprocess.CalledProcessError as e:
-                print(f"Error: Command failed with exit code {e.returncode}")
-                print(f"Standard Output:\n{e.stdout}")
-                print(f"Standard Error:\n{e.stderr}")
-        # Run the energy test
-        run_energy_test(
-            repo_path,
-            output_file,
-            config,
-        )
-        # Display current progress
-        print(f"Global progress: {commits.index(commit) + 1}/{len(commits)}")
-        # Display elapsed time
-        elapsed_time = int(time.time() - start_time)  # Convert to integer seconds
+        for _ in range(config["test"]["num_runs"]):
+            print(f"\n🔄 Checking out {commit.hexsha}...")
+            repo.git.checkout(commit.hexsha)
+            # Get the paths of the files changed in the commit
+            if not commit_contains_c_code(commit, config):
+                print("Skipping commit as it does not contain C code.")
+                continue
+            # build the project
+            print("Building the project...")
+            for command in config["compile_commands"]:
+                try:
+                    subprocess.run(
+                        command,
+                        shell=True,
+                        cwd=repo_path,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
+                except subprocess.CalledProcessError as e:
+                    print(f"Error: Command failed with exit code {e.returncode}")
+                    print(f"Standard Output:\n{e.stdout}")
+                    print(f"Standard Error:\n{e.stderr}")
+            # Run the energy test
+            run_energy_test(
+                repo_path,
+                output_file,
+                config,
+            )
+            # Display current progress
+            print(f"Global progress: {commits.index(commit) + 1}/{len(commits)}")
+            # Display elapsed time
+            elapsed_time = int(time.time() - start_time)  # Convert to integer seconds
 
-        # Format as HH:MM:SS
-        formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
+            # Format as HH:MM:SS
+            formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
 
-        print(f"Elapsed time: {formatted_time}")
+            print(f"Elapsed time: {formatted_time}")
+            if not config["test"]["repeat"]:
+                break
     # Checkout back to latest
     repo.git.checkout(config["repository"]["branch"])
     print("\n✅ Restored to latest commit.")

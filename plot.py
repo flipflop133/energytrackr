@@ -1,106 +1,111 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.ndimage import gaussian_filter1d
 
 
-def create_energy_plot(df, energy_column, output_filename, sigma=2):
+def create_energy_plot(df, energy_column, output_filename):
     """
-    Create a plot of median energy consumption with outlier detection and smoothing.
+    Create a plot of median energy consumption with outlier detection using error bars,
+    and display the distribution (via violin plots) for each commit's energy measurements.
+
+    Outliers are defined as points outside the overall median ± one standard deviation.
     """
-    # Compute median and std for the specified energy_column
+    # Compute median and standard deviation for the specified energy_column per commit
     df_median = df.groupby("commit", sort=False)[energy_column].median().reset_index()
     df_std = df.groupby("commit", sort=False)[energy_column].std().reset_index()
 
     # Merge median and standard deviation data
     df_median = df_median.merge(df_std, on="commit", suffixes=("", "_std"))
 
-    # Shorten commit hashes
+    # Shorten commit hashes for display
     df_median["commit_short"] = df_median["commit"].str[:7]
 
-    # Extract X, Y, and standard deviation
+    # Extract X (commit hash), Y (median energy) and Y error (std dev)
     x = df_median["commit_short"]
     y = df_median[energy_column]
     y_std = df_median[f"{energy_column}_std"]
 
-    # Compute upper and lower bounds
-    y_upper = y + y_std
-    y_lower = y - y_std
-
-    # Apply Gaussian smoothing
-    y_upper_smooth = gaussian_filter1d(y_upper, sigma=sigma)
-    y_lower_smooth = gaussian_filter1d(y_lower, sigma=sigma)
-
     # Convert x-axis labels to numerical indices
-    x_indices = range(len(x))
+    x_indices = np.arange(len(x))
 
-    # Identify outliers
-    outliers = (y > y_upper_smooth) | (y < y_lower_smooth)
+    # Extract the full distribution data for each commit
+    distribution_data = [
+        group[energy_column].values for _, group in df.groupby("commit", sort=False)
+    ]
 
     # Create the figure
     plt.figure(figsize=(20, 10))
 
-    # Plot main line
-    plt.plot(
+    # Draw the violin plot for each commit's distribution (drawn first so it stays in the background)
+    violin_parts = plt.violinplot(
+        distribution_data,
+        positions=x_indices,
+        widths=0.5,
+        showmeans=False,
+        showextrema=False,
+        showmedians=False,
+    )
+    for pc in violin_parts["bodies"]:
+        pc.set_facecolor("lightgrey")
+        pc.set_edgecolor("black")
+        pc.set_alpha(0.5)
+        pc.set_zorder(1)
+
+    # Compute overall median and standard deviation for outlier detection
+    overall_median = np.median(y)
+    overall_std = np.std(y)
+    outliers = (y > overall_median + overall_std) | (y < overall_median - overall_std)
+
+    # Plot main line with error bars
+    plt.errorbar(
         x_indices,
         y,
+        yerr=y_std,
         marker="o",
         linestyle="-",
         color="b",
         label=f"Median {energy_column}",
+        zorder=2,
     )
 
     # Overlay outlier points in red
     plt.scatter(
-        np.array(x_indices)[outliers],
-        np.array(y)[outliers],
+        x_indices[outliers],
+        y[outliers],
         color="r",
         label="Outliers",
         zorder=3,
     )
+
     # Label outlier commits
     for i in np.where(outliers)[0]:
         plt.text(
             x_indices[i],
-            y[i],
-            x[i],
+            y.iloc[i],
+            x.iloc[i],
             fontsize=8,
             ha="right",
             color="red",
         )
 
-    # Plot smoothed upper/lower bounds
-    # plt.plot(
-    #     x_indices, y_upper_smooth, linestyle="--", color="r", label="Upper Bound (+1σ)"
-    # )
-    # plt.plot(
-    #     x_indices, y_lower_smooth, linestyle="--", color="r", label="Lower Bound (-1σ)"
-    # )
-
-    # Plot error bars
-    plt.errorbar(
-        x_indices,
-        y,
-        yerr=y_std,
-        fmt="o",
-        color="b",
-        label="Standard Deviation",
-        zorder=2,
+    # Plot horizontal lines for overall median ± standard deviation
+    plt.axhline(
+        overall_median + overall_std,
+        color="r",
+        linestyle="--",
+        label="Overall Median + Std",
+    )
+    plt.axhline(
+        overall_median - overall_std,
+        color="r",
+        linestyle="--",
+        label="Overall Median - Std",
     )
 
-    # Plot standard deviation lines based on the entire dataset
-    median_val = np.median(y)
-    sd_val = np.std(y)
-    plt.axhline(median_val + sd_val, color="r", linestyle="--")
-    plt.axhline(median_val - sd_val, color="r", linestyle="--")
-
-    # Fill the area between the smoothed bounds
-    # plt.fill_between(x_indices, y_lower_smooth, y_upper_smooth, color="r", alpha=0.2)
-
-    # Adjust X-axis to show commit hashes
+    # Adjust x-axis to show commit hashes
     plt.xticks(ticks=x_indices, labels=x, rotation=45, ha="right")
 
-    # Labeling
+    # Add labels, title, legend, and grid
     plt.xlabel("Commit Hash")
     plt.ylabel(f"Median Energy ({energy_column})")
     plt.title(f"Energy Consumption Trend (Median per Commit) - {energy_column}")
@@ -121,12 +126,12 @@ def create_energy_plot(df, energy_column, output_filename, sigma=2):
 if __name__ == "__main__":
     # Load CSV file (Assumes no headers)
     df = pd.read_csv(
-        "server_results.csv",
+        "server_results_3.csv",
         header=None,
         names=["commit", "energy-pkg", "energy-core", "energy-gpu"],
     )
 
     # Generate three separate plots
-    create_energy_plot(df, "energy-pkg", "plot_pkg.png", sigma=2)
-    create_energy_plot(df, "energy-core", "plot_core.png", sigma=2)
-    create_energy_plot(df, "energy-gpu", "plot_gpu.png", sigma=2)
+    create_energy_plot(df, "energy-pkg", "plot_pkg.png")
+    create_energy_plot(df, "energy-core", "plot_core.png")
+    create_energy_plot(df, "energy-gpu", "plot_gpu.png")
