@@ -276,7 +276,7 @@ def main(
         os.remove(output_file)
 
     for commit in commits:
-        for _ in range(config["test"]["num_runs"]):
+        for _ in range(config["test"]["num_repeats"]):
             print(f"\n🔄 Checking out {commit.hexsha}...")
             repo.git.checkout(commit.hexsha)
             # Get the paths of the files changed in the commit
@@ -307,6 +307,8 @@ def main(
             )
             # Display current progress
             print(f"Global progress: {commits.index(commit) + 1}/{len(commits)}")
+            if config["test"]["num_repeats"] > 1:
+                print(f"Local progress: {_ + 1}/{config['test']['num_repeats']}")
             # Display elapsed time
             elapsed_time = int(time.time() - start_time)  # Convert to integer seconds
 
@@ -314,8 +316,6 @@ def main(
             formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
 
             print(f"Elapsed time: {formatted_time}")
-            if not config["test"]["repeat"]:
-                break
     # Checkout back to latest
     repo.git.checkout(config["repository"]["branch"])
     print("\n✅ Restored to latest commit.")
