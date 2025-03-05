@@ -15,13 +15,12 @@ import git
 import git.types
 from git.types import Files_TD
 from pyparsing import Any
+from tqdm import tqdm  # Import tqdm for progress reporting
 
 
 def load_config(config_path: str) -> dict[str, Any]:
     """Load configuration from a JSON file."""
-    with open(
-        config_path,
-    ) as file:
+    with open(config_path) as file:
         return dict(json.load(file))
 
 
@@ -30,7 +29,7 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
     script_path = os.path.join(os.getcwd(), "measure_energy.sh")
     # Ensure CPU temperature is within safe limits
     while not is_temperature_safe(config):
-        print("⚠️ CPU temperature is too high. Waiting for it to cool down...")
+        tqdm.write("⚠️ CPU temperature is too high. Waiting for it to cool down...")
         sleep(1)
     # Run pre-command if provided
     if config["test"]["pre_command"]:
@@ -55,9 +54,9 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
             text=True,
         )
     except subprocess.CalledProcessError as e:
-        print(f"Error: Command failed with exit code {e.returncode}")
-        print(f"Standard Output:\n{e.stdout}")
-        print(f"Standard Error:\n{e.stderr}")
+        tqdm.write(f"Error: Command failed with exit code {e.returncode}")
+        tqdm.write(f"Standard Output:\n{e.stdout}")
+        tqdm.write(f"Standard Error:\n{e.stderr}")
     # Run post-command if provided
     if config["test"]["post_command"]:
         try:
@@ -69,9 +68,9 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
                 text=True,
             )
         except subprocess.CalledProcessError as e:
-            print(f"Error: Command failed with exit code {e.returncode}")
-            print(f"Standard Output:\n{e.stdout}")
-            print(f"Standard Error:\n{e.stderr}")
+            tqdm.write(f"Error: Command failed with exit code {e.returncode}")
+            tqdm.write(f"Standard Output:\n{e.stdout}")
+            tqdm.write(f"Standard Error:\n{e.stderr}")
 
 
 def is_temperature_safe(config: dict[str, Any]) -> bool:
@@ -113,7 +112,7 @@ def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -
 
     power_samples: list[int] = []
     prev_energy = get_energy_uj()
-    print(f"Gathering baseline power data for {warmup_time} seconds...")
+    tqdm.write(f"Gathering baseline power data for {warmup_time} seconds...")
     for _ in range(warmup_time):
         sleep(1)
         current_energy = get_energy_uj()
@@ -122,20 +121,20 @@ def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -
         prev_energy = current_energy
     median_power = statistics.median(power_samples)
     mad_power = statistics.median([abs(x - median_power) for x in power_samples]) or 1
-    print(f"Baseline median power: {median_power / 1_000_000} W")
-    print(f"Baseline MAD: {mad_power / 1_000_000} W")
+    tqdm.write(f"Baseline median power: {median_power / 1_000_000} W")
+    tqdm.write(f"Baseline MAD: {mad_power / 1_000_000} W")
     for _ in range(duration - warmup_time):
         sleep(1)
         current_energy = get_energy_uj()
         power = current_energy - prev_energy
         prev_energy = current_energy
         mz_score = 0.6745 * (power - median_power) / mad_power
-        print(f"Power consumption: {power / 1_000_000} W")
-        print(f"Modified Z-Score: {mz_score}")
+        tqdm.write(f"Power consumption: {power / 1_000_000} W")
+        tqdm.write(f"Modified Z-Score: {mz_score}")
         if abs(mz_score) > k:
-            print("⚠️ System is NOT stable!")
+            tqdm.write("⚠️ System is NOT stable!")
             return False
-        print("✅ System is stable.\n")
+        tqdm.write("✅ System is stable.\n")
     return True
 
 
@@ -148,10 +147,10 @@ def commit_contains_c_code(commit: git.Commit, config: dict[str, Any]) -> bool:
 def setup_repo(repo_path: str, repo_url: str) -> git.Repo:
     """Clones the repository if not present; otherwise opens the existing one."""
     if not os.path.exists(repo_path):
-        print(f"Cloning {repo_url} into {repo_path}...")
+        tqdm.write(f"Cloning {repo_url} into {repo_path}...")
         return git.Repo.clone_from(repo_url, repo_path)
     else:
-        print(f"Using existing repo at {repo_path}...")
+        tqdm.write(f"Using existing repo at {repo_path}...")
         return git.Repo(repo_path)
 
 
@@ -188,7 +187,7 @@ def main(config_path: str) -> None:
     repo = setup_repo(repo_path, config["repository"]["url"])
     commits = list(repo.iter_commits(config["repository"]["branch"], max_count=num_commits))
     total_batches = (len(commits) + batch_size - 1) // batch_size
-    print(f"Total commits: {len(commits)} in {total_batches} batches (batch size: {batch_size})")
+    tqdm.write(f"Total commits: {len(commits)} in {total_batches} batches (batch size: {batch_size})")
 
     current_commit: str = ""
     global_task_counter = 0
@@ -200,43 +199,47 @@ def main(config_path: str) -> None:
         tasks: list[git.Commit] = []
         for commit in batch_commits:
             if not commit_contains_c_code(commit, config):
-                print(f"Skipping commit {commit.hexsha} as it does not contain C code.")
+                tqdm.write(f"Skipping commit {commit.hexsha} as it does not contain C code.")
                 continue
-            for _ in range(num_runs * num_repeats):
-                tasks.extend([commit] * (num_runs * num_repeats))
+            # Each commit is scheduled for num_runs * num_repeats tests
+            tasks.extend([commit] * (num_runs * num_repeats))
         if randomize:
             random.shuffle(tasks)
-        print(f"\nProcessing batch {batch_index + 1}/{total_batches} with {len(tasks)} tasks...")
-        for i, commit in enumerate(tasks):
-            # If the commit changes, checkout and build the project
-            if current_commit != commit.hexsha:
-                print(f"\n🔄 Checking out commit {commit.hexsha}...")
-                repo.git.checkout(commit.hexsha)
-                print("Building the project...")
-                for command in config["compile_commands"]:
-                    try:
-                        subprocess.run(
-                            command,
-                            shell=True,
-                            cwd=repo_path,
-                            check=True,
-                            capture_output=True,
-                            text=True,
-                        )
-                    except subprocess.CalledProcessError as e:
-                        print(f"Error: Command '{command}' failed with exit code {e.returncode}")
-                        print(f"Stdout:\n{e.stdout}")
-                        print(f"Stderr:\n{e.stderr}")
-                current_commit = commit.hexsha
-            # Run a single energy measurement test for this task
-            run_single_energy_test(repo_path, output_file, config)
-            global_task_counter += 1
-            print(f"Global progress: {global_task_counter} tasks completed (batch progress: {i + 1}/{len(tasks)})")
-            elapsed_time = int(time.time() - start_time)
-            formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
-            print(f"Elapsed time: {formatted_time}")
+        tqdm.write(f"\nProcessing batch {batch_index + 1}/{total_batches} with {len(tasks)} tasks...")
+
+        # Use a tqdm progress bar for tasks in this batch
+        with tqdm(total=len(tasks), desc=f"Batch {batch_index + 1}/{total_batches}", leave=False) as pbar:
+            for _, commit in enumerate(tasks):
+                # If the commit changes, checkout and build the project
+                if current_commit != commit.hexsha:
+                    tqdm.write(f"\n🔄 Checking out commit {commit.hexsha}...")
+                    repo.git.checkout(commit.hexsha)
+                    tqdm.write("Building the project...")
+                    for command in config["compile_commands"]:
+                        try:
+                            subprocess.run(
+                                command,
+                                shell=True,
+                                cwd=repo_path,
+                                check=True,
+                                capture_output=True,
+                                text=True,
+                            )
+                        except subprocess.CalledProcessError as e:
+                            tqdm.write(f"Error: Command '{command}' failed with exit code {e.returncode}")
+                            tqdm.write(f"Stdout:\n{e.stdout}")
+                            tqdm.write(f"Stderr:\n{e.stderr}")
+                    current_commit = commit.hexsha
+                # Run a single energy measurement test for this task
+                run_single_energy_test(repo_path, output_file, config)
+                global_task_counter += 1
+                elapsed_time = int(time.time() - start_time)
+                formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
+                pbar.set_postfix(global_tasks=global_task_counter, elapsed=formatted_time)
+                pbar.update(1)
+
         # Delete the repository cache to free up space after processing a batch
-        print(f"\nBatch {batch_index + 1} completed. Deleting repository cache to free up space...")
+        tqdm.write(f"\nBatch {batch_index + 1} completed. Deleting repository cache to free up space...")
         if os.path.exists(repo_path):
             shutil.rmtree(repo_path)
         # Re-clone repository for the next batch (if any)
@@ -246,7 +249,7 @@ def main(config_path: str) -> None:
 
     # Final step: checkout back to the latest commit on the branch
     repo.git.checkout(config["repository"]["branch"])
-    print("\n✅ Restored to latest commit.")
+    tqdm.write("\n✅ Restored to latest commit.")
 
 
 if __name__ == "__main__":

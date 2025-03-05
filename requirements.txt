@@ -6,3 +6,5 @@ matplotlib
 pandas
 pandas-stubs
 scipy
+tqdm
+tqdm-stubs
