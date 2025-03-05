@@ -154,6 +154,23 @@ def setup_repo(repo_path: str, repo_url: str) -> git.Repo:
         return git.Repo(repo_path)
 
 
+def generate_tasks(batch_commits: list[git.Commit], config: dict[str, Any]) -> list[git.Commit]:
+    """Generate a list of energy measurement tasks for the provided commits."""
+    tasks: list[git.Commit] = []
+    num_runs = config["test"]["num_runs"]
+    num_repeats = config["test"].get("num_repeats", 1)
+    randomize = config["test"].get("randomize_tasks", False)
+    for commit in batch_commits:
+        if not commit_contains_c_code(commit, config):
+            tqdm.write(f"Skipping commit {commit.hexsha} as it does not contain C code.")
+            continue
+        # Each commit is scheduled for num_runs * num_repeats tests
+        tasks.extend([commit] * (num_runs * num_repeats))
+    if randomize:
+        random.shuffle(tasks)
+    return tasks
+
+
 def main(config_path: str) -> None:
     """Main function for the energy consumption testing tool.
 
@@ -175,9 +192,6 @@ def main(config_path: str) -> None:
     # Read parameters from config
     num_commits = config["test"]["num_commits"]
     batch_size = config["test"].get("batch_size", 100)  # default is 100 commits per batch
-    randomize = config["test"].get("randomize_commits", False)
-    num_runs = config["test"]["num_runs"]
-    num_repeats = config["test"].get("num_repeats", 1)
 
     # Clear previous output file if exists
     if os.path.exists(output_file):
@@ -196,15 +210,8 @@ def main(config_path: str) -> None:
     for batch_index in range(total_batches):
         batch_commits = commits[batch_index * batch_size : (batch_index + 1) * batch_size]
         # Build list of tasks for this batch (each task is one energy measurement run)
-        tasks: list[git.Commit] = []
-        for commit in batch_commits:
-            if not commit_contains_c_code(commit, config):
-                tqdm.write(f"Skipping commit {commit.hexsha} as it does not contain C code.")
-                continue
-            # Each commit is scheduled for num_runs * num_repeats tests
-            tasks.extend([commit] * (num_runs * num_repeats))
-        if randomize:
-            random.shuffle(tasks)
+        tasks: list[git.Commit] = generate_tasks(batch_commits, config)
+
         tqdm.write(f"\nProcessing batch {batch_index + 1}/{total_batches} with {len(tasks)} tasks...")
 
         # Use a tqdm progress bar for tasks in this batch
