@@ -1,28 +1,32 @@
+"""Test energy consumption across Git commits."""
+
 #!/usr/bin/env python3
-import os
-import subprocess
-import git
 import argparse
-import pandas as pd
-from time import sleep
-import statistics
 import json
-import time
+import os
 import random
 import shutil
+import statistics
+import subprocess
+import time
+from time import sleep
+
+import git
+import git.types
+from git.types import Files_TD
 from pyparsing import Any
 
 
-def load_config(config_path: str) -> dict:
+def load_config(config_path: str) -> dict[str, Any]:
     """Load configuration from a JSON file."""
-    with open(config_path, "r") as file:
-        return json.load(file)
+    with open(
+        config_path,
+    ) as file:
+        return dict(json.load(file))
 
 
-def run_single_energy_test(repo_path: str, output_file: str, config: dict) -> None:
-    """
-    Runs a single instance of the energy measurement test.
-    """
+def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, Any]) -> None:
+    """Runs a single instance of the energy measurement test."""
     script_path = os.path.join(os.getcwd(), "measure_energy.sh")
     # Ensure CPU temperature is within safe limits
     while not is_temperature_safe(config):
@@ -70,7 +74,7 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict) -> No
             print(f"Standard Error:\n{e.stderr}")
 
 
-def is_temperature_safe(config: dict) -> bool:
+def is_temperature_safe(config: dict[str, Any]) -> bool:
     """Check if temperature is within safe limits (CPU not throttling)."""
     temperature = int(
         subprocess.run(
@@ -80,43 +84,21 @@ def is_temperature_safe(config: dict) -> bool:
             text=True,
         ).stdout.strip()
     )
+    assert isinstance(config["thresholds"]["temperature_safe_limit"], int)
     return temperature < config["thresholds"]["temperature_safe_limit"]
 
 
-def analyze_results(output_file: str, config: dict) -> None:
-    """
-    Analyzes energy usage trends and detects significant regressions.
-    Args:
-        output_file (str): CSV file containing the energy measurements.
-        config (dict): The configuration dictionary.
-    """
-    df = pd.read_csv(
-        output_file,
-        header=None,
-        names=["commit", "energy_used", "exit_code"],
-    )
-    df["energy_used"] = df["energy_used"].astype(int)
-    print("\nEnergy Consumption Trend:")
-    print(df)
-    df["prev_energy"] = df["energy_used"].shift(1)
-    df["increase"] = (df["energy_used"] - df["prev_energy"]) / df["prev_energy"] * 100
-    regressions = df[df["increase"] > config["thresholds"]["energy_regression_percent"]]
-    if not regressions.empty:
-        print("\n⚠️ Energy Regressions Detected:")
-        print(regressions)
-    else:
-        print("\n✅ No significant regressions detected.")
-
-
 def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -> bool:
-    """
-    Checks if the system's power consumption is stable using the Modified Z-Score.
+    """Checks if the system's power consumption is stable using the Modified Z-Score.
+
     Args:
         k (float): Threshold for the Modified Z-score (default = 3.5).
         warmup_time (int): Time in seconds for initial power observation.
         duration (int): Total monitoring duration in seconds.
+
     Returns:
         bool: True if system is stable, False otherwise.
+
     """
 
     def get_energy_uj() -> int:
@@ -129,7 +111,7 @@ def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -
             ).stdout.strip()
         )
 
-    power_samples = []
+    power_samples: list[int] = []
     prev_energy = get_energy_uj()
     print(f"Gathering baseline power data for {warmup_time} seconds...")
     for _ in range(warmup_time):
@@ -157,19 +139,14 @@ def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -
     return True
 
 
-def commit_contains_c_code(commit: git.Commit, config: dict) -> bool:
+def commit_contains_c_code(commit: git.Commit, config: dict[str, Any]) -> bool:
     """Determine if a commit modifies any files with a C-related extension."""
-    files = commit.stats.files
-    for file in files.keys():
-        if file.endswith(tuple(config["file_extensions"])):
-            return True
-    return False
+    files: dict[git.types.PathLike, Files_TD] = commit.stats.files
+    return any(str(file).endswith(tuple(config["file_extensions"])) for file in files)
 
 
 def setup_repo(repo_path: str, repo_url: str) -> git.Repo:
-    """
-    Clones the repository if not present; otherwise opens the existing one.
-    """
+    """Clones the repository if not present; otherwise opens the existing one."""
     if not os.path.exists(repo_path):
         print(f"Cloning {repo_url} into {repo_path}...")
         return git.Repo.clone_from(repo_url, repo_path)
@@ -179,8 +156,17 @@ def setup_repo(repo_path: str, repo_url: str) -> git.Repo:
 
 
 def main(config_path: str) -> None:
+    """Main function for the energy consumption testing tool.
+
+    Loads the configuration from a JSON file, clones the repository, and processes
+    commits in batches. For each batch, it checks out the commit, builds the project,
+    runs the energy measurement test, and saves the results to a CSV file.
+
+    After processing each batch, it deletes the repository cache to free up space.
+    Finally, it checks out back to the latest commit on the branch.
+    """
     start_time = time.time()
-    config: dict = load_config(config_path)
+    config: dict[str, Any] = load_config(config_path)
     project_name = os.path.basename(config["repository"]["url"]).replace(".git", "")
     project_dir = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
@@ -189,9 +175,7 @@ def main(config_path: str) -> None:
 
     # Read parameters from config
     num_commits = config["test"]["num_commits"]
-    batch_size = config["test"].get(
-        "batch_size", 100
-    )  # default is 100 commits per batch
+    batch_size = config["test"].get("batch_size", 100)  # default is 100 commits per batch
     randomize = config["test"].get("randomize_commits", False)
     num_runs = config["test"]["num_runs"]
     num_repeats = config["test"].get("num_repeats", 1)
@@ -202,35 +186,27 @@ def main(config_path: str) -> None:
 
     # Clone the repository to get the list of commits
     repo = setup_repo(repo_path, config["repository"]["url"])
-    commits = list(
-        repo.iter_commits(config["repository"]["branch"], max_count=num_commits)
-    )
+    commits = list(repo.iter_commits(config["repository"]["branch"], max_count=num_commits))
     total_batches = (len(commits) + batch_size - 1) // batch_size
-    print(
-        f"Total commits: {len(commits)} in {total_batches} batches (batch size: {batch_size})"
-    )
+    print(f"Total commits: {len(commits)} in {total_batches} batches (batch size: {batch_size})")
 
-    current_commit = None
+    current_commit: str = ""
     global_task_counter = 0
 
     # Process commits batch by batch
     for batch_index in range(total_batches):
-        batch_commits = commits[
-            batch_index * batch_size : (batch_index + 1) * batch_size
-        ]
+        batch_commits = commits[batch_index * batch_size : (batch_index + 1) * batch_size]
         # Build list of tasks for this batch (each task is one energy measurement run)
-        tasks = []
+        tasks: list[git.Commit] = []
         for commit in batch_commits:
             if not commit_contains_c_code(commit, config):
                 print(f"Skipping commit {commit.hexsha} as it does not contain C code.")
                 continue
             for _ in range(num_runs * num_repeats):
-                tasks.append(commit)
+                tasks.extend([commit] * (num_runs * num_repeats))
         if randomize:
             random.shuffle(tasks)
-        print(
-            f"\nProcessing batch {batch_index + 1}/{total_batches} with {len(tasks)} tasks..."
-        )
+        print(f"\nProcessing batch {batch_index + 1}/{total_batches} with {len(tasks)} tasks...")
         for i, commit in enumerate(tasks):
             # If the commit changes, checkout and build the project
             if current_commit != commit.hexsha:
@@ -248,55 +224,39 @@ def main(config_path: str) -> None:
                             text=True,
                         )
                     except subprocess.CalledProcessError as e:
-                        print(
-                            f"Error: Command '{command}' failed with exit code {e.returncode}"
-                        )
+                        print(f"Error: Command '{command}' failed with exit code {e.returncode}")
                         print(f"Stdout:\n{e.stdout}")
                         print(f"Stderr:\n{e.stderr}")
                 current_commit = commit.hexsha
             # Run a single energy measurement test for this task
             run_single_energy_test(repo_path, output_file, config)
             global_task_counter += 1
-            print(
-                f"Global progress: {global_task_counter} tasks completed (batch progress: {i + 1}/{len(tasks)})"
-            )
+            print(f"Global progress: {global_task_counter} tasks completed (batch progress: {i + 1}/{len(tasks)})")
             elapsed_time = int(time.time() - start_time)
             formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
             print(f"Elapsed time: {formatted_time}")
         # Delete the repository cache to free up space after processing a batch
-        print(
-            f"\nBatch {batch_index + 1} completed. Deleting repository cache to free up space..."
-        )
+        print(f"\nBatch {batch_index + 1} completed. Deleting repository cache to free up space...")
         if os.path.exists(repo_path):
             shutil.rmtree(repo_path)
         # Re-clone repository for the next batch (if any)
         if batch_index < total_batches - 1:
             repo = setup_repo(repo_path, config["repository"]["url"])
-            current_commit = None
+            current_commit = ""
 
     # Final step: checkout back to the latest commit on the branch
     repo.git.checkout(config["repository"]["branch"])
     print("\n✅ Restored to latest commit.")
-    # Analyze energy consumption trends
-    analyze_results(output_file, config)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Test energy consumption across Git commits."
-    )
+    parser = argparse.ArgumentParser(description="Test energy consumption across Git commits.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    stability_parser = subparsers.add_parser(
-        "stability-test", help="Run the system stability test"
-    )
+    stability_parser = subparsers.add_parser("stability-test", help="Run the system stability test")
 
-    measure_parser = subparsers.add_parser(
-        "measure", help="Run the energy measurement test"
-    )
-    measure_parser.add_argument(
-        "config_path", help="Path to the configuration JSON file"
-    )
+    measure_parser = subparsers.add_parser("measure", help="Run the energy measurement test")
+    measure_parser.add_argument("config_path", help="Path to the configuration JSON file")
 
     args = parser.parse_args()
 

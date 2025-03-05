@@ -29,9 +29,7 @@ def create_energy_plot(df, energy_column, output_filename):
     x_indices = np.arange(len(x))
 
     # Extract the full distribution data for each commit
-    distribution_data = [
-        group[energy_column].values for _, group in df.groupby("commit", sort=False)
-    ]
+    distribution_data = [group[energy_column].values for _, group in df.groupby("commit", sort=False)]
 
     # Create the figure
     plt.figure(figsize=(20, 10))
@@ -126,7 +124,7 @@ def create_energy_plot(df, energy_column, output_filename):
 if __name__ == "__main__":
     # Load CSV file (Assumes no headers)
     df = pd.read_csv(
-        "server_results_3.csv",
+        "server_results6.csv",
         header=None,
         names=["commit", "energy-pkg", "energy-core", "energy-gpu"],
     )
