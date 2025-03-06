@@ -50,7 +50,7 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
         run_command(config["test"]["post_command"])
 
 
-def run_command(args: list[str] | str, cwd: str | None = None) -> subprocess.CompletedProcess[str] | None:
+def run_command(args: list[str] | str, cwd: str | None = None, shell: bool = True) -> subprocess.CompletedProcess[str] | None:
     """Executes a shell command and captures its output.
 
     Args:
@@ -68,7 +68,7 @@ def run_command(args: list[str] | str, cwd: str | None = None) -> subprocess.Com
         result = subprocess.run(
             args=args,
             cwd=cwd,
-            shell=True,
+            shell=shell,
             check=True,
             capture_output=True,
             text=True,
@@ -85,7 +85,7 @@ def run_command(args: list[str] | str, cwd: str | None = None) -> subprocess.Com
 
 def is_temperature_safe(config: dict[str, Any]) -> bool:
     """Check if temperature is within safe limits (CPU not throttling)."""
-    command_result = run_command(["cat", config["cpu_themal_file_path"]])
+    command_result = run_command(["cat", config["cpu_themal_file_path"]], shell=False)
     if command_result is None:
         tqdm.write("Failed to get CPU temperature. Continuing with the test...")
         return True
