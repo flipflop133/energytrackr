@@ -31,7 +31,7 @@
         "sudo apt install nasm"
     ],
     "compile_commands": [
-        "make clean",
+        "make clean || true",
         "./configure",
         "make -j$(nproc) CC=\"ccache gcc\""
     ]
