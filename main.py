@@ -90,6 +90,7 @@ def is_temperature_safe(config: dict[str, Any]) -> bool:
         tqdm.write("Failed to get CPU temperature. Continuing with the test...")
         return True
     temperature = int(command_result.stdout.strip())
+    tqdm.write(f"CPU temperature: {temperature}°C")
     assert isinstance(config["thresholds"]["temperature_safe_limit"], int)
     return temperature < config["thresholds"]["temperature_safe_limit"]
 
