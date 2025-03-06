@@ -197,6 +197,11 @@ def main(config_path: str) -> None:
     if os.path.exists(output_file):
         os.remove(output_file)
 
+    # Run project setup commands
+    for command in config["setup_commands"]:
+        tqdm.write(f"Running setup command: {command}")
+        subprocess.run(command, shell=True, check=True)
+
     # Clone the repository to get the list of commits
     repo = setup_repo(repo_path, config["repository"]["url"])
     commits = list(repo.iter_commits(config["repository"]["branch"], max_count=num_commits))

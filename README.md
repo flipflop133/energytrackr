@@ -58,6 +58,14 @@ This command will:
 docker buildx build -t pipeline .
 docker run -it --privileged pipeline:latest
 
+## Running it inside a server with tmux
+
+tmux new -s mysession
+
+### To reconnect
+
+tmux attach -t mysession
+
 ## Conf
 
 Temperature files examples:
