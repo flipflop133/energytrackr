@@ -33,56 +33,61 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
         sleep(1)
     # Run pre-command if provided
     if config.get("test", {}).get("pre_command"):
-        subprocess.run(
-            config["test"]["pre_command"],
-            shell=True,
-            check=True,
-        )
+        run_command(config["test"]["pre_command"])
     # Run the energy measurement script
+    run_command(
+        [
+            "sudo",
+            "sh",
+            script_path,
+            repo_path,
+            config["test"]["command"],
+            output_file,
+        ],
+    )
+    # Run post-command if provided
+    if config.get("test", {}).get("post_command"):
+        run_command(config["test"]["post_command"])
+
+
+def run_command(args: list[str] | str) -> subprocess.CompletedProcess[str] | None:
+    """Executes a shell command and captures its output.
+
+    Args:
+        args (list[str] | str): The shell command to execute.
+
+    Raises:
+        CalledProcessError: If the command exits with a non-zero status.
+
+    Logs:
+        Error messages, standard output, and standard error if the command fails.
+
+    """
     try:
-        subprocess.run(
-            [
-                "sudo",
-                "sh",
-                script_path,
-                repo_path,
-                config["test"]["command"],
-                output_file,
-            ],
+        result = subprocess.run(
+            args=args,
+            shell=True,
             check=True,
             capture_output=True,
             text=True,
         )
+        return result
     except subprocess.CalledProcessError as e:
-        tqdm.write(f"Error: Command failed with exit code {e.returncode}")
-        tqdm.write(f"Standard Output:\n{e.stdout}")
-        tqdm.write(f"Standard Error:\n{e.stderr}")
-    # Run post-command if provided
-    if config.get("test", {}).get("post_command"):
-        try:
-            subprocess.run(
-                config["test"]["post_command"],
-                shell=True,
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-        except subprocess.CalledProcessError as e:
-            tqdm.write(f"Error: Command failed with exit code {e.returncode}")
+        tqdm.write(f"Error: Command {args} failed with exit code {e.returncode}")
+        if e.stdout:
             tqdm.write(f"Standard Output:\n{e.stdout}")
+        if e.stderr:
             tqdm.write(f"Standard Error:\n{e.stderr}")
+        return None
 
 
 def is_temperature_safe(config: dict[str, Any]) -> bool:
     """Check if temperature is within safe limits (CPU not throttling)."""
-    temperature = int(
-        subprocess.run(
-            ["cat", config["cpu_themal_file_path"]],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-    )
+    command_result = run_command(["cat", config["cpu_themal_file_path"]])
+    if command_result is None:
+        tqdm.write("Failed to get CPU temperature. Continuing with the test...")
+        return True
+    temperature = int(command_result.stdout.strip())
     assert isinstance(config["thresholds"]["temperature_safe_limit"], int)
     return temperature < config["thresholds"]["temperature_safe_limit"]
 
@@ -101,14 +106,10 @@ def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -
     """
 
     def get_energy_uj() -> int:
-        return int(
-            subprocess.run(
-                ["sudo", "cat", "/sys/class/powercap/intel-rapl:0/energy_uj"],
-                check=True,
-                capture_output=True,
-                text=True,
-            ).stdout.strip()
-        )
+        command_result = run_command(["sudo", "cat", "/sys/class/powercap/intel-rapl:0/energy_uj"])
+        if command_result is None:
+            return 0
+        return int(command_result.stdout.strip())
 
     power_samples: list[int] = []
     prev_energy = get_energy_uj()
@@ -237,19 +238,7 @@ def main(config_path: str) -> None:
                     repo.git.checkout(commit.hexsha)
                     tqdm.write("Building the project...")
                     for command in config["compile_commands"]:
-                        try:
-                            subprocess.run(
-                                command,
-                                shell=True,
-                                cwd=repo_path,
-                                check=True,
-                                capture_output=True,
-                                text=True,
-                            )
-                        except subprocess.CalledProcessError as e:
-                            tqdm.write(f"Error: Command '{command}' failed with exit code {e.returncode}")
-                            tqdm.write(f"Stdout:\n{e.stdout}")
-                            tqdm.write(f"Stderr:\n{e.stderr}")
+                        run_command(command)
                     current_commit = commit.hexsha
                 # Run a single energy measurement test for this task
                 run_single_energy_test(repo_path, output_file, config)
