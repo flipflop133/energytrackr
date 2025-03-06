@@ -204,7 +204,14 @@ def main(config_path: str) -> None:
 
     # Clone the repository to get the list of commits
     repo = setup_repo(repo_path, config["repository"]["url"])
-    commits = list(repo.iter_commits(config["repository"]["branch"], max_count=num_commits))
+    if config["test"]["granularity"] == "branches":
+        branches = list(repo.branches)
+        commits = [commit for branch in branches for commit in repo.iter_commits(branch, max_count=num_commits)]
+    elif config["test"]["granularity"] == "tags":
+        tags = list(repo.tags)
+        commits = [commit for tag in tags for commit in repo.iter_commits(tag, max_count=num_commits)]
+    else:
+        commits = list(repo.iter_commits(config["repository"]["branch"], max_count=num_commits))
     total_batches = (len(commits) + batch_size - 1) // batch_size
     tqdm.write(f"Total commits: {len(commits)} in {total_batches} batches (batch size: {batch_size})")
 
