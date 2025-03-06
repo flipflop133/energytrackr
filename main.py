@@ -206,7 +206,7 @@ def main(config_path: str) -> None:
     repo = setup_repo(repo_path, config["repository"]["url"])
     if config["test"]["granularity"] == "branches":
         branches = list(repo.branches)
-        commits = [commit for branch in branches for commit in repo.iter_commits(branch, max_count=num_commits)]
+        commits = [branch.commit for branch in branches]  # Get only the latest commit of each branch
     elif config["test"]["granularity"] == "tags":
         tags = list(repo.tags)
         commits = [commit for tag in tags for commit in repo.iter_commits(tag, max_count=num_commits)]
