@@ -32,7 +32,7 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
         tqdm.write("⚠️ CPU temperature is too high. Waiting for it to cool down...")
         sleep(1)
     # Run pre-command if provided
-    if config["test"]["pre_command"]:
+    if config.get("test", {}).get("pre_command"):
         subprocess.run(
             config["test"]["pre_command"],
             shell=True,
