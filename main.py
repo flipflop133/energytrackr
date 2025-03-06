@@ -205,7 +205,7 @@ def main(config_path: str) -> None:
     # Clone the repository to get the list of commits
     repo = setup_repo(repo_path, config["repository"]["url"])
     if config["test"]["granularity"] == "branches":
-        branches = list(repo.branches)
+        branches = list(repo.remotes.origin.refs)
         commits = [branch.commit for branch in branches]  # Get only the latest commit of each branch
         tqdm.write(f"Branches: {branches}")
         tqdm.write(f"Commits: {commits}")
