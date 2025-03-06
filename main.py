@@ -50,11 +50,12 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
         run_command(config["test"]["post_command"])
 
 
-def run_command(args: list[str] | str) -> subprocess.CompletedProcess[str] | None:
+def run_command(args: list[str] | str, cwd: str | None = None) -> subprocess.CompletedProcess[str] | None:
     """Executes a shell command and captures its output.
 
     Args:
         args (list[str] | str): The shell command to execute.
+        cwd (str | None): The working directory path for the command.
 
     Raises:
         CalledProcessError: If the command exits with a non-zero status.
@@ -66,6 +67,7 @@ def run_command(args: list[str] | str) -> subprocess.CompletedProcess[str] | Non
     try:
         result = subprocess.run(
             args=args,
+            cwd=cwd,
             shell=True,
             check=True,
             capture_output=True,
@@ -239,7 +241,7 @@ def main(config_path: str) -> None:
                     tqdm.write("Building the project...")
                     build_failed = False
                     for command in config["compile_commands"]:
-                        if run_command(command) is None:
+                        if run_command(command, repo_path) is None:
                             tqdm.write("Failed to build the project. Skipping this commit...")
                             build_failed = True
                             break
