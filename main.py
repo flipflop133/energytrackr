@@ -183,7 +183,7 @@ def main(config_path: str) -> None:
     """
     start_time = time.time()
     config: dict[str, Any] = load_config(config_path)
-    project_name = os.path.basename(config["repository"]["url"]).replace(".git", "")
+    project_name = os.path.basename(config["repository"]["url"]).replace(".git", "").strip().lower()
     project_dir = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
     repo_path = os.path.join(project_dir, ".cache" + project_name)
