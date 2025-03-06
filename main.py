@@ -207,6 +207,8 @@ def main(config_path: str) -> None:
     if config["test"]["granularity"] == "branches":
         branches = list(repo.branches)
         commits = [branch.commit for branch in branches]  # Get only the latest commit of each branch
+        tqdm.write(f"Branches: {branches}")
+        tqdm.write(f"Commits: {commits}")
     elif config["test"]["granularity"] == "tags":
         tags = list(repo.tags)
         commits = [commit for tag in tags for commit in repo.iter_commits(tag, max_count=num_commits)]
