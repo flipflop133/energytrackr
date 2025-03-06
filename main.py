@@ -161,7 +161,7 @@ def generate_tasks(batch_commits: list[git.Commit], config: dict[str, Any]) -> l
     num_repeats = config["test"].get("num_repeats", 1)
     randomize = config["test"].get("randomize_tasks", False)
     for commit in batch_commits:
-        if not commit_contains_c_code(commit, config):
+        if config["test"].get("granularity", "commit") == "commit" and not commit_contains_c_code(commit, config):
             tqdm.write(f"Skipping commit {commit.hexsha} as it does not contain C code.")
             continue
         # Each commit is scheduled for num_runs * num_repeats tests
