@@ -85,6 +85,7 @@ def run_command(args: list[str] | str, cwd: str | None = None, shell: bool = Tru
 
 def is_temperature_safe(config: dict[str, Any]) -> bool:
     """Check if temperature is within safe limits (CPU not throttling)."""
+    tqdm.write("Checking CPU temperature...")
     command_result = run_command(["cat", config["cpu_themal_file_path"]], shell=False)
     if command_result is None:
         tqdm.write("Failed to get CPU temperature. Continuing with the test...")
