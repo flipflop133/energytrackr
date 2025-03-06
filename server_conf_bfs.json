@@ -27,7 +27,7 @@
     ],
     "cpu_themal_file_path": "/sys/class/hwmon/hwmon2/temp1_input",
     "setup_commands": [
-        "sudo apt-get install acl libacl1-dev attr libattr1-dev libcap2-bin libcap-dev liburing-dev libonig-dev",
+        "sudo apt-get -y install acl libacl1-dev attr libattr1-dev libcap2-bin libcap-dev liburing-dev libonig-dev",
         "git clone --depth 1 https://github.com/torvalds/linux projects/bfs/samples/linux-kernel"
     ],
     "compile_commands": [

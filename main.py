@@ -58,7 +58,7 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
         tqdm.write(f"Standard Output:\n{e.stdout}")
         tqdm.write(f"Standard Error:\n{e.stderr}")
     # Run post-command if provided
-    if config["test"]["post_command"]:
+    if config.get("test", {}).get("post_command"):
         try:
             subprocess.run(
                 config["test"]["post_command"],
