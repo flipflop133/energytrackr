@@ -238,7 +238,9 @@ def main(config_path: str) -> None:
                     repo.git.checkout(commit.hexsha)
                     tqdm.write("Building the project...")
                     for command in config["compile_commands"]:
-                        run_command(command)
+                        if run_command(command) is None:
+                            tqdm.write("Failed to build the project. Skipping this commit...")
+                            continue
                     current_commit = commit.hexsha
                 # Run a single energy measurement test for this task
                 run_single_energy_test(repo_path, output_file, config)
