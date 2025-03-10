@@ -6,7 +6,7 @@ OUTPUT_FILE=$3
 
 # Run the test command with perf to measure energy consumption
 echo "$TEST_COMMAND"
-PERF_OUTPUT=$(perf stat -e power/energy-pkg/ $TEST_COMMAND 2>&1)
+PERF_OUTPUT=$(perf stat -e power/energy-pkg/ $TEST_COMMAND)
 # -e power/energy-cores/ -e power/energy-gpu/ 
 
 # Extract energy values from perf output
