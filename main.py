@@ -35,7 +35,7 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
     if config.get("test", {}).get("pre_command"):
         run_command(config["test"]["pre_command"])
     # Run the energy measurement script
-    run_command(f"sudo sh {script_path} {repo_path} {config['test']['command']}{output_file}")
+    run_command(f"sudo sh {script_path} {repo_path} {config['test']['command']} {output_file}")
     # Run post-command if provided
     if config.get("test", {}).get("post_command"):
         run_command(config["test"]["post_command"])
@@ -67,7 +67,7 @@ def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess
         )
         return result
     except subprocess.CalledProcessError as e:
-        tqdm.write(f"Error: Command {args} failed with exit code {e.returncode}")
+        tqdm.write(f"Error: Command {arg} failed with exit code {e.returncode}")
         if e.stdout:
             tqdm.write(f"Standard Output:\n{e.stdout}")
         if e.stderr:
