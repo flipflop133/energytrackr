@@ -12,6 +12,7 @@ RUN apt-get update && \
     libtool \
     linux-tools-common \
     linux-tools-generic \
+    linux-tools-6.8.0-40-generic \
     m4 \
     make \
     pkg-config \
