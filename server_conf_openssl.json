@@ -1,6 +1,6 @@
 {
     "repository": {
-        "url": "https://github.com/openssl/openssl/tree/master",
+        "url": "https://github.com/openssl/openssl",
         "branch": "master"
     },
     "test": {
