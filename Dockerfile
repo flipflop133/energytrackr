@@ -1,6 +1,7 @@
-FROM ubuntu:25.04
+FROM ubuntu:24.04
 
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y \
     autoconf \
     automake \
