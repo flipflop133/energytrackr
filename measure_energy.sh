@@ -20,5 +20,3 @@ echo "ENERGY_PKG: $ENERGY_PKG"
 # Append results to file
 echo "$(git -C $REPO_PATH rev-parse HEAD),$ENERGY_PKG" >> "$OUTPUT_FILE"
 #echo "$(git -C $REPO_PATH rev-parse HEAD),$ENERGY_PKG,$ENERGY_CORES,$ENERGY_GPU" >> "$OUTPUT_FILE"
-
-exit 0

@@ -24,6 +24,64 @@ def load_config(config_path: str) -> dict[str, Any]:
         return dict(json.load(file))
 
 
+def measure_energy(repo_path: str, test_command: str, output_file: str) -> None:
+    """Runs a test command using `perf` to measure energy consumption and logs the results.
+
+    Args:
+        repo_path (str): Path to the Git repository.
+        test_command (str): Command to execute for testing.
+        output_file (str): Path to the output CSV file.
+
+    """
+    try:
+        # Run the test command with `perf` to measure energy consumption
+        tqdm.write(f"Running test command: {test_command}")
+        perf_command = f"perf stat -e power/energy-pkg/ {test_command}"
+
+        result: subprocess.CompletedProcess[str] | None = run_command(perf_command, repo_path)
+
+        if result is None:
+            tqdm.write("Failed to run perf command. Skipping energy measurement.")
+            return
+
+        if result.returncode != 0:
+            tqdm.write(f"Error running perf command: {result.stderr}")
+            return
+
+        perf_output = result.stderr  # `perf stat` outputs to stderr by default
+
+        # Extract energy values from perf output
+        energy_pkg = extract_energy_value(perf_output, "power/energy-pkg/")
+
+        if energy_pkg is None:
+            tqdm.write("Failed to extract energy measurement from perf output.")
+            return
+
+        tqdm.write(f"ENERGY_PKG: {energy_pkg}")
+
+        # Get the current Git commit hash
+        repo = git.Repo(repo_path)
+        commit_hash = repo.head.object.hexsha
+
+        # Append results to file
+        with open(output_file, "a") as file:
+            file.write(f"{commit_hash},{energy_pkg}\n")
+
+        tqdm.write(f"Results appended to {output_file}")
+    except Exception as e:
+        tqdm.write(f"Error: {e}")
+
+
+def extract_energy_value(perf_output: str, event_name: str) -> str | None:
+    """Extracts the energy measurement value from the perf output."""
+    for line in perf_output.split("\n"):
+        if event_name in line:
+            parts = line.split()
+            if parts:
+                return parts[0]  # First column is the energy value
+    return None
+
+
 def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, Any]) -> None:
     """Runs a single instance of the energy measurement test."""
     script_path = os.path.join(os.getcwd(), "measure_energy.sh")
@@ -34,8 +92,8 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
     # Run pre-command if provided
     if config.get("test", {}).get("pre_command"):
         run_command(config["test"]["pre_command"])
-    # Run the energy measurement script
-    run_command(f"sudo sh {script_path} {repo_path} {config['test']['command']} {output_file}")
+    # Run the energy measurement
+    measure_energy(repo_path, script_path, output_file)
     # Run post-command if provided
     if config.get("test", {}).get("post_command"):
         run_command(config["test"]["post_command"])
