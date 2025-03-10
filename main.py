@@ -84,7 +84,6 @@ def extract_energy_value(perf_output: str, event_name: str) -> str | None:
 
 def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, Any]) -> None:
     """Runs a single instance of the energy measurement test."""
-    script_path = os.path.join(os.getcwd(), "measure_energy.sh")
     # Ensure CPU temperature is within safe limits
     while not is_temperature_safe(config):
         tqdm.write("⚠️ CPU temperature is too high. Waiting for it to cool down...")
@@ -199,11 +198,11 @@ def commit_contains_c_code(commit: git.Commit, config: dict[str, Any]) -> bool:
     return any(str(file).endswith(tuple(config["file_extensions"])) for file in files)
 
 
-def setup_repo(repo_path: str, repo_url: str) -> git.Repo:
+def setup_repo(repo_path: str, repo_url: str, config: dict[str, Any]) -> git.Repo:
     """Clones the repository if not present; otherwise opens the existing one."""
     if not os.path.exists(repo_path):
         tqdm.write(f"Cloning {repo_url} into {repo_path}...")
-        return git.Repo.clone_from(repo_url, repo_path)
+        return git.Repo.clone_from(repo_url, repo_path, multi_options=[config["repository"]["git_args"]])
     else:
         tqdm.write(f"Using existing repo at {repo_path}...")
         return git.Repo(repo_path)
@@ -253,7 +252,7 @@ def main(config_path: str) -> None:
         os.remove(output_file)
 
     # Clone the repository to get the list of commits
-    repo = setup_repo(repo_path, config["repository"]["url"])
+    repo = setup_repo(repo_path, config["repository"]["url"], config)
     if config["test"]["granularity"] == "branches":
         branches = list(repo.remotes.origin.refs)
         commits = [branch.commit for branch in branches]  # Get only the latest commit of each branch

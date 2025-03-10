@@ -1,7 +1,8 @@
 {
     "repository": {
         "url": "https://github.com/cfengine/core",
-        "branch": "master"
+        "branch": "master",
+        "git_args": "--recursive"
     },
     "test": {
         "mode": "tests",
