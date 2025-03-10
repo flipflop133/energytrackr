@@ -65,6 +65,7 @@ def run_command(args: list[str] | str, cwd: str | None = None, shell: bool = Tru
 
     """
     try:
+        tqdm.write(f"Running command: {' '.join(args)}")
         result = subprocess.run(
             args=args,
             cwd=cwd,
