@@ -28,9 +28,6 @@
         "ac"
     ],
     "cpu_themal_file_path": "/sys/class/hwmon/hwmon2/temp1_input",
-    "setup_commands": [
-        "sudo apt install nasm"
-    ],
     "compile_commands": [
         "make clean || true",
         "./configure",
