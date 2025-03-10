@@ -35,26 +35,17 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
     if config.get("test", {}).get("pre_command"):
         run_command(config["test"]["pre_command"])
     # Run the energy measurement script
-    run_command(
-        [
-            "sudo",
-            "sh",
-            script_path,
-            repo_path,
-            config["test"]["command"],
-            output_file,
-        ],
-    )
+    run_command(f"sudo sh {script_path} {repo_path} {config['test']['command']}{output_file}")
     # Run post-command if provided
     if config.get("test", {}).get("post_command"):
         run_command(config["test"]["post_command"])
 
 
-def run_command(args: list[str] | str, cwd: str | None = None, shell: bool = True) -> subprocess.CompletedProcess[str] | None:
+def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess[str] | None:
     """Executes a shell command and captures its output.
 
     Args:
-        args (list[str] | str): The shell command to execute.
+        arg (str): The command to run.
         cwd (str | None): The working directory path for the command.
 
     Raises:
@@ -65,14 +56,11 @@ def run_command(args: list[str] | str, cwd: str | None = None, shell: bool = Tru
 
     """
     try:
-        # Ensure the command is a string if shell=True
-        if isinstance(args, list):
-            args = " ".join(args)
-        tqdm.write(f"Running command: {' '.join(args)}")
+        tqdm.write(f"Running command: {args}")
         result = subprocess.run(
-            args=args,
+            args=arg,
             cwd=cwd,
-            shell=shell,
+            shell=True,
             check=True,
             capture_output=True,
             text=True,
@@ -90,7 +78,7 @@ def run_command(args: list[str] | str, cwd: str | None = None, shell: bool = Tru
 def is_temperature_safe(config: dict[str, Any]) -> bool:
     """Check if temperature is within safe limits (CPU not throttling)."""
     tqdm.write("Checking CPU temperature...")
-    command_result = run_command(["cat", config["cpu_themal_file_path"]], shell=False)
+    command_result = run_command(f"cat {config['cpu_themal_file_path']}")
     if command_result is None:
         tqdm.write("Failed to get CPU temperature. Continuing with the test...")
         return True
@@ -114,7 +102,7 @@ def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -
     """
 
     def get_energy_uj() -> int:
-        command_result = run_command(["sudo", "cat", "/sys/class/powercap/intel-rapl:0/energy_uj"])
+        command_result = run_command("sudo cat /sys/class/powercap/intel-rapl:0/energy_uj")
         if command_result is None:
             return 0
         return int(command_result.stdout.strip())
