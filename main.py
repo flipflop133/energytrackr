@@ -252,12 +252,6 @@ def main(config_path: str) -> None:
     if os.path.exists(output_file):
         os.remove(output_file)
 
-    # Run project setup commands
-    if "setup_commands" in config:
-        for command in config["setup_commands"]:
-            tqdm.write(f"Running setup command: {command}")
-            subprocess.run(command, shell=True, check=True)
-
     # Clone the repository to get the list of commits
     repo = setup_repo(repo_path, config["repository"]["url"])
     if config["test"]["granularity"] == "branches":
@@ -272,6 +266,12 @@ def main(config_path: str) -> None:
         commits = list(repo.iter_commits(config["repository"]["branch"], max_count=num_commits))
     total_batches = (len(commits) + batch_size - 1) // batch_size
     tqdm.write(f"Total commits: {len(commits)} in {total_batches} batches (batch size: {batch_size})")
+
+    # Run project setup commands
+    if "setup_commands" in config:
+        for command in config["setup_commands"]:
+            tqdm.write(f"Running setup command: {command}")
+            subprocess.run(command, shell=True, check=True)
 
     current_commit: str = ""
     global_task_counter = 0
