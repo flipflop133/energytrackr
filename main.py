@@ -93,7 +93,7 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
     if config.get("test", {}).get("pre_command"):
         run_command(config["test"]["pre_command"])
     # Run the energy measurement
-    measure_energy(repo_path, script_path, output_file)
+    measure_energy(repo_path, config["test"]["command"], output_file)
     # Run post-command if provided
     if config.get("test", {}).get("post_command"):
         run_command(config["test"]["post_command"])
