@@ -56,7 +56,7 @@ def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess
 
     """
     try:
-        tqdm.write(f"Running command: {args}")
+        tqdm.write(f"Running command: {arg}")
         result = subprocess.run(
             args=arg,
             cwd=cwd,
