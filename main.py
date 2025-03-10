@@ -241,14 +241,15 @@ def main(config_path: str) -> None:
                     tqdm.write(f"\n🔄 Checking out commit {commit.hexsha}...")
                     repo.git.checkout(commit.hexsha)
                     tqdm.write("Building the project...")
-                    build_failed = False
-                    for command in config["compile_commands"]:
-                        if run_command(command, repo_path) is None:
-                            tqdm.write("Failed to build the project. Skipping this commit...")
-                            build_failed = True
-                            break
-                    if build_failed:
-                        continue
+                    if config.get("test", {}).get("mode", "run") == "run":
+                        build_failed = False
+                        for command in config["compile_commands"]:
+                            if run_command(command, repo_path) is None:
+                                tqdm.write("Failed to build the project. Skipping this commit...")
+                                build_failed = True
+                                break
+                        if build_failed:
+                            continue
                     current_commit = commit.hexsha
                 # Run a single energy measurement test for this task
                 run_single_energy_test(repo_path, output_file, config)
