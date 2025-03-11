@@ -36,7 +36,7 @@ def measure_energy(repo_path: str, test_command: str, output_file: str) -> None:
     try:
         # Run the test command with `perf` to measure energy consumption
         tqdm.write(f"Running test command: {test_command}")
-        perf_command = f"perf stat -e power/energy-pkg/ {test_command}"
+        perf_command = f"sudo perf stat -e power/energy-pkg/ {test_command}"
 
         result: subprocess.CompletedProcess[str] | None = run_command(perf_command, repo_path)
 
@@ -48,7 +48,7 @@ def measure_energy(repo_path: str, test_command: str, output_file: str) -> None:
             tqdm.write(f"Error running perf command: {result.stderr}")
             return
 
-        perf_output = result.stderr  # `perf stat` outputs to stderr by default
+        perf_output: str = result.stdout  # `perf stat` outputs to stderr by default
 
         # Extract energy values from perf output
         energy_pkg = extract_energy_value(perf_output, "power/energy-pkg/")
@@ -78,6 +78,9 @@ def extract_energy_value(perf_output: str, event_name: str) -> str | None:
         if event_name in line:
             parts = line.split()
             if parts:
+                if "<not" in parts[0]:
+                    # Handling the unsupported measurement case
+                    return None
                 return parts[0]  # First column is the energy value
     return None
 
@@ -99,36 +102,56 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
 
 
 def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess[str] | None:
-    """Executes a shell command and captures its output.
+    """Executes a shell command, streaming and capturing its output in real time.
 
     Args:
         arg (str): The command to run.
-        cwd (str | None): The working directory path for the command.
+        cwd (str | None): The working directory for the command.
+
+    Returns:
+        subprocess.CompletedProcess[str]: The completed process with captured output on success.
+        None: If the command fails.
 
     Raises:
         CalledProcessError: If the command exits with a non-zero status.
 
-    Logs:
-        Error messages, standard output, and standard error if the command fails.
-
     """
     try:
         tqdm.write(f"Running command: {arg}")
-        result = subprocess.run(
-            args=arg,
+        process = subprocess.Popen(
+            arg,
             cwd=cwd,
             shell=True,
-            check=True,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # Combine stdout and stderr
             text=True,
+            bufsize=1,  # Enable line-buffered mode
         )
-        return result
+
+        output_lines = []
+
+        # Read and stream the output in real time
+        if process.stdout is not None:
+            for line in process.stdout:
+                clean_line = line.rstrip()
+                if clean_line:  # avoid empty lines
+                    tqdm.write(clean_line)
+                    output_lines.append(clean_line)
+
+        retcode = process.wait()
+        output = "\n".join(output_lines)
+
+        if retcode != 0:
+            tqdm.write(f"Error: Command '{arg}' failed with exit code {retcode}")
+            tqdm.write(f"Captured Output:\n{output}")
+            raise subprocess.CalledProcessError(retcode, arg, output=output)
+
+        return subprocess.CompletedProcess(args=arg, returncode=retcode, stdout=output)
+
     except subprocess.CalledProcessError as e:
-        tqdm.write(f"Error: Command {arg} failed with exit code {e.returncode}")
-        if e.stdout:
-            tqdm.write(f"Standard Output:\n{e.stdout}")
-        if e.stderr:
-            tqdm.write(f"Standard Error:\n{e.stderr}")
+        tqdm.write(f"Error: Command '{arg}' failed with exit code {e.returncode}")
+        if e.output:
+            tqdm.write(f"Output:\n{e.output}")
         return None
 
 
@@ -202,7 +225,7 @@ def setup_repo(repo_path: str, repo_url: str, config: dict[str, Any]) -> git.Rep
     """Clones the repository if not present; otherwise opens the existing one."""
     if not os.path.exists(repo_path):
         tqdm.write(f"Cloning {repo_url} into {repo_path}...")
-        return git.Repo.clone_from(repo_url, repo_path, multi_options=[config["repository"]["git_args"]])
+        return git.Repo.clone_from(repo_url, repo_path, multi_options=config.get("repository", {}).get("clone_options"))
     else:
         tqdm.write(f"Using existing repo at {repo_path}...")
         return git.Repo(repo_path)

@@ -72,7 +72,7 @@ add_kernel_param() {
 
     if ! grep -qE "(\s|^)${param}(\s|$)" "$entry_file"; then
         echo "Adding '${param}' to kernel parameters in: $entry_file"
-        sed -i "s/\(options .*\)/\1 ${param}/" "$entry_file"
+        sed -i '/options/ s/$/ '"${param}"'/' "$entry_file"
     else
         echo "'${param}' already present in: $entry_file"
     fi
@@ -97,16 +97,16 @@ enable_stable_measurement() {
     echo -e "${RED}Configuring stable power settings for energy measurement...${RESET}"
 
     # Stop and mask services
-    for svc in "${SERVICES_TO_DISABLE[@]}"; do
-        systemctl stop "$svc" 2>/dev/null || true
-        systemctl mask "$svc" 2>/dev/null || true
-    done
+    # for svc in "${SERVICES_TO_DISABLE[@]}"; do
+    #     systemctl stop "$svc" 2>/dev/null || true
+    #     systemctl mask "$svc" 2>/dev/null || true
+    # done
 
     # Block RF and remove modules
-    rfkill block all
-    for mod in "${WIFI_BT_MODULES[@]}"; do
-        modprobe -r "$mod" 2>/dev/null || true
-    done
+    # rfkill block all
+    # for mod in "${WIFI_BT_MODULES[@]}"; do
+    #     modprobe -r "$mod" 2>/dev/null || true
+    # done
 
     # CPU frequency: set governor userspace and fix freq at 2.0 GHz
     echo "userspace" | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
@@ -155,12 +155,12 @@ enable_stable_measurement() {
     fi
 
     # Disable autosuspend for USB and PCI
-    for device in /sys/bus/usb/devices/*/power/control; do
-        echo "on" > "$device" 2>/dev/null || true
-    done
-    for device in /sys/bus/pci/devices/*/power/control; do
-        echo "on" > "$device" 2>/dev/null || true
-    done
+    # for device in /sys/bus/usb/devices/*/power/control; do
+    #     echo "on" > "$device" 2>/dev/null || true
+    # done
+    # for device in /sys/bus/pci/devices/*/power/control; do
+    #     echo "on" > "$device" 2>/dev/null || true
+    # done
 
     # SATA link power management -> max performance
     for host in /sys/class/scsi_host/host*; do
@@ -269,6 +269,7 @@ disable_stable_measurement() {
 disable_intel_pstate_and_cpuidle() {
     local entry_file
     entry_file=$(get_boot_entry_file)
+    echo $entry_file
 
     echo "Current CPU frequency scaling driver: $(< /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver 2>/dev/null || true)"
 
@@ -312,12 +313,12 @@ main() {
 
     case "$cmd" in
         enable)
+            #disable_intel_pstate_and_cpuidle 
             enable_stable_measurement
-            disable_intel_pstate_and_cpuidle
             ;;
         disable)
             disable_stable_measurement
-            enable_intel_pstate_and_cpuidle
+            #enable_intel_pstate_and_cpuidle
             ;;
         *)
             usage

@@ -1,0 +1,40 @@
+{
+    "repository": {
+        "url": "https://github.com/cfengine/core",
+        "branch": "master",
+        "git_args": "--recursive"
+    },
+    "test": {
+        "mode": "tests",
+        "granularity": "commits",
+        "command": "./autogen.sh && make -j$(nproc) check",
+        "num_commits": 300,
+        "num_runs": 30,
+        "num_repeats": 1,
+        "randomize_commits": true,
+        "batch_size": 100
+    },
+    "output": {
+        "file": "energy_usage.csv"
+    },
+    "thresholds": {
+        "temperature_safe_limit": 60000,
+        "energy_regression_percent": 20
+    },
+    "file_extensions": [
+        "c",
+        "CMakeLists.txt",
+        "h",
+        "sh",
+        "ac"
+    ],
+    "cpu_themal_file_path": "/sys/class/hwmon/hwmon5/temp1_input",
+    "setup_commands": [
+        "git submodule init && git submodule update"
+    ],
+    "compile_commands": [
+        "make clean || true",
+        "./configure",
+        "make -j$(nproc) CC=\"ccache gcc\""
+    ]
+}
