@@ -93,12 +93,12 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
         sleep(1)
     # Run pre-command if provided
     if config.get("test", {}).get("pre_command"):
-        run_command(config["test"]["pre_command"])
+        run_command(config["test"]["pre_command"], repo_path)
     # Run the energy measurement
     measure_energy(repo_path, config["test"]["command"], output_file)
     # Run post-command if provided
     if config.get("test", {}).get("post_command"):
-        run_command(config["test"]["post_command"])
+        run_command(config["test"]["post_command"], repo_path)
 
 
 def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess[str] | None:
