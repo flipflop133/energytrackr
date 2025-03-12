@@ -116,7 +116,6 @@
                 "num_commits",
                 "num_runs",
                 "num_repeats",
-                "randomize_commits",
                 "batch_size"
             ]
         },
