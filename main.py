@@ -104,9 +104,12 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
         tqdm.write("⚠️ CPU temperature is too high. Waiting for it to cool down...")
         sleep(1)
     # Run pre-command if provided
-    if config.get("test", {}).get("pre_command") and config.get("test", {}).get("pre_command_condition_files"):
-        files: list[str] = config.get("test", {}).get("pre_command_condition_files")
-        if commit_contains_patterns(commit, files):
+    if config.get("test", {}).get("pre_command"):
+        if global_task_counter != 0 and config.get("test", {}).get("pre_command_condition_files"):
+            files: list[str] = config.get("test", {}).get("pre_command_condition_files")
+            if commit_contains_patterns(commit, files):
+                run_command(config["test"]["pre_command"], repo_path)
+        else:
             run_command(config["test"]["pre_command"], repo_path)
     # Run the energy measurement
     measure_energy(repo_path, config["test"]["command"], output_file)
@@ -263,6 +266,9 @@ def generate_tasks(batch_commits: list[git.Commit], config: dict[str, Any]) -> l
     return tasks
 
 
+global_task_counter = 0
+
+
 def main(config_path: str) -> None:
     """Main function for the energy consumption testing tool.
 
@@ -311,7 +317,6 @@ def main(config_path: str) -> None:
             subprocess.run(command, shell=True, check=True)
 
     current_commit: str = ""
-    global_task_counter = 0
 
     # Process commits batch by batch
     for batch_index in range(total_batches):
