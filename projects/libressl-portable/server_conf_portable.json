@@ -6,7 +6,7 @@
     "test": {
         "mode": "tests",
         "granularity": "commits",
-        "pre_command": "./autogen.sh && cd build-ninja && cmake -G\"Ninja\" .. && ninja",
+        "pre_command": "./autogen.sh && cd build-ninja && cmake -G\"Ninja\" .. && ninja && cd ..",
         "command_path": "/build-ninja",
         "command": "ninja test",
         "num_commits": 3,
