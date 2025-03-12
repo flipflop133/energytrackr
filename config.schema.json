@@ -54,6 +54,19 @@
                     ],
                     "description": "Level of granularity for test execution"
                 },
+                "pre_command_condition_files": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "List of files to check for in the pre-command",
+                    "example": [
+                        "autogen.sh",
+                        "configure.ac",
+                        "Makefile.am",
+                        "CMakeLists.txt"
+                    ]
+                },
                 "pre_command": {
                     "type": "string",
                     "description": "Command to execute before tests",
@@ -83,10 +96,6 @@
                     "type": "integer",
                     "minimum": 1,
                     "description": "Number of times the entire test suite should be repeated"
-                },
-                "randomize_commits": {
-                    "type": "boolean",
-                    "description": "Whether to randomize commit selection"
                 },
                 "batch_size": {
                     "type": "integer",

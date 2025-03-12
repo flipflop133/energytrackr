@@ -17,7 +17,7 @@
         "num_commits": 300,
         "num_runs": 30,
         "num_repeats": 1,
-        "randomize_commits": true,
+        "randomize_tasks": true,
         "batch_size": 100
     },
     "output": {
