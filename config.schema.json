@@ -1,0 +1,199 @@
+{
+    "$schema": "https://json-schema.org/draft-07/schema#",
+    "title": "Configuration Schema for Energy Regression Testing",
+    "description": "Schema for the configuration file used in the energy regression testing pipeline",
+    "type": "object",
+    "properties": {
+        "repository": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URL of the Git repository"
+                },
+                "branch": {
+                    "type": "string",
+                    "description": "Branch name to track",
+                    "example": "master"
+                },
+                "clone_options": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Additional options for Git clone command",
+                    "example": [
+                        "--depth",
+                        "1"
+                    ]
+                }
+            },
+            "required": [
+                "url",
+                "branch"
+            ]
+        },
+        "test": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "tests",
+                        "benchmarks"
+                    ],
+                    "description": "Mode of testing"
+                },
+                "granularity": {
+                    "type": "string",
+                    "enum": [
+                        "commits",
+                        "branches",
+                        "tags"
+                    ],
+                    "description": "Level of granularity for test execution"
+                },
+                "pre_command": {
+                    "type": "string",
+                    "description": "Command to execute before tests",
+                    "example": "./autogen.sh && ./configure"
+                },
+                "command": {
+                    "type": "string",
+                    "description": "Command to execute the tests",
+                    "example": "make -j$(nproc) check"
+                },
+                "post_command": {
+                    "type": "string",
+                    "description": "Command to execute after tests",
+                    "example": "make clean"
+                },
+                "num_commits": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of commits to analyze"
+                },
+                "num_runs": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of times each test should run"
+                },
+                "num_repeats": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of times the entire test suite should be repeated"
+                },
+                "randomize_commits": {
+                    "type": "boolean",
+                    "description": "Whether to randomize commit selection"
+                },
+                "batch_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of commits to process in a batch",
+                    "default": 100
+                },
+                "randomize_tasks": {
+                    "type": "boolean",
+                    "description": "Whether to randomize task execution order"
+                }
+            },
+            "required": [
+                "mode",
+                "granularity",
+                "pre_command",
+                "command",
+                "num_commits",
+                "num_runs",
+                "num_repeats",
+                "randomize_commits",
+                "batch_size"
+            ]
+        },
+        "output": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "type": "string",
+                    "description": "File path to store the test results",
+                    "example": "energy_usage.csv"
+                }
+            },
+            "required": [
+                "file"
+            ]
+        },
+        "thresholds": {
+            "type": "object",
+            "properties": {
+                "temperature_safe_limit": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Maximum safe temperature in millidegrees Celsius"
+                },
+                "energy_regression_percent": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Threshold for energy regression percentage"
+                }
+            },
+            "required": [
+                "temperature_safe_limit",
+                "energy_regression_percent"
+            ]
+        },
+        "file_extensions": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "List of file extensions to track for changes",
+            "example": [
+                "c",
+                "CMakeLists.txt",
+                "h",
+                "sh",
+                "ac"
+            ]
+        },
+        "cpu_themal_file_path": {
+            "type": "string",
+            "description": "File path for CPU temperature monitoring",
+            "example": "/sys/class/hwmon/hwmon2/temp1_input"
+        },
+        "compile_commands": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "List of commands to compile the project",
+            "example": [
+                "make clean || true",
+                "./configure",
+                "make -j$(nproc) CC=\"ccache gcc\""
+            ]
+        },
+        "setup_commands": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "List of setup commands to run before tests",
+            "example": [
+                "sudo apt-get install -y ccache",
+                "pip install -r requirements.txt"
+            ]
+        }
+    },
+    "required": [
+        "repository",
+        "test",
+        "output",
+        "thresholds",
+        "file_extensions",
+        "cpu_themal_file_path",
+        "compile_commands"
+    ]
+}

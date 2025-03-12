@@ -14,14 +14,27 @@ from time import sleep
 import git
 import git.types
 from git.types import Files_TD
+from jsonschema import ValidationError, validate
 from pyparsing import Any
-from tqdm import tqdm  # Import tqdm for progress reporting
+from tqdm import tqdm
 
 
-def load_config(config_path: str) -> dict[str, Any]:
-    """Load configuration from a JSON file."""
+def load_config(config_path: str, schema_path: str) -> dict[str, Any]:
+    """Load configuration from a JSON file and validate it against the schema."""
     with open(config_path) as file:
-        return dict(json.load(file))
+        config = dict(json.load(file))
+
+    with open(schema_path) as schema_file:
+        schema = json.load(schema_file)
+
+    try:
+        validate(instance=config, schema=schema)
+        tqdm.write("✅ Configuration file is valid!")
+    except ValidationError as e:
+        tqdm.write(f"❌ Configuration file is invalid: {e.message}")
+        exit(1)
+
+    return config
 
 
 def measure_energy(repo_path: str, test_command: str, output_file: str) -> None:
@@ -123,12 +136,12 @@ def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess
             cwd=cwd,
             shell=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,  # Combine stdout and stderr
+            stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1,  # Enable line-buffered mode
+            bufsize=1,
         )
 
-        output_lines = []
+        output_lines: list[str] = []
 
         # Read and stream the output in real time
         if process.stdout is not None:
@@ -259,7 +272,7 @@ def main(config_path: str) -> None:
     Finally, it checks out back to the latest commit on the branch.
     """
     start_time = time.time()
-    config: dict[str, Any] = load_config(config_path)
+    config: dict[str, Any] = load_config(config_path, "config.schema.json")
     project_name = os.path.basename(config["repository"]["url"]).replace(".git", "").strip().lower()
     project_dir = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
@@ -338,7 +351,7 @@ def main(config_path: str) -> None:
             shutil.rmtree(repo_path)
         # Re-clone repository for the next batch (if any)
         if batch_index < total_batches - 1:
-            repo = setup_repo(repo_path, config["repository"]["url"])
+            repo = setup_repo(repo_path, config["repository"]["url"], config)
             current_commit = ""
 
     # Final step: checkout back to the latest commit on the branch
