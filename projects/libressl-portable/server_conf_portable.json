@@ -6,9 +6,9 @@
     "test": {
         "mode": "tests",
         "granularity": "commits",
-        "pre_command": "./autogen.sh && cd build-ninja && cmake -G\"Ninja\" .. && ninja && cd ..",
+        "pre_command": "./autogen.sh && cd build-ninja && cmake -G\"Ninja\" .. && ninja -j$(nproc) && cd ..",
         "command_path": "/build-ninja",
-        "command": "ninja test",
+        "command": "ctest --parallel $(nproc)",
         "num_commits": 3,
         "num_runs": 30,
         "num_repeats": 1,
@@ -37,6 +37,7 @@
     ],
     "setup_commands": [
         "mkdir build-ninja",
-        "CC=\"ccache gcc\""
+        "export CC=\"ccache gcc\"",
+        "export CXX=\"ccache g++\""
     ]
 }
