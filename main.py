@@ -36,7 +36,7 @@ def load_config(config_path: str, schema_path: str) -> dict[str, Any]:
     return config
 
 
-def measure_energy(repo_path: str, test_command: str, output_file: str) -> None:
+def measure_energy(repo_path: str, test_command: str, output_file: str, config: dict[str, Any]) -> None:
     """Runs a test command using `perf` to measure energy consumption and logs the results.
 
     Args:
@@ -50,7 +50,8 @@ def measure_energy(repo_path: str, test_command: str, output_file: str) -> None:
         tqdm.write(f"Running test command: {test_command}")
         perf_command = f"sudo perf stat -e power/energy-pkg/ {test_command}"
 
-        result: subprocess.CompletedProcess[str] | None = run_command(perf_command, repo_path)
+        path: str = repo_path + config.get("test", {}).get("command_path", "")
+        result: subprocess.CompletedProcess[str] | None = run_command(perf_command, path)
 
         if result is None:
             tqdm.write("Failed to run perf command. Skipping energy measurement.")
@@ -112,8 +113,7 @@ def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, A
         else:
             run_command(config["test"]["pre_command"], repo_path)
     # Run the energy measurement
-    path: str = repo_path + config.get("test", {}).get("command_path", "")
-    measure_energy(path, config["test"]["command"], output_file)
+    measure_energy(repo_path, config["test"]["command"], output_file, config)
     # Run post-command if provided
     if config.get("test", {}).get("post_command"):
         run_command(config["test"]["post_command"], repo_path)
