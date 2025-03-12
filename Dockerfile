@@ -17,6 +17,7 @@ RUN apt-get update && \
     m4 \
     make \
     pkg-config \
+    ninja-build \
     python3 \
     python3-pip \
     python3-venv \
