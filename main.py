@@ -13,7 +13,6 @@ from time import sleep
 
 import git
 import git.types
-from git.types import Files_TD
 from jsonschema import ValidationError, validate
 from pyparsing import Any
 from tqdm import tqdm
@@ -98,15 +97,17 @@ def extract_energy_value(perf_output: str, event_name: str) -> str | None:
     return None
 
 
-def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, Any]) -> None:
+def run_single_energy_test(repo_path: str, output_file: str, config: dict[str, Any], commit: git.Commit) -> None:
     """Runs a single instance of the energy measurement test."""
     # Ensure CPU temperature is within safe limits
     while not is_temperature_safe(config):
         tqdm.write("⚠️ CPU temperature is too high. Waiting for it to cool down...")
         sleep(1)
     # Run pre-command if provided
-    if config.get("test", {}).get("pre_command"):
-        run_command(config["test"]["pre_command"], repo_path)
+    if config.get("test", {}).get("pre_command") and config.get("test", {}).get("pre_command_condition_files"):
+        files: list[str] = config.get("test", {}).get("pre_command_condition_files")
+        if commit_contains_patterns(commit, files):
+            run_command(config["test"]["pre_command"], repo_path)
     # Run the energy measurement
     measure_energy(repo_path, config["test"]["command"], output_file)
     # Run post-command if provided
@@ -228,10 +229,9 @@ def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -
     return True
 
 
-def commit_contains_c_code(commit: git.Commit, config: dict[str, Any]) -> bool:
-    """Determine if a commit modifies any files with a C-related extension."""
-    files: dict[git.types.PathLike, Files_TD] = commit.stats.files
-    return any(str(file).endswith(tuple(config["file_extensions"])) for file in files)
+def commit_contains_patterns(commit: git.Commit, patterns: list[str]) -> bool:
+    """Determine if a commit modifies any files that end with any of the given patterns."""
+    return any(str(file).endswith(tuple(patterns)) for file in commit.stats.files)
 
 
 def setup_repo(repo_path: str, repo_url: str, config: dict[str, Any]) -> git.Repo:
@@ -251,7 +251,9 @@ def generate_tasks(batch_commits: list[git.Commit], config: dict[str, Any]) -> l
     num_repeats = config["test"].get("num_repeats", 1)
     randomize = config["test"].get("randomize_tasks", False)
     for commit in batch_commits:
-        if config["test"].get("granularity", "commit") == "commit" and not commit_contains_c_code(commit, config):
+        if config["test"].get("granularity", "commit") == "commit" and not commit_contains_patterns(
+            commit, config["file_extensions"]
+        ):
             tqdm.write(f"Skipping commit {commit.hexsha} as it does not contain C code.")
             continue
         # Each commit is scheduled for num_runs * num_repeats tests
@@ -338,7 +340,7 @@ def main(config_path: str) -> None:
                             continue
                     current_commit = commit.hexsha
                 # Run a single energy measurement test for this task
-                run_single_energy_test(repo_path, output_file, config)
+                run_single_energy_test(repo_path, output_file, config, commit=commit)
                 global_task_counter += 1
                 elapsed_time = int(time.time() - start_time)
                 formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))

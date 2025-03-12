@@ -15,60 +15,122 @@ This project provides a tool for measuring energy consumption across multiple co
 - Python 3
 - Git
 - Bash
-- Pandas (install via `pip install pandas`)
-- GitPython (install via `pip install gitpython`)
 - Intel RAPL enabled (for power measurement)
+- Docker (optional, for running in a container)
 
-## Installation
+## Running the pipeline
 
-Clone this repository and ensure dependencies are installed:
+### Pre-setup
+
+Before running the pipeline, make sure you have:
+
+- installed the pre-requisites
+- ran system_setup.sh to configure the system for energy measurement
+- running inside a new tty, without your graphical desktop environment running
+- disabled as many processes as possible to avoid interfering with the measurement
+- if on laptop, that your laptop is plugged, with the battery fully charged, features like auto-brightness off
+
+### Running system_setup.sh
+
+Run the `system_setup.sh` script to configure the system for energy measurement.
+
+You will have to run it two times if you never ran it.
+
+The first time you'll need to configure your system, this setup only needs to be done one time.
 
 ```sh
-pip install pandas gitpython
+sudo system_setup.sh first-setup
 ```
 
-## Usage
+Then reboot your system.
 
-Run the script with the following arguments:
+The second time you'll need to configure your system, this setup needs to be done every time.
 
 ```sh
-python git_energy_tester.py <repo_url> <branch> "<test_command>" <num_commits> <num_runs>
+sudo system_setup.sh setup
 ```
 
-### Example
+As this will put your system into a mode that is suitable for running the pipeline but not for daily use of your computer you can revert the settings in a best effort mode using:
 
 ```sh
-python main.py https://github.com/mpv-player/mpv.git master "mpv --end=3 sample.mp4" 10 100
+sudo system_setup.sh revert first-setup
 ```
 
-This command will:
+then reboot your system.
 
-- Clone the `mpv` repository.
-- Test the last 10 commits.
-- Run `mpv --end=3 sample.mp4` 100 times per commit.
-- Log energy consumption data.
+you can also revert the setup parameters using :
 
-## Results
+```sh
+sudo system_setup.sh revert setup
+```
 
-- Energy measurement results are stored in `projects/<project_name>/energy_results.csv`.
-- The script analyzes results and flags regressions (increases > 20%).
+which doesn't require a reboot.
 
-## Docker
+### Without Docker
 
-docker buildx build -t pipeline .
-docker run -it --privileged pipeline:latest
+1. Clone the repository
 
-## Running it inside a server with tmux
+2. Install dependencies:
 
-tmux new -s mysession
+    ```sh
+    pip install -r requirements.txt
+    ```
 
-### To reconnect
+3. Create a json config file for the project you want to analyze
 
-tmux attach -t mysession
+    The config file must follow the schema defined in [config.schema.json](config.schema.json)
 
-## Conf
+4. Check that the system is stable
 
-Temperature files examples:
+    ```sh
+    python main.py stability-test
+    ```
 
-- /sys/class/thermal/thermal_zone5/temp
-- /sys/class/hwmon/hwmon2/temp1_input
+5. Run the pipeline
+
+    ```sh
+    python main.py measure <config_path>
+    ```
+
+6. Results
+
+    Results will be produced in a csv file in the same directory as your config file.
+
+7. Analyze results
+
+    Run the plot.py script to visualize the results
+
+    ```sh
+    python plot.py <csv_file>
+    ```
+
+### With Docker
+
+Follow steps 1 to 3 (included) without docker.
+
+before step 4, run:
+
+    ```sh
+    docker buildx build -t pipeline .
+    docker run -it --privileged pipeline:latest
+    ```
+
+### Running it inside a server with tmux
+
+1. Create a tmux session
+    ```sh
+    tmux new -s mysession
+    ```
+
+2. Reconnect using
+    ```sh
+    tmux attach -t mysession
+    ```
+
+## TODO
+
+- [] Don't erase produced csv files, use a timestamp
+- [] Do a warmup run before the actual measurement
+- [] Add a cooldown between measurements, 1 second by default
+- [] Save run conditions (temperature, cpu governor, number of cpu cycles, etc.), perf could be use for part of this.
+- [] Save run conditions and config file at top of the csv file, so we have all the informations in one place, or make a special file type for this.

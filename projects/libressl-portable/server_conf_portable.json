@@ -6,6 +6,12 @@
     "test": {
         "mode": "tests",
         "granularity": "commits",
+        "pre_command_condition_files": [
+            "autogen.sh",
+            "configure.ac",
+            "Makefile.am",
+            "CMakeLists.txt"
+        ],
         "pre_command": "./autogen.sh && ./configure",
         "command": "make -j$(nproc) check",
         "num_commits": 300,
