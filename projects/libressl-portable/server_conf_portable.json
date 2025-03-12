@@ -6,8 +6,8 @@
     "test": {
         "mode": "tests",
         "granularity": "commits",
-        "pre_command": "mkdir build-ninja && cd build-ninja && cmake -G\"Ninja\" .. && ninja",
-        "command": "ninja test",
+        "pre_command": "cd build-ninja && cmake -G\"Ninja\" .. && ninja",
+        "command": "cd build-ninja && ninja test",
         "num_commits": 300,
         "num_runs": 30,
         "num_repeats": 1,
@@ -35,6 +35,7 @@
         "make -j$(nproc) CC=\"ccache gcc\""
     ],
     "setup_commands": [
+        "mkdir build-ninja",
         "CC=\"ccache gcc\""
     ]
 }
