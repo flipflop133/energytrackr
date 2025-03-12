@@ -346,6 +346,7 @@ def main(config_path: str) -> None:
                     current_commit = commit.hexsha
                 # Run a single energy measurement test for this task
                 run_single_energy_test(repo_path, output_file, config, commit=commit)
+                global global_task_counter
                 global_task_counter += 1
                 elapsed_time = int(time.time() - start_time)
                 formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
