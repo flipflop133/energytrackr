@@ -35,8 +35,6 @@ RUN python3 -m venv /app/venv && \
 
 COPY . .
 
-RUN chmod +x measure_energy.sh
-
 # Ensure Python uses the virtual environment
 ENV PATH="/app/venv/bin:$PATH"
 
