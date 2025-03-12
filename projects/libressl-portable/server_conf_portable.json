@@ -6,8 +6,8 @@
     "test": {
         "mode": "tests",
         "granularity": "commits",
-        "pre_command": "./autogen.sh && ./configure",
-        "command": "make -j$(nproc) check",
+        "pre_command": "mkdir build-ninja && cd build-ninja && cmake -G\"Ninja\" .. && ninja",
+        "command": "ninja test",
         "num_commits": 300,
         "num_runs": 30,
         "num_repeats": 1,
