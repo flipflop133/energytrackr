@@ -314,7 +314,7 @@ def main(config_path: str) -> None:
     if "setup_commands" in config:
         for command in config["setup_commands"]:
             tqdm.write(f"Running setup command: {command}")
-            subprocess.run(command, shell=True, check=True)
+            run_command(command, repo_path)
 
     current_commit: str = ""
 
