@@ -124,7 +124,7 @@ def create_energy_plot(df, energy_column, output_filename):
 if __name__ == "__main__":
     # Load CSV file (Assumes no headers)
     df = pd.read_csv(
-        "server_results6.csv",
+        "projects/portable/energy_usage.csv",
         header=None,
         names=["commit", "energy-pkg", "energy-core", "energy-gpu"],
     )

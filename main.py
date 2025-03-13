@@ -161,15 +161,16 @@ def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess
 
         if retcode != 0:
             tqdm.write(f"Error: Command '{arg}' failed with exit code {retcode}")
-            tqdm.write(f"Captured Output:\n{output}")
+            # tqdm.write(f"Captured Output:\n{output}")
             raise subprocess.CalledProcessError(retcode, arg, output=output)
+            # return None
 
         return subprocess.CompletedProcess(args=arg, returncode=retcode, stdout=output)
 
     except subprocess.CalledProcessError as e:
-        tqdm.write(f"Error: Command '{arg}' failed with exit code {e.returncode}")
-        if e.output:
-            tqdm.write(f"Output:\n{e.output}")
+        # tqdm.write(f"Error: Command '{arg}' failed with exit code {e.returncode}")
+        # if e.output:
+        #     tqdm.write(f"Output:\n{e.output}")
         return None
 
 
@@ -255,11 +256,13 @@ def generate_tasks(batch_commits: list[git.Commit], config: dict[str, Any]) -> l
     num_repeats = config["test"].get("num_repeats", 1)
     randomize = config["test"].get("randomize_tasks", False)
     for commit in batch_commits:
-        if config["test"].get("granularity", "commit") == "commit" and not commit_contains_patterns(
+        if config["test"].get("granularity", "commits") == "commits" and not commit_contains_patterns(
             commit, config["file_extensions"]
         ):
             tqdm.write(f"Skipping commit {commit.hexsha} as it does not contain C code.")
             continue
+        else:
+            tqdm.write(f"Adding commit {commit.hexsha} to the task list.")
         # Each commit is scheduled for num_runs * num_repeats tests
         tasks.extend([commit] * (num_runs * num_repeats))
     if randomize:
@@ -313,8 +316,9 @@ def main(config_path: str) -> None:
 
     # Run project setup commands
     if "setup_commands" in config:
+        tqdm.write("\nRunning setup commands...")
         for command in config["setup_commands"]:
-            tqdm.write(f"Running setup command: {command}")
+            # tqdm.write(f"Running setup command: {command}")
             run_command(command, repo_path)
 
     current_commit: str = ""
@@ -330,13 +334,13 @@ def main(config_path: str) -> None:
         # Use a tqdm progress bar for tasks in this batch
         with tqdm(total=len(tasks), desc=f"Batch {batch_index + 1}/{total_batches}", leave=False) as pbar:
             for _, commit in enumerate(tasks):
+                build_failed = False
                 # If the commit changes, checkout and build the project
                 if current_commit != commit.hexsha:
                     tqdm.write(f"\n🔄 Checking out commit {commit.hexsha}...")
                     repo.git.checkout(commit.hexsha)
                     tqdm.write("Building the project...")
                     if config.get("test", {}).get("mode", "run") == "run":
-                        build_failed = False
                         for command in config["compile_commands"]:
                             if run_command(command, repo_path) is None:
                                 tqdm.write("Failed to build the project. Skipping this commit...")
@@ -355,13 +359,12 @@ def main(config_path: str) -> None:
                 pbar.update(1)
 
         # Delete the repository cache to free up space after processing a batch
-        tqdm.write(f"\nBatch {batch_index + 1} completed. Deleting repository cache to free up space...")
-        if os.path.exists(repo_path):
-            shutil.rmtree(repo_path)
-        # Re-clone repository for the next batch (if any)
-        if batch_index < total_batches - 1:
-            repo = setup_repo(repo_path, config["repository"]["url"], config)
-            current_commit = ""
+        # tqdm.write(f"\nBatch {batch_index + 1} completed. Deleting repository cache to free up space...")
+        # if os.path.exists(repo_path):
+        #     shutil.rmtree(repo_path)
+        # # Re-clone repository for the next batch (if any)
+        # if batch_index < total_batches - 1:
+        #     repo = setup_repo(repo_path, config["repository"]["url"], config)
 
     # Final step: checkout back to the latest commit on the branch
     repo.git.checkout(config["repository"]["branch"])
