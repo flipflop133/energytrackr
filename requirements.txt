@@ -10,3 +10,4 @@ tqdm
 tqdm-stubs
 jsonschema
 types-jsonschema
+pydantic

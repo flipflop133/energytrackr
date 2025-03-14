@@ -77,6 +77,11 @@
                     "description": "Command to execute the tests",
                     "example": "make -j$(nproc) check"
                 },
+                "command_path": {
+                    "type": "string",
+                    "description": "Path to the directory containing the tests",
+                    "example": "/build-ninja"
+                },
                 "post_command": {
                     "type": "string",
                     "description": "Command to execute after tests",
