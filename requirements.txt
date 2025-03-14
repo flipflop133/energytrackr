@@ -8,6 +8,4 @@ pandas-stubs
 scipy
 tqdm
 tqdm-stubs
-jsonschema
-types-jsonschema
 pydantic

@@ -7,40 +7,25 @@ import os
 import random
 import statistics
 import subprocess
-import sys
 import time
 from pathlib import Path
 from time import sleep
 
 import git
 import git.types
-from jsonschema import validate
-from jsonschema.exceptions import ValidationError
 from tqdm import tqdm
 
-from config_model import Config
-
-type JSON = dict[str, "JSON"] | list["JSON"] | str | int | float | bool | None
+from config_model import PipelineConfig
 
 
-def load_config(config_path: str, schema_path: str) -> Config:
-    """Load configuration from a JSON file and validate it against the schema."""
+def load_config(config_path: str) -> PipelineConfig:
+    """Load configuration from a JSON file and validate it against the config model."""
     config = json.loads(Path(config_path).read_text())
-
-    with open(schema_path) as schema_file:
-        schema: dict[str, object] = json.load(schema_file)
-
-    try:
-        validate(instance=config, schema=schema)
-        tqdm.write("✅ Configuration file is valid!")
-    except ValidationError as e:
-        tqdm.write(f"❌ Configuration file is invalid: {e.message}")
-        sys.exit(1)
-
-    return Config(**config)
+    config.model_validate_json(config)
+    return PipelineConfig(**config)
 
 
-def measure_energy(repo_path: str, test_command: str, output_file: str, config: Config) -> None:
+def measure_energy(repo_path: str, test_command: str, output_file: str, config: PipelineConfig) -> None:
     """Runs a test command using `perf` to measure energy consumption and logs the results.
 
     Args:
@@ -55,7 +40,7 @@ def measure_energy(repo_path: str, test_command: str, output_file: str, config: 
         tqdm.write(f"Running test command: {test_command}")
         perf_command = f"sudo perf stat -e power/energy-pkg/ {test_command}"
 
-        path: str = repo_path + config.test.command_path
+        path: str = repo_path + config.execution_plan.test_command_path
         result: subprocess.CompletedProcess[str] | None = run_command(perf_command, path)
 
         if result is None:
@@ -106,7 +91,7 @@ def extract_energy_value(perf_output: str, event_name: str) -> str | None:
 def run_single_energy_test(
     repo_path: str,
     output_file: str,
-    config: Config,
+    config: PipelineConfig,
     commit: git.Commit,
     global_task_counter: int,
 ) -> None:
@@ -116,18 +101,18 @@ def run_single_energy_test(
         tqdm.write("⚠️ CPU temperature is too high. Waiting for it to cool down...")
         sleep(1)
     # Run pre-command if provided
-    if config.test.pre_command:
-        if global_task_counter != 0 and config.test.pre_command_condition_files:
-            files: list[str] = config.test.pre_command_condition_files
+    if config.execution_plan.pre_command:
+        if global_task_counter != 0 and config.execution_plan.pre_command_condition_files:
+            files: set[str] = config.execution_plan.pre_command_condition_files
             if commit_contains_patterns(commit, files):
-                run_command(config.test.pre_command, repo_path)
+                run_command(config.execution_plan.pre_command, repo_path)
         else:
-            run_command(config.test.pre_command, repo_path)
+            run_command(config.execution_plan.pre_command, repo_path)
     # Run the energy measurement
-    measure_energy(repo_path, config.test.command, output_file, config)
+    measure_energy(repo_path, config.execution_plan.test_command, output_file, config)
     # Run post-command if provided
-    if config.test.post_command:
-        run_command(config.test.post_command, repo_path)
+    if config.execution_plan.post_command:
+        run_command(config.execution_plan.post_command, repo_path)
 
 
 def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess[str] | None:
@@ -176,16 +161,16 @@ def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess
     return subprocess.CompletedProcess(args=arg, returncode=retcode, stdout=output)
 
 
-def is_temperature_safe(config: Config) -> bool:
+def is_temperature_safe(config: PipelineConfig) -> bool:
     """Check if temperature is within safe limits (CPU not throttling)."""
     tqdm.write("Checking CPU temperature...")
-    command_result = run_command(f"cat {config.cpu_themal_file_path}")
+    command_result = run_command(f"cat {config.cpu_thermal_file}")
     if command_result is None:
         tqdm.write("Failed to get CPU temperature. Continuing with the test...")
         return True
     temperature = int(command_result.stdout.strip())
     tqdm.write(f"CPU temperature: {temperature}°C")
-    return temperature < config.thresholds.temperature_safe_limit
+    return temperature < config.limits.temperature_safe_limit
 
 
 def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -> bool:
@@ -235,31 +220,31 @@ def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -
     return True
 
 
-def commit_contains_patterns(commit: git.Commit, patterns: list[str]) -> bool:
+def commit_contains_patterns(commit: git.Commit, patterns: set[str]) -> bool:
     """Determine if a commit modifies any files that end with any of the given patterns."""
     return any(str(file).endswith(tuple(patterns)) for file in commit.stats.files)
 
 
-def setup_repo(repo_path: str, repo_url: str, config: Config) -> git.Repo:
+def setup_repo(repo_path: str, repo_url: str, config: PipelineConfig) -> git.Repo:
     """Clones the repository if not present; otherwise opens the existing one."""
     if not os.path.exists(repo_path):
         tqdm.write(f"Cloning {repo_url} into {repo_path}...")
-        return git.Repo.clone_from(repo_url, repo_path, multi_options=config.repository.clone_options)
+        return git.Repo.clone_from(repo_url, repo_path, multi_options=config.repo.clone_options)
     else:
         tqdm.write(f"Using existing repo at {repo_path}...")
         return git.Repo(repo_path)
 
 
-def generate_tasks(batch_commits: list[git.Commit], config: Config) -> list[git.Commit]:
+def generate_tasks(batch_commits: list[git.Commit], config: PipelineConfig) -> list[git.Commit]:
     """Generate a list of energy measurement tasks for the provided commits."""
     tasks: list[git.Commit] = []
-    num_runs: int = config.test.num_runs
-    num_repeats: int = config.test.num_repeats
-    randomize: bool = config.test.randomize_tasks
+    num_runs: int = config.execution_plan.num_runs
+    num_repeats: int = config.execution_plan.num_repeats
+    randomize: bool = config.execution_plan.randomize_tasks
     for commit in batch_commits:
-        if config.test.granularity == "commits" and not commit_contains_patterns(
+        if config.execution_plan.granularity == "commits" and not commit_contains_patterns(
             commit,
-            config.file_extensions,
+            config.tracked_file_extensions,
         ):
             tqdm.write(f"Skipping commit {commit.hexsha} as it does not contain C code.")
             continue
@@ -284,31 +269,31 @@ def main(config_path: str) -> None:
     """
     global_task_counter = 0
     start_time = time.time()
-    config = load_config(config_path, "config.schema.json")
-    project_name: str = os.path.basename(config.repository.url).replace(".git", "").strip().lower()
+    config = load_config(config_path)
+    project_name: str = os.path.basename(config.repo.url).replace(".git", "").strip().lower()
     project_dir: str = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
     repo_path: str = os.path.join(project_dir, ".cache" + project_name)
-    output_file: str = os.path.join(project_dir, config.output.file)
-    num_commits: int = config.test.num_commits
-    batch_size: int = config.test.batch_size
+    output_file: str = os.path.join(project_dir, config.results.file)
+    num_commits: int = config.execution_plan.num_commits
+    batch_size: int = config.execution_plan.batch_size
 
     # Clear previous output file if exists
     if os.path.exists(output_file):
         os.remove(output_file)
 
     # Clone the repository to get the list of commits
-    repo = setup_repo(repo_path, config.repository.url, config)
-    if config.test.granularity == "branches":
+    repo = setup_repo(repo_path, config.repo.url, config)
+    if config.execution_plan.granularity == "branches":
         branches = list(repo.remotes.origin.refs)
         commits = [branch.commit for branch in branches]  # Get only the latest commit of each branch
         tqdm.write(f"Branches: {branches}")
         tqdm.write(f"Commits: {commits}")
-    elif config.test.granularity == "tags":
+    elif config.execution_plan.granularity == "tags":
         tags = list(repo.tags)
         commits = [commit for tag in tags for commit in repo.iter_commits(tag, max_count=num_commits)]
     else:
-        commits = list(repo.iter_commits(config.repository.branch, max_count=num_commits))
+        commits = list(repo.iter_commits(config.repo.branch, max_count=num_commits))
     total_batches = (len(commits) + batch_size - 1) // batch_size
     tqdm.write(f"Total commits: {len(commits)} in {total_batches} batches (batch size: {batch_size})")
 
@@ -337,7 +322,7 @@ def main(config_path: str) -> None:
                     tqdm.write(f"\n🔄 Checking out commit {commit.hexsha}...")
                     repo.git.checkout(commit.hexsha)
                     tqdm.write("Building the project...")
-                    if config.test.mode == "run":
+                    if config.execution_plan.mode == "run":
                         for command in config.compile_commands:
                             if run_command(command, repo_path) is None:
                                 tqdm.write("Failed to build the project. Skipping this commit...")
@@ -355,7 +340,7 @@ def main(config_path: str) -> None:
                 pbar.update(1)
 
     # Final step: checkout back to the latest commit on the branch
-    repo.git.checkout(config.repository.branch)
+    repo.git.checkout(config.repo.branch)
     tqdm.write("\n✅ Restored to latest commit.")
 
 
