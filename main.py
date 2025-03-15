@@ -2,7 +2,6 @@
 
 #!/usr/bin/env python3
 import argparse
-import json
 import os
 import random
 import statistics
@@ -16,23 +15,22 @@ import git.types
 from tqdm import tqdm
 
 from config_model import PipelineConfig
+from config_store import Config
 
 
-def load_config(config_path: str) -> PipelineConfig:
+def load_config(config_path: str) -> None:
     """Load configuration from a JSON file and validate it against the config model."""
-    config = json.loads(Path(config_path).read_text())
-    config.model_validate_json(config)
-    return PipelineConfig(**config)
+    config_str = Path(config_path).read_text()
+    Config.set_config(PipelineConfig.model_validate_json(config_str))
 
 
-def measure_energy(repo_path: str, test_command: str, output_file: str, config: PipelineConfig) -> None:
+def measure_energy(repo_path: str, test_command: str, output_file: str) -> None:
     """Runs a test command using `perf` to measure energy consumption and logs the results.
 
     Args:
         repo_path (str): Path to the Git repository.
         test_command (str): Command to execute for testing.
         output_file (str): Path to the output CSV file.
-        config (dict[str, Any]): Configuration parameters.
 
     """
     try:
@@ -40,14 +38,14 @@ def measure_energy(repo_path: str, test_command: str, output_file: str, config: 
         tqdm.write(f"Running test command: {test_command}")
         perf_command = f"sudo perf stat -e power/energy-pkg/ {test_command}"
 
-        path: str = repo_path + config.execution_plan.test_command_path
+        path: str = repo_path + Config.get_config().execution_plan.test_command_path
         result: subprocess.CompletedProcess[str] | None = run_command(perf_command, path)
 
         if result is None:
             tqdm.write("Failed to run perf command. Skipping energy measurement.")
             return
 
-        if result.returncode != 0:
+        if result.returncode != 0 and not Config.get_config().execution_plan.ignore_failures:
             tqdm.write(f"Error running perf command: {result.stderr}")
             return
 
@@ -84,35 +82,37 @@ def extract_energy_value(perf_output: str, event_name: str) -> str | None:
                 if "<not" in parts[0]:
                     # Handling the unsupported measurement case
                     return None
-                return parts[0]  # First column is the energy value
+                value = parts[0]  # First column is the energy value
+                # Remove commas as they can interfere with CSV formatting
+                return value.replace(",", "")
     return None
 
 
 def run_single_energy_test(
     repo_path: str,
     output_file: str,
-    config: PipelineConfig,
     commit: git.Commit,
     global_task_counter: int,
 ) -> None:
     """Runs a single instance of the energy measurement test."""
     # Ensure CPU temperature is within safe limits
-    while not is_temperature_safe(config):
+    while not is_temperature_safe():
         tqdm.write("⚠️ CPU temperature is too high. Waiting for it to cool down...")
         sleep(1)
     # Run pre-command if provided
-    if config.execution_plan.pre_command:
-        if global_task_counter != 0 and config.execution_plan.pre_command_condition_files:
-            files: set[str] = config.execution_plan.pre_command_condition_files
+    if Config.get_config().execution_plan.pre_command:
+        if global_task_counter != 0 and Config.get_config().execution_plan.pre_command_condition_files:
+            files: set[str] = Config.get_config().execution_plan.pre_command_condition_files
             if commit_contains_patterns(commit, files):
-                run_command(config.execution_plan.pre_command, repo_path)
+                run_command(repo_path)
         else:
-            run_command(config.execution_plan.pre_command, repo_path)
+            run_command(repo_path)
     # Run the energy measurement
-    measure_energy(repo_path, config.execution_plan.test_command, output_file, config)
+    measure_energy(repo_path, Config.get_config().execution_plan.test_command, output_file)
     # Run post-command if provided
-    if config.execution_plan.post_command:
-        run_command(config.execution_plan.post_command, repo_path)
+    post_command = Config.get_config().execution_plan.post_command
+    if post_command:
+        run_command(post_command, repo_path)
 
 
 def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess[str] | None:
@@ -155,22 +155,28 @@ def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess
     output = "\n".join(output_lines)
 
     if retcode != 0:
-        tqdm.write(f"Error: Command '{arg}' failed with exit code {retcode}")
-        return None
+        if Config.get_config().execution_plan.ignore_failures:
+            tqdm.write(f"Error: Command '{arg}' failed with exit code {retcode}")
+            tqdm.write("But ignore mode enabled, continuing with the test...")
+            tqdm.write(f"Output: {output}")
+            return subprocess.CompletedProcess(args=arg, returncode=retcode, stdout=output)
+        else:
+            tqdm.write(f"Error: Command '{arg}' failed with exit code {retcode}")
+            return None
 
     return subprocess.CompletedProcess(args=arg, returncode=retcode, stdout=output)
 
 
-def is_temperature_safe(config: PipelineConfig) -> bool:
+def is_temperature_safe() -> bool:
     """Check if temperature is within safe limits (CPU not throttling)."""
     tqdm.write("Checking CPU temperature...")
-    command_result = run_command(f"cat {config.cpu_thermal_file}")
+    command_result = run_command(f"cat {Config.get_config().cpu_thermal_file}")
     if command_result is None:
         tqdm.write("Failed to get CPU temperature. Continuing with the test...")
         return True
     temperature = int(command_result.stdout.strip())
     tqdm.write(f"CPU temperature: {temperature}°C")
-    return temperature < config.limits.temperature_safe_limit
+    return temperature < Config.get_config().limits.temperature_safe_limit
 
 
 def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -> bool:
@@ -235,16 +241,16 @@ def setup_repo(repo_path: str, repo_url: str, config: PipelineConfig) -> git.Rep
         return git.Repo(repo_path)
 
 
-def generate_tasks(batch_commits: list[git.Commit], config: PipelineConfig) -> list[git.Commit]:
+def generate_tasks(batch_commits: list[git.Commit]) -> list[git.Commit]:
     """Generate a list of energy measurement tasks for the provided commits."""
     tasks: list[git.Commit] = []
-    num_runs: int = config.execution_plan.num_runs
-    num_repeats: int = config.execution_plan.num_repeats
-    randomize: bool = config.execution_plan.randomize_tasks
+    num_runs: int = Config.get_config().execution_plan.num_runs
+    num_repeats: int = Config.get_config().execution_plan.num_repeats
+    randomize: bool = Config.get_config().execution_plan.randomize_tasks
     for commit in batch_commits:
-        if config.execution_plan.granularity == "commits" and not commit_contains_patterns(
+        if Config.get_config().execution_plan.granularity == "commits" and not commit_contains_patterns(
             commit,
-            config.tracked_file_extensions,
+            Config.get_config().tracked_file_extensions,
         ):
             tqdm.write(f"Skipping commit {commit.hexsha} as it does not contain C code.")
             continue
@@ -269,13 +275,14 @@ def main(config_path: str) -> None:
     """
     global_task_counter = 0
     start_time = time.time()
-    config = load_config(config_path)
+    load_config(config_path)
+    config = Config.get_config()
     project_name: str = os.path.basename(config.repo.url).replace(".git", "").strip().lower()
     project_dir: str = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
     repo_path: str = os.path.join(project_dir, ".cache" + project_name)
     output_file: str = os.path.join(project_dir, config.results.file)
-    num_commits: int = config.execution_plan.num_commits
+    num_commits: int | None = config.execution_plan.num_commits
     batch_size: int = config.execution_plan.batch_size
 
     # Clear previous output file if exists
@@ -309,7 +316,7 @@ def main(config_path: str) -> None:
     for batch_index in range(total_batches):
         batch_commits = commits[batch_index * batch_size : (batch_index + 1) * batch_size]
         # Build list of tasks for this batch (each task is one energy measurement run)
-        tasks: list[git.Commit] = generate_tasks(batch_commits, config)
+        tasks: list[git.Commit] = generate_tasks(batch_commits)
 
         tqdm.write(f"\nProcessing batch {batch_index + 1}/{total_batches} with {len(tasks)} tasks...")
 
@@ -322,8 +329,10 @@ def main(config_path: str) -> None:
                     tqdm.write(f"\n🔄 Checking out commit {commit.hexsha}...")
                     repo.git.checkout(commit.hexsha)
                     tqdm.write("Building the project...")
-                    if config.execution_plan.mode == "run":
-                        for command in config.compile_commands:
+                    if config.execution_plan.mode == "benchmarks":
+                        compile_commands = config.execution_plan.compile_commands
+                        assert compile_commands is not None
+                        for command in compile_commands:
                             if run_command(command, repo_path) is None:
                                 tqdm.write("Failed to build the project. Skipping this commit...")
                                 build_failed = True
@@ -332,7 +341,7 @@ def main(config_path: str) -> None:
                             continue
                     current_commit = commit.hexsha
                 # Run a single energy measurement test for this task
-                run_single_energy_test(repo_path, output_file, config, commit=commit, global_task_counter=global_task_counter)
+                run_single_energy_test(repo_path, output_file, commit=commit, global_task_counter=global_task_counter)
                 global_task_counter += 1
                 elapsed_time = int(time.time() - start_time)
                 formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))

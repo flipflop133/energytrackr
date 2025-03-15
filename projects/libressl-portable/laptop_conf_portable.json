@@ -1,35 +1,36 @@
 {
-    "repository": {
+    "config_version": "1.0.0",
+    "repo": {
         "url": "https://github.com/libressl/portable",
         "branch": "master"
     },
-    "test": {
+    "execution_plan": {
         "mode": "tests",
         "granularity": "commits",
         "pre_command": "./autogen.sh && cd build-ninja && cmake -G\"Ninja\" .. && ninja -j$(nproc) && cd ..",
-        "command_path": "/build-ninja",
-        "command": "ctest --parallel $(nproc)",
+        "test_command_path": "/build-ninja",
+        "test_command": "ctest --parallel $(nproc)",
         "num_commits": 1,
         "num_runs": 30,
         "num_repeats": 1,
         "randomize_tasks": true,
         "batch_size": 100
     },
-    "output": {
+    "results": {
         "file": "energy_usage.csv"
     },
-    "thresholds": {
+    "limits": {
         "temperature_safe_limit": 60000,
         "energy_regression_percent": 20
     },
-    "file_extensions": [
+    "tracked_file_extensions": [
         "c",
         "CMakeLists.txt",
         "h",
         "sh",
         "ac"
     ],
-    "cpu_themal_file_path": "/sys/class/hwmon/hwmon5/temp1_input",
+    "cpu_thermal_file": "/sys/class/hwmon/hwmon5/temp1_input",
     "compile_commands": [
         "make clean || true",
         "./configure",

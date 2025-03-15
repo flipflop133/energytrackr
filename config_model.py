@@ -2,7 +2,15 @@
 
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+class CompileCommandsMissingError(ValueError):
+    """Raised when `compile_commands` is missing while `mode` is set to 'benchmarks'."""
+
+    def __init__(self) -> None:
+        """Initialize the error message."""
+        super().__init__("`compile_commands` must be provided when `mode` is 'run'.")
 
 
 class ModeEnum(str, Enum):
@@ -56,22 +64,36 @@ class ExecutionPlanDefinition(BaseModel):
         description="High-level category of the tasks to run.",
         examples=["tests", "benchmarks"],
     )
+    compile_commands: list[str] | None = Field(
+        None,
+        description="Shell commands to build or prepare the project for testing.",
+        examples=[["make clean", "make -j$(nproc)"]],
+    )
+
+    @model_validator(mode="after")
+    def check_compile_commands_for_run_mode(self) -> "ExecutionPlanDefinition":
+        """Ensure `compile_commands` is provided when `mode` is 'run'."""
+        if self.mode == ModeEnum.benchmarks and not self.compile_commands:
+            raise CompileCommandsMissingError()
+        return self
+
     granularity: GranularityEnum = Field(
         GranularityEnum.commits,
         description="Determines whether to test each commit, each branch, or each tag.",
         examples=["commits", "branches", "tags"],
     )
-    pre_command: str = Field(
-        ...,
+    pre_command: str | None = Field(
+        default=None,
         min_length=1,
         description="Command to run before each test or build step.",
         examples=["./autogen.sh && ./configure", "setup_env.sh"],
     )
-    pre_command_condition_files: set[str] | None = Field(
-        default=None,
+    pre_command_condition_files: set[str] = Field(
+        default=set(),
         description=("Optional list of file patterns that trigger `preCommand` only if the commit modifies one of them."),
         examples=[["configure.ac", "Makefile.am"]],
     )
+
     test_command: str = Field(
         ...,
         min_length=1,
@@ -83,15 +105,23 @@ class ExecutionPlanDefinition(BaseModel):
         description="Working directory in which to run `testCommand`.",
         examples=["/build-ninja", "./tests"],
     )
+    ignore_failures: bool = Field(
+        False,
+        description="If true, continue testing even if the test command fails.",
+        examples=[True, False],
+    )
     post_command: str | None = Field(
         None,
         description="Command to execute after tests for cleanup, etc.",
         examples=["make clean", "teardown_env.sh"],
     )
-    num_commits: int = Field(
-        ...,
+    num_commits: int | None = Field(
+        None,
         ge=1,
-        description="Number of recent commits (from HEAD) to evaluate, if granularity == 'commits'.",
+        description=(
+            "Number of recent commits (from HEAD) to evaluate if `granularity` == 'commits'. "
+            "If `None`, all commits will be processed."
+        ),
         examples=[50, 100],
     )
     num_runs: int = Field(
@@ -181,12 +211,6 @@ class PipelineConfig(BaseModel):
         min_length=1,
         description="Path to the file that reports CPU temperature in millidegrees Celsius.",
         examples=["/sys/class/hwmon/hwmon2/temp1_input"],
-    )
-    compile_commands: list[str] = Field(
-        ...,
-        description="Shell commands to build or prepare the project for testing.",
-        min_length=1,
-        examples=[["make clean", "make -j$(nproc)"]],
     )
     setup_commands: list[str] | None = Field(
         None,
