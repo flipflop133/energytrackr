@@ -53,7 +53,7 @@ sudo system_setup.sh setup
 As this will put your system into a mode that is suitable for running the pipeline but not for daily use of your computer you can revert the settings in a best effort mode using:
 
 ```sh
-sudo system_setup.sh revert first-setup
+sudo system_setup.sh revert-first-setup
 ```
 
 then reboot your system.
@@ -61,7 +61,7 @@ then reboot your system.
 you can also revert the setup parameters using :
 
 ```sh
-sudo system_setup.sh revert setup
+sudo system_setup.sh revert-setup
 ```
 
 which doesn't require a reboot.

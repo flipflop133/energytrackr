@@ -312,13 +312,17 @@ main() {
     local cmd="${1:-}"
 
     case "$cmd" in
-        enable)
-            #disable_intel_pstate_and_cpuidle 
+        first-setup)
+            enable_intel_pstate_and_cpuidle
+            ;;
+        setup)
             enable_stable_measurement
             ;;
-        disable)
+        revert-first-setup)
+            disable_intel_pstate_and_cpuidle
+            ;;
+        revert-setup)
             disable_stable_measurement
-            #enable_intel_pstate_and_cpuidle
             ;;
         *)
             usage
