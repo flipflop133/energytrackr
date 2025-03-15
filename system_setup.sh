@@ -301,8 +301,10 @@ enable_intel_pstate_and_cpuidle() {
 #--- MAIN ---------------------------------------------------------------------#
 usage() {
     echo -e "Usage: $0 {enable|disable}\n"
-    echo "  enable  : Apply stable measurement configuration and set kernel params"
-    echo "  disable : Revert stable measurement configuration and kernel params"
+    echo "  first-setup   : Disable Intel pstate, add cpuidle.off=1 and idle=poll"
+    echo "  setup         : Apply stable power settings for energy measurement"
+    echo "  revert-first-setup : Re-enable Intel pstate and remove cpuidle.off=1 and idle=poll"
+    echo "  revert-setup  : Revert stable power settings"
     exit 1
 }
 
