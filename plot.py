@@ -1,14 +1,31 @@
-import numpy as np
+"""Create a plot of median energy consumption from CSV file."""
+
+from typing import cast
+
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+from matplotlib.collections import Collection, PathCollection
+
+# Constants
+MIN_MEASUREMENTS = 2  # Minimum number of measurements to include a commit
 
 
-def create_energy_plot(df, energy_column, output_filename):
-    """
-    Create a plot of median energy consumption with outlier detection using error bars,
+def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: str) -> None:
+    """Create a plot of median energy consumption.
+
+    Plot the median energy consumption with outlier detection using error bars,
     and display the distribution (via violin plots) for each commit's energy measurements.
 
     Outliers are defined as points outside the overall median ± one standard deviation.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing energy measurements.
+        energy_column (str): Name of the energy column to plot.
+        output_filename (str): Name of the output file.
+
+    Returns:
+        None
     """
     # Compute median and standard deviation for the specified energy_column per commit
     df_median = df.groupby("commit", sort=False)[energy_column].median().reset_index()
@@ -29,13 +46,17 @@ def create_energy_plot(df, energy_column, output_filename):
     x_indices = np.arange(len(x))
 
     # Extract the full distribution data for each commit
-    distribution_data = [group[energy_column].values for _, group in df.groupby("commit", sort=False)]
+    distribution_data = [
+        np.array(group[energy_column].values)
+        for _, group in df.groupby("commit", sort=False)
+        if len(group) > MIN_MEASUREMENTS - 1
+    ]
 
     # Create the figure
     plt.figure(figsize=(20, 10))
 
     # Draw the violin plot for each commit's distribution (drawn first so it stays in the background)
-    violin_parts = plt.violinplot(
+    violin_parts: dict[str, Collection] = plt.violinplot(
         distribution_data,
         positions=x_indices,
         widths=0.5,
@@ -43,7 +64,9 @@ def create_energy_plot(df, energy_column, output_filename):
         showextrema=False,
         showmedians=False,
     )
-    for pc in violin_parts["bodies"]:
+
+    bodies = cast(list[PathCollection], violin_parts["bodies"])
+    for pc in bodies:
         pc.set_facecolor("lightgrey")
         pc.set_edgecolor("black")
         pc.set_alpha(0.5)
@@ -76,7 +99,7 @@ def create_energy_plot(df, energy_column, output_filename):
     )
 
     # Label outlier commits
-    for i in np.where(outliers)[0]:
+    for i in np.nonzero(outliers)[0]:
         plt.text(
             x_indices[i],
             y.iloc[i],
@@ -101,7 +124,7 @@ def create_energy_plot(df, energy_column, output_filename):
     )
 
     # Adjust x-axis to show commit hashes
-    plt.xticks(ticks=x_indices, labels=x, rotation=45, ha="right")
+    plt.xticks(ticks=x_indices, labels=x.tolist(), rotation=45, ha="right")
 
     # Add labels, title, legend, and grid
     plt.xlabel("Commit Hash")
@@ -115,7 +138,6 @@ def create_energy_plot(df, energy_column, output_filename):
 
     # Save and display the plot
     plt.savefig(output_filename)
-    plt.show()
 
 
 # ----------------------------
