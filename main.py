@@ -300,7 +300,7 @@ def main(config_path: str) -> None:
         tags = list(repo.tags)
         commits = [commit for tag in tags for commit in repo.iter_commits(tag, max_count=num_commits)]
     else:
-        commits = list(repo.iter_commits(config.repo.branch, max_count=num_commits))
+        commits = list(repo.iter_commits(config.repo.branch))
         # Take commits between from_commit and to_commit if provided
         if config.execution_plan.from_commit:
             from_commit_index = next((i for i, c in enumerate(commits) if c.hexsha == config.execution_plan.from_commit), None)
@@ -310,6 +310,9 @@ def main(config_path: str) -> None:
             to_commit_index = next((i for i, c in enumerate(commits) if c.hexsha == config.execution_plan.to_commit), None)
             if to_commit_index is not None:
                 commits = commits[: to_commit_index + 1]
+        # Only keep num_commits if specified
+        if num_commits:
+            commits = commits[:num_commits]
     total_batches = (len(commits) + batch_size - 1) // batch_size
     tqdm.write(f"Total commits: {len(commits)} in {total_batches} batches (batch size: {batch_size})")
 
