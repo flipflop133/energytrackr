@@ -13,6 +13,14 @@ class CompileCommandsMissingError(ValueError):
         super().__init__("`compile_commands` must be provided when `mode` is 'run'.")
 
 
+class FromOrToCommitGranularityError(ValueError):
+    """Raised when `from_commit` or `to_commit` is used with `granularity` other than 'commits'."""
+
+    def __init__(self) -> None:
+        """Initialize the error message."""
+        super().__init__("`from_commit` and `to_commit` can only be set when `granularity` is 'commits'.")
+
+
 class ModeEnum(str, Enum):
     """High-level category or mode of measurement (e.g., 'tests' or 'benchmarks')."""
 
@@ -147,6 +155,25 @@ class ExecutionPlanDefinition(BaseModel):
         description="If true, randomize the execution order of tasks across commits/runs.",
         examples=[True, False],
     )
+    from_commit: str | None = Field(
+        None,
+        min_length=1,
+        description="Start testing from this commit (inclusive).",
+        examples=["01b3900107114f441860ee3d03aba03caef42804"],
+    )
+    to_commit: str | None = Field(
+        None,
+        min_length=1,
+        description="Stop testing at this commit (inclusive).",
+        examples=["01b3900107114f441860ee3d03aba03caef42804"],
+    )
+
+    @model_validator(mode="after")
+    def validate_commit_range(self) -> "ExecutionPlanDefinition":
+        """Ensure `from_commit` and `to_commit` are only used when `granularity` is 'commits'."""
+        if self.granularity != GranularityEnum.commits and (self.from_commit or self.to_commit):
+            raise FromOrToCommitGranularityError()
+        return self
 
 
 class ResultsDefinition(BaseModel):
