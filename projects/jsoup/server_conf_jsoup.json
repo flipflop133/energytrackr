@@ -13,7 +13,7 @@
         "num_repeats": 1,
         "randomize_tasks": true,
         "batch_size": 100,
-        "from_commit": "9dec1baba5b3d0fa11268c95630b391f9de664ad",
+        "from_commit": "9dec1baba5b3d0fa11268c95630b391f9de664ad"
     },
     "results": {
         "file": "energy_usage.csv"
