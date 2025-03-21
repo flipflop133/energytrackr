@@ -100,13 +100,14 @@ def run_single_energy_test(
         tqdm.write("⚠️ CPU temperature is too high. Waiting for it to cool down...")
         sleep(1)
     # Run pre-command if provided
-    if Config.get_config().execution_plan.pre_command:
+    pre_command = Config.get_config().execution_plan.pre_command
+    if pre_command:
         if global_task_counter != 0 and Config.get_config().execution_plan.pre_command_condition_files:
             files: set[str] = Config.get_config().execution_plan.pre_command_condition_files
             if commit_contains_patterns(commit, files):
-                run_command(repo_path)
+                run_command(pre_command, repo_path)
         else:
-            run_command(repo_path)
+            run_command(pre_command, repo_path)
     # Run the energy measurement
     measure_energy(repo_path, Config.get_config().execution_plan.test_command, output_file)
     # Run post-command if provided

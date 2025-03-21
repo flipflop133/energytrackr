@@ -8,6 +8,7 @@
         "mode": "tests",
         "ignore_failures": true,
         "granularity": "commits",
+        "pre_command": "mvn test-compile",
         "test_command": "mvn test",
         "num_runs": 30,
         "num_repeats": 1,
