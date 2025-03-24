@@ -27,12 +27,17 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
     Returns:
         None
     """
-    # Compute median and standard deviation for the specified energy_column per commit
+    # Compute the count of measurements per commit
+    commit_counts = df.groupby("commit").size().reset_index(name="count")
+
+    # Merge counts into the main DataFrame (median and std calculations)
     df_median = df.groupby("commit", sort=False)[energy_column].median().reset_index()
     df_std = df.groupby("commit", sort=False)[energy_column].std().reset_index()
-
-    # Merge median and standard deviation data
     df_median = df_median.merge(df_std, on="commit", suffixes=("", "_std"))
+    df_median = df_median.merge(commit_counts, on="commit")
+
+    # Filter out commits with insufficient measurements
+    df_median = df_median[df_median["count"] >= MIN_MEASUREMENTS]
 
     # Shorten commit hashes for display
     df_median["commit_short"] = df_median["commit"].str[:7]
@@ -45,11 +50,10 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
     # Convert x-axis labels to numerical indices
     x_indices = np.arange(len(x))
 
-    # Extract the full distribution data for each commit
+    # Extract the full distribution data for each commit (only if they meet the threshold)
+    valid_commits = set(df_median["commit"])
     distribution_data = [
-        np.array(group[energy_column].values)
-        for _, group in df.groupby("commit", sort=False)
-        if len(group) > MIN_MEASUREMENTS - 1
+        np.array(group[energy_column].values) for commit, group in df.groupby("commit", sort=False) if commit in valid_commits
     ]
 
     # Create the figure
@@ -127,7 +131,7 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
     plt.xticks(ticks=x_indices, labels=x.tolist(), rotation=45, ha="right")
 
     # Add labels, title, legend, and grid
-    plt.xlabel("Commit Hash")
+    plt.xlabel("Commit Hash (sorted by date, oldest to newest)")
     plt.ylabel(f"Median Energy ({energy_column})")
     plt.title(f"Energy Consumption Trend (Median per Commit) - {energy_column}")
     plt.legend()
@@ -136,7 +140,7 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
     # Adjust layout to prevent label cutoff
     plt.tight_layout()
 
-    # Save and display the plot
+    # Save the plot
     plt.savefig(output_filename)
 
 
@@ -146,7 +150,7 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
 if __name__ == "__main__":
     # Load CSV file (Assumes no headers)
     df = pd.read_csv(
-        "projects/portable/energy_usage.csv",
+        "sorted_energy_data.csv",
         header=None,
         names=["commit", "energy-pkg", "energy-core", "energy-gpu"],
     )

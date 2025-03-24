@@ -175,6 +175,12 @@ class ExecutionPlanDefinition(BaseModel):
             raise FromOrToCommitGranularityError()
         return self
 
+    execute_common_tests: bool = Field(
+        False,
+        description="If true, run tests that are common to all commits.",
+        examples=[True, False],
+    )
+
 
 class ResultsDefinition(BaseModel):
     """Specifies how and where results are stored.

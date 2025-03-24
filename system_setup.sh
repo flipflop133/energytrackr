@@ -96,6 +96,8 @@ remove_kernel_param() {
 enable_stable_measurement() {
     echo -e "${RED}Configuring stable power settings for energy measurement...${RESET}"
 
+    # Allow use of (almost) all events by all users (for perf)
+    sudo sh -c 'echo -1 > /proc/sys/kernel/perf_event_paranoid'
     # Stop and mask services
     # for svc in "${SERVICES_TO_DISABLE[@]}"; do
     #     systemctl stop "$svc" 2>/dev/null || true
@@ -116,12 +118,12 @@ enable_stable_measurement() {
 
     # Disable boost
     echo 0 | tee /sys/devices/system/cpu/cpu*/cpufreq/boost 2>/dev/null || true
-    echo 0 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null || true
+    echo 0 >/sys/devices/system/cpu/cpufreq/boost 2>/dev/null || true
 
     # Uncore freq
     if [[ -d /sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00 ]]; then
-        echo 2000000 > /sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/min_freq_khz || true
-        echo 2000000 > /sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/max_freq_khz || true
+        echo 2000000 >/sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/min_freq_khz || true
+        echo 2000000 >/sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/max_freq_khz || true
     fi
 
     # Energy perf bias
@@ -136,22 +138,22 @@ enable_stable_measurement() {
 
     # GPU freq (assuming card1 is the iGPU)
     if [[ -d /sys/class/drm/card1 ]]; then
-        echo 500 > /sys/class/drm/card1/gt_min_freq_mhz 2>/dev/null || true
-        echo 500 > /sys/class/drm/card1/gt_max_freq_mhz 2>/dev/null || true
-        echo 500 > /sys/class/drm/card1/gt_boost_freq_mhz 2>/dev/null || true
+        echo 500 >/sys/class/drm/card1/gt_min_freq_mhz 2>/dev/null || true
+        echo 500 >/sys/class/drm/card1/gt_max_freq_mhz 2>/dev/null || true
+        echo 500 >/sys/class/drm/card1/gt_boost_freq_mhz 2>/dev/null || true
     fi
 
     # Audio power saving
     if [[ -f /sys/module/snd_hda_intel/parameters/power_save ]]; then
-        echo 0 > /sys/module/snd_hda_intel/parameters/power_save
+        echo 0 >/sys/module/snd_hda_intel/parameters/power_save
     fi
     if [[ -f /sys/module/snd_hda_intel/parameters/power_save_controller ]]; then
-        echo 0 > /sys/module/snd_hda_intel/parameters/power_save_controller
+        echo 0 >/sys/module/snd_hda_intel/parameters/power_save_controller
     fi
 
     # Platform profile (if supported)
     if [[ -f /sys/firmware/acpi/platform_profile ]]; then
-        echo "performance" > /sys/firmware/acpi/platform_profile
+        echo "performance" >/sys/firmware/acpi/platform_profile
     fi
 
     # Disable autosuspend for USB and PCI
@@ -165,7 +167,7 @@ enable_stable_measurement() {
     # SATA link power management -> max performance
     for host in /sys/class/scsi_host/host*; do
         if [[ -f "$host/link_power_management_policy" ]]; then
-            echo "max_performance" > "$host/link_power_management_policy" 2>/dev/null || true
+            echo "max_performance" >"$host/link_power_management_policy" 2>/dev/null || true
         fi
     done
 
@@ -175,6 +177,9 @@ enable_stable_measurement() {
 #--- Disable (revert) stable measurement --------------------------------------#
 disable_stable_measurement() {
     echo -e "${RED}Reverting stable power settings...${RESET}"
+
+    # Revert perf_event_paranoid to default
+    sudo sh -c 'echo 0 > /proc/sys/kernel/perf_event_paranoid'
 
     # Unmask & start services
     for svc in "${SERVICES_TO_DISABLE[@]}"; do
@@ -206,13 +211,13 @@ disable_stable_measurement() {
     # Re-enable boost
     echo 1 | tee /sys/devices/system/cpu/cpu*/cpufreq/boost 2>/dev/null || true
     if [[ -f /sys/devices/system/cpu/cpufreq/boost ]]; then
-        echo 1 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null || true
+        echo 1 >/sys/devices/system/cpu/cpufreq/boost 2>/dev/null || true
     fi
 
     # Reset uncore freq to 0 if it exists
     if [[ -d /sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00 ]]; then
-        echo 0 > /sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/min_freq_khz || true
-        echo 0 > /sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/max_freq_khz || true
+        echo 0 >/sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/min_freq_khz || true
+        echo 0 >/sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/max_freq_khz || true
     fi
 
     # Reset energy_perf_bias to default (normal=4 or 6 on many systems)
@@ -229,36 +234,36 @@ disable_stable_measurement() {
     # Revert GPU freq to a typical lower bound (300 MHz) and max to something higher
     # Adjust these if your hardware differs
     if [[ -d /sys/class/drm/card1 ]]; then
-        echo 300 > /sys/class/drm/card1/gt_min_freq_mhz 2>/dev/null || true
-        echo 1100 > /sys/class/drm/card1/gt_max_freq_mhz 2>/dev/null || true
-        echo 1100 > /sys/class/drm/card1/gt_boost_freq_mhz 2>/dev/null || true
+        echo 300 >/sys/class/drm/card1/gt_min_freq_mhz 2>/dev/null || true
+        echo 1100 >/sys/class/drm/card1/gt_max_freq_mhz 2>/dev/null || true
+        echo 1100 >/sys/class/drm/card1/gt_boost_freq_mhz 2>/dev/null || true
     fi
 
     # Re-enable audio power saving (default is often 1)
     if [[ -f /sys/module/snd_hda_intel/parameters/power_save ]]; then
-        echo 1 > /sys/module/snd_hda_intel/parameters/power_save
+        echo 1 >/sys/module/snd_hda_intel/parameters/power_save
     fi
     if [[ -f /sys/module/snd_hda_intel/parameters/power_save_controller ]]; then
-        echo 1 > /sys/module/snd_hda_intel/parameters/power_save_controller
+        echo 1 >/sys/module/snd_hda_intel/parameters/power_save_controller
     fi
 
     # For platform profile, revert if desired (depends on your distro’s default)
     if [[ -f /sys/firmware/acpi/platform_profile ]]; then
-        echo "balanced" > /sys/firmware/acpi/platform_profile
+        echo "balanced" >/sys/firmware/acpi/platform_profile
     fi
 
     # For USB/PCI devices, typical default is "auto" rather than "on"
     for device in /sys/bus/usb/devices/*/power/control; do
-        echo "auto" > "$device" 2>/dev/null || true
+        echo "auto" >"$device" 2>/dev/null || true
     done
     for device in /sys/bus/pci/devices/*/power/control; do
-        echo "auto" > "$device" 2>/dev/null || true
+        echo "auto" >"$device" 2>/dev/null || true
     done
 
     # SATA link power management to "med_power_with_dipm" or "min_power" on many distros
     for host in /sys/class/scsi_host/host*; do
         if [[ -f "$host/link_power_management_policy" ]]; then
-            echo "med_power_with_dipm" > "$host/link_power_management_policy" 2>/dev/null || true
+            echo "med_power_with_dipm" >"$host/link_power_management_policy" 2>/dev/null || true
         fi
     done
 
@@ -271,7 +276,7 @@ disable_intel_pstate_and_cpuidle() {
     entry_file=$(get_boot_entry_file)
     echo $entry_file
 
-    echo "Current CPU frequency scaling driver: $(< /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver 2>/dev/null || true)"
+    echo "Current CPU frequency scaling driver: $(</sys/devices/system/cpu/cpu0/cpufreq/scaling_driver 2>/dev/null || true)"
 
     # For actual disabling of intel_pstate
     add_kernel_param "intel_pstate=disable" "$entry_file"
@@ -314,21 +319,21 @@ main() {
     local cmd="${1:-}"
 
     case "$cmd" in
-        first-setup)
-            enable_intel_pstate_and_cpuidle
-            ;;
-        setup)
-            enable_stable_measurement
-            ;;
-        revert-first-setup)
-            disable_intel_pstate_and_cpuidle
-            ;;
-        revert-setup)
-            disable_stable_measurement
-            ;;
-        *)
-            usage
-            ;;
+    first-setup)
+        disable_intel_pstate_and_cpuidle
+        ;;
+    setup)
+        enable_stable_measurement
+        ;;
+    revert-first-setup)
+        enable_intel_pstate_and_cpuidle
+        ;;
+    revert-setup)
+        disable_stable_measurement
+        ;;
+    *)
+        usage
+        ;;
     esac
 }
 

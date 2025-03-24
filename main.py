@@ -24,7 +24,7 @@ def load_config(config_path: str) -> None:
     Config.set_config(PipelineConfig.model_validate_json(config_str))
 
 
-def measure_energy(repo_path: str, test_command: str, output_file: str) -> None:
+def measure_energy(repo_path: str, test_command: str, output_file: str) -> bool:
     """Runs a test command using `perf` to measure energy consumption and logs the results.
 
     Args:
@@ -36,27 +36,34 @@ def measure_energy(repo_path: str, test_command: str, output_file: str) -> None:
     try:
         # Run the test command with `perf` to measure energy consumption
         tqdm.write(f"Running test command: {test_command}")
-        perf_command = f"sudo perf stat -e power/energy-pkg/ {test_command}"
+        perf_command = f"perf stat -e power/energy-pkg/ {test_command}"
 
         path: str = repo_path + Config.get_config().execution_plan.test_command_path
         result: subprocess.CompletedProcess[str] | None = run_command(perf_command, path)
 
+        # If the command itself couldn't launch
         if result is None:
             tqdm.write("Failed to run perf command. Skipping energy measurement.")
-            return
+            # Return False if ignoring failures is off; else True
+            return Config.get_config().execution_plan.ignore_failures
 
-        if result.returncode != 0 and not Config.get_config().execution_plan.ignore_failures:
-            tqdm.write(f"Error running perf command: {result.stderr}")
-            return
+        # If `perf` reported an error
+        if result.returncode != 0:
+            if not Config.get_config().execution_plan.ignore_failures:
+                tqdm.write(f"Error running perf command: {result.stdout}")
+                return False  # Must skip the rest of this commit
+            else:
+                # If ignoring failures, keep going
+                tqdm.write(f"Ignore-failures=True; continuing despite error:\n{result.stdout}")
 
-        perf_output: str = result.stdout  # `perf stat` outputs to stderr by default
+        perf_output: str = result.stdout  # `perf stat` often uses stderr, but we captured all
 
         # Extract energy values from perf output
         energy_pkg = extract_energy_value(perf_output, "power/energy-pkg/")
-
         if energy_pkg is None:
             tqdm.write("Failed to extract energy measurement from perf output.")
-            return
+            # If ignoring failures is off, signal skip
+            return Config.get_config().execution_plan.ignore_failures
 
         tqdm.write(f"ENERGY_PKG: {energy_pkg}")
 
@@ -69,8 +76,12 @@ def measure_energy(repo_path: str, test_command: str, output_file: str) -> None:
             file.write(f"{commit_hash},{energy_pkg}\n")
 
         tqdm.write(f"Results appended to {output_file}")
+        return True
+
     except Exception as e:
         tqdm.write(f"Error: {e}")
+        # If ignoring is off, we skip
+        return Config.get_config().execution_plan.ignore_failures
 
 
 def extract_energy_value(perf_output: str, event_name: str) -> str | None:
@@ -93,27 +104,38 @@ def run_single_energy_test(
     output_file: str,
     commit: git.Commit,
     global_task_counter: int,
-) -> None:
-    """Runs a single instance of the energy measurement test."""
+) -> bool:
+    """Runs a single instance of the energy measurement test. Returns True if success, else False."""
     # Ensure CPU temperature is within safe limits
     while not is_temperature_safe():
         tqdm.write("⚠️ CPU temperature is too high. Waiting for it to cool down...")
         sleep(1)
+
+    success = True
     # Run pre-command if provided
     pre_command = Config.get_config().execution_plan.pre_command
     if pre_command:
         if global_task_counter != 0 and Config.get_config().execution_plan.pre_command_condition_files:
             files: set[str] = Config.get_config().execution_plan.pre_command_condition_files
             if commit_contains_patterns(commit, files):
-                run_command(pre_command, repo_path)
+                return_code = run_command(pre_command, repo_path)
         else:
-            run_command(pre_command, repo_path)
+            return_code = run_command(pre_command, repo_path)
+        if return_code is None or return_code.returncode != 0:
+            tqdm.write(f"Error: Pre-command '{pre_command}' failed.")
+            success = False
+
     # Run the energy measurement
-    measure_energy(repo_path, Config.get_config().execution_plan.test_command, output_file)
+    if not success and not Config.get_config().execution_plan.ignore_failures:
+        return success
+    success = measure_energy(repo_path, Config.get_config().execution_plan.test_command, output_file)
+
     # Run post-command if provided
     post_command = Config.get_config().execution_plan.post_command
     if post_command:
         run_command(post_command, repo_path)
+
+    return success
 
 
 def run_command(arg: str, cwd: str | None = None) -> subprocess.CompletedProcess[str] | None:
@@ -208,15 +230,18 @@ def is_system_stable(k: float = 3.5, warmup_time: int = 5, duration: int = 30) -
         power = current_energy - prev_energy
         power_samples.append(power)
         prev_energy = current_energy
+
     median_power = statistics.median(power_samples)
     mad_power = statistics.median([abs(x - median_power) for x in power_samples]) or 1
     tqdm.write(f"Baseline median power: {median_power / 1_000_000} W")
     tqdm.write(f"Baseline MAD: {mad_power / 1_000_000} W")
+
     for _ in range(duration - warmup_time):
         sleep(1)
         current_energy = get_energy_uj()
         power = current_energy - prev_energy
         prev_energy = current_energy
+
         mz_score = 0.6745 * (power - median_power) / mad_power
         tqdm.write(f"Power consumption: {power / 1_000_000} W")
         tqdm.write(f"Modified Z-Score: {mz_score}")
@@ -243,25 +268,64 @@ def setup_repo(repo_path: str, repo_url: str, config: PipelineConfig) -> git.Rep
 
 
 def generate_tasks(batch_commits: list[git.Commit]) -> list[git.Commit]:
-    """Generate a list of energy measurement tasks for the provided commits."""
+    """Generate a list of commits repeated by (num_runs * num_repeats).
+
+    If randomize is True, shuffle the resulting list.
+    """
     tasks: list[git.Commit] = []
     num_runs: int = Config.get_config().execution_plan.num_runs
     num_repeats: int = Config.get_config().execution_plan.num_repeats
     randomize: bool = Config.get_config().execution_plan.randomize_tasks
+
     for commit in batch_commits:
+        # If granularity is 'commits' and the commit does not contain tracked patterns, skip it
         if Config.get_config().execution_plan.granularity == "commits" and not commit_contains_patterns(
             commit,
             Config.get_config().tracked_file_extensions,
         ):
-            tqdm.write(f"Skipping commit {commit.hexsha} as it does not contain C code.")
+            tqdm.write(f"Skipping commit {commit.hexsha} as it does not match tracked files.")
             continue
-        else:
-            tqdm.write(f"Adding commit {commit.hexsha} to the task list.")
-        # Each commit is scheduled for num_runs * num_repeats tests
+
+        tqdm.write(f"Adding commit {commit.hexsha} to the task list.")
+        # Each commit is scheduled for (num_runs * num_repeats) tests
         tasks.extend([commit] * (num_runs * num_repeats))
+
     if randomize:
         random.shuffle(tasks)
+
     return tasks
+
+
+def verify_perf_access() -> bool:
+    """Check if user is allowed to use perf without sudo."""
+    # read perf_event_paranoid
+    command_result = run_command("cat /proc/sys/kernel/perf_event_paranoid")
+    if command_result is None:
+        return False
+    perf_event_paranoid = int(command_result.stdout.strip())
+    return perf_event_paranoid == -1
+
+
+def retrieve_common_tests(commits: list[git.Commit], repo: git.Repo) -> list[str]:
+    """Retrieve common test methods between first and last commit."""
+    # Checkout first commit and collect tests
+    repo.git.checkout(commits[0].hexsha)
+    run_command("mvn exec:java")
+    f = open("discovered_tests.txt")
+    tests_first = set(clean_test_output(f.read()))
+
+    # Checkout last commit and collect tests
+    repo.git.checkout(commits[-1].hexsha)
+    run_command("mvn exec:java")
+    f = open("discovered_tests.txt")
+    tests_last = set(clean_test_output(f.read()))
+
+    return sorted(tests_first & tests_last)  # Intersection
+
+
+def clean_test_output(raw_output: str) -> list[str]:
+    lines = raw_output.splitlines()
+    return [line.strip().replace("()", "") for line in lines if line.strip() and "UnknownClass" not in line]
 
 
 def main(config_path: str) -> None:
@@ -274,15 +338,18 @@ def main(config_path: str) -> None:
     After processing each batch, it deletes the repository cache to free up space.
     Finally, it checks out back to the latest commit on the branch.
     """
-    global_task_counter = 0
-    start_time = time.time()
+    if not verify_perf_access():
+        tqdm.write("Error: perf_event_paranoid must be set to -1 for perf to work.")
+        return
     load_config(config_path)
     config = Config.get_config()
+
     project_name: str = os.path.basename(config.repo.url).replace(".git", "").strip().lower()
     project_dir: str = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
     repo_path: str = os.path.join(project_dir, ".cache" + project_name)
     output_file: str = os.path.join(project_dir, config.results.file)
+
     num_commits: int | None = config.execution_plan.num_commits
     batch_size: int = config.execution_plan.batch_size
 
@@ -290,78 +357,120 @@ def main(config_path: str) -> None:
     if os.path.exists(output_file):
         os.remove(output_file)
 
-    # Clone the repository to get the list of commits
+    # Clone or open the repository
     repo = setup_repo(repo_path, config.repo.url, config)
+
+    # Gather commits based on granularity and user config
     if config.execution_plan.granularity == "branches":
         branches = list(repo.remotes.origin.refs)
-        commits = [branch.commit for branch in branches]  # Get only the latest commit of each branch
+        commits = [branch.commit for branch in branches]  # One commit per branch
         tqdm.write(f"Branches: {branches}")
         tqdm.write(f"Commits: {commits}")
     elif config.execution_plan.granularity == "tags":
         tags = list(repo.tags)
-        commits = [commit for tag in tags for commit in repo.iter_commits(tag, max_count=num_commits)]
+        commits = [c for tag in tags for c in repo.iter_commits(tag, max_count=num_commits)]
     else:
         commits = list(repo.iter_commits(config.repo.branch))
-        # Take commits between from_commit and to_commit if provided
+
+        # Restrict commits if from_commit or to_commit is set
         if config.execution_plan.from_commit:
             from_commit_index = next((i for i, c in enumerate(commits) if c.hexsha == config.execution_plan.from_commit), None)
             if from_commit_index is not None:
                 commits = commits[from_commit_index:]
+
         if config.execution_plan.to_commit:
             to_commit_index = next((i for i, c in enumerate(commits) if c.hexsha == config.execution_plan.to_commit), None)
             if to_commit_index is not None:
+                # +1 because we include the to_commit itself
                 commits = commits[: to_commit_index + 1]
-        # Only keep num_commits if specified
+
         if num_commits:
             commits = commits[:num_commits]
+
+    if config.execution_plan.execute_common_tests:
+        common_tests = retrieve_common_tests(commits, repo)
+        test_arg = ",".join(common_tests)
+        config.execution_plan.test_command = f"mvn test -Dtest={test_arg}"
+        tqdm.write(f"Common tests: {test_arg}")
+
     total_batches = (len(commits) + batch_size - 1) // batch_size
     tqdm.write(f"Total commits: {len(commits)} in {total_batches} batches (batch size: {batch_size})")
 
-    # Run project setup commands
+    # Run project-level setup commands
     if config.setup_commands:
         tqdm.write("\nRunning setup commands...")
         for command in config.setup_commands:
             run_command(command, repo_path)
 
     current_commit: str = ""
+    global_task_counter = 0
+    start_time = time.time()
+
+    # A set of commit hashes to skip (because they failed once and ignore_failures==false)
+    skip_commits = set()
 
     # Process commits batch by batch
     for batch_index in range(total_batches):
         batch_commits = commits[batch_index * batch_size : (batch_index + 1) * batch_size]
-        # Build list of tasks for this batch (each task is one energy measurement run)
+        # Build list of tasks for this batch
         tasks: list[git.Commit] = generate_tasks(batch_commits)
 
         tqdm.write(f"\nProcessing batch {batch_index + 1}/{total_batches} with {len(tasks)} tasks...")
-
-        # Use a tqdm progress bar for tasks in this batch
         with tqdm(total=len(tasks), desc=f"Batch {batch_index + 1}/{total_batches}", leave=False) as pbar:
-            for _, commit in enumerate(tasks):
+            i = 0
+            while i < len(tasks):
+                commit = tasks[i]
+                # If this commit is in skip_commits, we skip directly
+                if commit.hexsha in skip_commits:
+                    pbar.update(1)
+                    i += 1
+                    continue
+
                 build_failed = False
-                # If the commit changes, checkout and build the project
+
+                # Checkout and build if we're on a new commit
                 if current_commit != commit.hexsha:
                     tqdm.write(f"\n🔄 Checking out commit {commit.hexsha}...")
                     repo.git.checkout(commit.hexsha)
-                    tqdm.write("Building the project...")
                     if config.execution_plan.mode == "benchmarks":
-                        compile_commands = config.execution_plan.compile_commands
-                        assert compile_commands is not None
-                        for command in compile_commands:
-                            if run_command(command, repo_path) is None:
+                        compile_commands = config.execution_plan.compile_commands or []
+                        for cmd in compile_commands:
+                            if run_command(cmd, repo_path) is None:
                                 tqdm.write("Failed to build the project. Skipping this commit...")
                                 build_failed = True
                                 break
                         if build_failed:
+                            # If building fails and ignoring is off => skip entire commit
+                            if not config.execution_plan.ignore_failures:
+                                skip_commits.add(commit.hexsha)
+                            current_commit = commit.hexsha
+                            pbar.update(1)
+                            i += 1
                             continue
                     current_commit = commit.hexsha
-                # Run a single energy measurement test for this task
-                run_single_energy_test(repo_path, output_file, commit=commit, global_task_counter=global_task_counter)
+
+                # Run a single energy measurement test
+                success = run_single_energy_test(
+                    repo_path,
+                    output_file,
+                    commit=commit,
+                    global_task_counter=global_task_counter,
+                )
                 global_task_counter += 1
+
+                # If it failed and ignoring is off => skip the rest of this commit
+                if (not success) and (not config.execution_plan.ignore_failures):
+                    skip_commits.add(commit.hexsha)
+
+                # Progress bar housekeeping
                 elapsed_time = int(time.time() - start_time)
                 formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
                 pbar.set_postfix(global_tasks=global_task_counter, elapsed=formatted_time)
                 pbar.update(1)
 
-    # Final step: checkout back to the latest commit on the branch
+                i += 1  # Next task in this batch
+
+    # Final step: checkout back to the latest commit on the configured branch
     repo.git.checkout(config.repo.branch)
     tqdm.write("\n✅ Restored to latest commit.")
 
