@@ -719,7 +719,6 @@ org.jsoup.nodes.ElementIT#testFastReparentExistingContent
 org.jsoup.nodes.ElementIT#hasTextNoOverflow
 org.jsoup.nodes.ElementIT#wrapNoOverflow
 org.jsoup.nodes.ElementIT#dataNoOverflow
-org.jsoup.nodes.ElementIT#testConcurrentMerge
 org.jsoup.nodes.TextNodeTest#testWithSupplementaryCharacter
 org.jsoup.nodes.TextNodeTest#leafNodeAttributes
 org.jsoup.nodes.TextNodeTest#testLeadNodesHaveNoChildren
@@ -833,7 +832,6 @@ org.jsoup.nodes.ElementTest#testElementSiblingIndex
 org.jsoup.nodes.ElementTest#select
 org.jsoup.nodes.ElementTest#testId
 org.jsoup.nodes.ElementTest#testIs
-org.jsoup.nodes.ElementTest#htmlToXmlNormalizes
 org.jsoup.nodes.ElementTest#testEvalMethods
 org.jsoup.nodes.ElementTest#testEmptyElementFormatHtml
 org.jsoup.nodes.ElementTest#getElementsByAttributeValueNot
@@ -879,7 +877,6 @@ org.jsoup.nodes.ElementTest#testChildThrowsIndexOutOfBoundsOnMissing
 org.jsoup.nodes.ElementTest#testPrependRowToTable
 org.jsoup.nodes.ElementTest#testFirstAndLastSiblings
 org.jsoup.nodes.ElementTest#testGetTextNodes
-org.jsoup.nodes.ElementTest#invalidCharactersDiscardedInXml
 org.jsoup.nodes.ElementTest#clonedElementsHaveOwnerDocsAndIndependentSettings
 org.jsoup.nodes.ElementTest#attribute
 org.jsoup.nodes.ElementTest#cssEscapedAmp
@@ -910,7 +907,6 @@ org.jsoup.nodes.ElementTest#testSetHtmlTitle
 org.jsoup.nodes.ElementTest#testChildrenElements
 org.jsoup.nodes.ElementTest#testShallowCloneToString
 org.jsoup.nodes.ElementTest#moveByAppend
-org.jsoup.nodes.ElementTest#cssSelectorParentWithId
 org.jsoup.nodes.ElementTest#testNormalisesText
 org.jsoup.nodes.ElementTest#testPrettyAndOutlineWithEnDashBody
 org.jsoup.nodes.ElementTest#testClassUpdates
@@ -984,7 +980,6 @@ org.jsoup.nodes.ElementTest#buttonTextHasSpace
 org.jsoup.nodes.ElementTest#cssSelectorEscapedClass
 org.jsoup.nodes.ElementTest#isBlock
 org.jsoup.nodes.ElementTest#insertChildrenAtPosition
-org.jsoup.nodes.ElementTest#cssSelectorWithNonUniqueId
 org.jsoup.nodes.ElementTest#elementIsNotASiblingOfItself
 org.jsoup.nodes.NodeTest#handlesAbsOnProtocolessAbsoluteUris
 org.jsoup.nodes.NodeTest#afterShuffle
@@ -1044,14 +1039,12 @@ org.jsoup.parser.TokeniserTest#cp1252SubstitutionTable
 org.jsoup.parser.TokeniserTest#canParseVeryLongBogusComment
 org.jsoup.parser.TokeniserTest#cp1252Entities
 org.jsoup.parser.TokeniserTest#handleLargeText
-org.jsoup.parser.ParserTest#testClone
 org.jsoup.parser.ParserTest#testUtf8
 org.jsoup.parser.ParserTest#unescapeEntitiesHandlesLargeInput
 org.jsoup.parser.ParserTest#unescapeEntities
 org.jsoup.parser.XmlTreeBuilderTest#testPopToClose
 org.jsoup.parser.XmlTreeBuilderTest#disablesPrettyPrintingByDefault
 org.jsoup.parser.XmlTreeBuilderTest#handlesXmlDeclarationAsDeclaration
-org.jsoup.parser.XmlTreeBuilderTest#declarationWithGt
 org.jsoup.parser.XmlTreeBuilderTest#dropsDuplicateAttributes
 org.jsoup.parser.XmlTreeBuilderTest#caseSensitiveDeclaration
 org.jsoup.parser.XmlTreeBuilderTest#customTagsAreFlyweights
