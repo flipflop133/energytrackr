@@ -1,20 +1,19 @@
 {
     "config_version": "1.0.0",
     "repo": {
-        "url": "https://github.com/jhy/jsoup",
+        "url": "https://github.com/super-csv/super-csv",
         "branch": "master"
     },
     "execution_plan": {
         "mode": "tests",
         "ignore_failures": false,
         "granularity": "commits",
-        "pre_command": "mvn clean test-compile",
-        "test_command": "mvn surefire:test",
+        "pre_command": "mvn test-compile",
+        "test_command": "mvn test",
         "num_runs": 30,
         "num_repeats": 1,
         "randomize_tasks": true,
-        "batch_size": 100,
-        "from_commit": "cc2363e4501e086b6ba628ececb7716cfad87796"
+        "batch_size": 100
     },
     "results": {
         "file": "energy_usage.csv"
@@ -32,7 +31,7 @@
     ],
     "cpu_thermal_file": "/sys/class/hwmon/hwmon5/temp1_input",
     "setup_commands": [
-        "export JAVA_HOME=/usr/lib/jvm/java-24-openjdk",
+        "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk",
         "export PATH=$JAVA_HOME/bin:$PATH"
     ]
 }

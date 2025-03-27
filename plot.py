@@ -77,7 +77,7 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
     change_points = algo.predict(pen=PELT_PENALTY)
 
     # Plotting
-    plt.figure(figsize=(20, 10))
+    plt.figure(figsize=(40, 10))
 
     # Violin plots for the distribution per commit
     violin_parts = plt.violinplot(
@@ -160,7 +160,7 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
 
 if __name__ == "__main__":
     df = pd.read_csv(
-        "sorted_energy_data copy.csv",
+        "sorted_energy_data_new_2.csv",
         header=None,
         names=["commit", "energy-pkg", "energy-core", "energy-gpu"],
     )

@@ -112,9 +112,9 @@ enable_stable_measurement() {
 
     # CPU frequency: set governor userspace and fix freq at 2.0 GHz
     echo "userspace" | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-    echo 2000000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_min_freq
-    echo 2000000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq
-    echo 2000000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_setspeed
+    echo 3000000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_min_freq
+    echo 3000000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq
+    echo 3000000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_setspeed
 
     # Disable boost
     echo 0 | tee /sys/devices/system/cpu/cpu*/cpufreq/boost 2>/dev/null || true
@@ -122,8 +122,8 @@ enable_stable_measurement() {
 
     # Uncore freq
     if [[ -d /sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00 ]]; then
-        echo 2000000 >/sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/min_freq_khz || true
-        echo 2000000 >/sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/max_freq_khz || true
+        echo 3000000 >/sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/min_freq_khz || true
+        echo 3000000 >/sys/devices/system/cpu/intel_uncore_frequency/package_00_die_00/max_freq_khz || true
     fi
 
     # Energy perf bias

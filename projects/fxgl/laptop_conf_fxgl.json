@@ -1,20 +1,19 @@
 {
     "config_version": "1.0.0",
     "repo": {
-        "url": "https://github.com/jhy/jsoup",
-        "branch": "master"
+        "url": "https://github.com/AlmasB/FXGL",
+        "branch": "dev"
     },
     "execution_plan": {
         "mode": "tests",
         "ignore_failures": false,
         "granularity": "commits",
-        "pre_command": "mvn clean test-compile",
-        "test_command": "mvn surefire:test",
+        "pre_command": "mvn clean test-compile -Dpmd.skip=true",
+        "test_command": "mvn surefire:test -Dpmd.skip=true",
         "num_runs": 30,
         "num_repeats": 1,
         "randomize_tasks": true,
-        "batch_size": 100,
-        "from_commit": "cc2363e4501e086b6ba628ececb7716cfad87796"
+        "batch_size": 100
     },
     "results": {
         "file": "energy_usage.csv"
