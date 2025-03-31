@@ -8,7 +8,7 @@ import statistics
 import subprocess
 import time
 from pathlib import Path
-from time import sleep
+from time import datetime, sleep
 
 import git
 import git.types
@@ -348,14 +348,11 @@ def main(config_path: str) -> None:
     project_dir: str = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
     repo_path: str = os.path.join(project_dir, ".cache" + project_name)
-    output_file: str = os.path.join(project_dir, config.results.file)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file: str = os.path.join(project_dir, f"{project_name}_energy_results_{timestamp}.csv")
 
     num_commits: int | None = config.execution_plan.num_commits
     batch_size: int = config.execution_plan.batch_size
-
-    # Clear previous output file if exists
-    if os.path.exists(output_file):
-        os.remove(output_file)
 
     # Clone or open the repository
     repo = setup_repo(repo_path, config.repo.url, config)

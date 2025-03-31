@@ -1,5 +1,8 @@
 """Create a plot of median energy consumption from CSV file."""
 
+import os
+import sys
+from datetime import datetime
 from typing import cast
 
 import matplotlib.pyplot as plt
@@ -159,12 +162,30 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python plot_energy.py <path_to_energy_results_csv>")
+        sys.exit(1)
+
+    input_path = sys.argv[1]
+    if not os.path.isfile(input_path):
+        print(f"Error: File not found: {input_path}")
+        sys.exit(1)
+
+    # Get the folder where the CSV is located and use it as the project name
+    folder = os.path.dirname(input_path)
+    project_name = os.path.basename(folder)
+
+    # Timestamp for output filenames
+    timestamp_now = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Read CSV
     df = pd.read_csv(
-        "sorted_energy_data_new_3.csv",
+        input_path,
         header=None,
         names=["commit", "energy-pkg", "energy-core", "energy-gpu"],
     )
 
-    create_energy_plot(df, "energy-pkg", "plot_pkg.png")
-    create_energy_plot(df, "energy-core", "plot_core.png")
-    create_energy_plot(df, "energy-gpu", "plot_gpu.png")
+    # Generate and save plots in the same folder
+    for column in ["energy-pkg", "energy-core", "energy-gpu"]:
+        output_filename = os.path.join(folder, f"{project_name}_{column}_{timestamp_now}.png")
+        create_energy_plot(df, column, output_filename)

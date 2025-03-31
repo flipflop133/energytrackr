@@ -129,7 +129,7 @@ before step 4, run:
 
 ## TODO - sorted by priority
 
-- [ ] Don't erase produced CSV files, use a timestamp with project name
+- [x] Don't erase produced CSV files, use a timestamp with project name
 - [ ] Automatically detect java version in pom and use export this one, so tests don't fail
 - [ ] Build project one time for each commit, for this copy the project x batch times and checkout in each one and compile in each one than for the 30 runs for each commit we just need to run the tests, copying and compiling can be done in parallel and with unlocked frequencies
 - [ ] Save run conditions (temperature, CPU governor, number of CPU cycles, etc.), perf could be use for part of this and fastfetch for the rest. Also save config file. Place all this metadata either in the CSV or in a separate file
