@@ -127,10 +127,17 @@ before step 4, run:
     tmux attach -t mysession
     ```
 
-## TODO
+## TODO - sorted by priority
 
-- [] Don't erase produced csv files, use a timestamp
-- [] Do a warmup run before the actual measurement
-- [] Add a cooldown between measurements, 1 second by default
-- [] Save run conditions (temperature, cpu governor, number of cpu cycles, etc.), perf could be use for part of this.
-- [] Save run conditions and config file at top of the csv file, so we have all the informations in one place, or make a special file type for this.
+- [ ] Don't erase produced CSV files, use a timestamp with project name
+- [ ] Automatically detect java version in pom and use export this one, so tests don't fail
+- [ ] Build project one time for each commit, for this copy the project x batch times and checkout in each one and compile in each one than for the 30 runs for each commit we just need to run the tests, copying and compiling can be done in parallel and with unlocked frequencies
+- [ ] Save run conditions (temperature, CPU governor, number of CPU cycles, etc.), perf could be use for part of this and fastfetch for the rest. Also save config file. Place all this metadata either in the CSV or in a separate file
+- [ ] Display run conditions on the graph (e.g. temperature)
+- [ ] From measured CPU cycles, use CPU power usage provided by manufacturer to display a second line on the graph to compare energy consumption from RAPL with theoretical estimations.
+- [ ] Run only the same tests between commits
+- [ ] Do a warm-up run before the actual measurement
+- [ ] Add a cooldown between measurements, 1 second by default
+- [ ] Check that pc won't go into sleep mode during the test
+- [ ] Check that most background processes are disabled
+- [ ] Unload drivers/modules that could interfere with the measurement
