@@ -155,23 +155,27 @@ class ExecutionPlanDefinition(BaseModel):
         description="If true, randomize the execution order of tasks across commits/runs.",
         examples=[True, False],
     )
-    from_commit: str | None = Field(
+    oldest_commit: str | None = Field(
         None,
         min_length=1,
-        description="Start testing from this commit (inclusive).",
+        description="""Start testing from this commit (inclusive), moving forward in history.
+    This should be the oldest commit in the range. Used as the lower bound when walking through commits.
+    Example usage: git rev-list newest_commit ^oldest_commit^ --reverse""",
         examples=["01b3900107114f441860ee3d03aba03caef42804"],
     )
-    to_commit: str | None = Field(
+
+    newest_commit: str | None = Field(
         None,
         min_length=1,
-        description="Stop testing at this commit (inclusive).",
+        description="""Stop testing at this commit (inclusive), which should be the newest commit in the range.
+    This is the upper bound of the commit walk. If omitted, HEAD is used by default.""",
         examples=["01b3900107114f441860ee3d03aba03caef42804"],
     )
 
     @model_validator(mode="after")
     def validate_commit_range(self) -> "ExecutionPlanDefinition":
         """Ensure `from_commit` and `to_commit` are only used when `granularity` is 'commits'."""
-        if self.granularity != GranularityEnum.commits and (self.from_commit or self.to_commit):
+        if self.granularity != GranularityEnum.commits and (self.oldest_commit or self.newest_commit):
             raise FromOrToCommitGranularityError()
         return self
 

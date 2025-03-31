@@ -160,7 +160,7 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
 
 if __name__ == "__main__":
     df = pd.read_csv(
-        "sorted_energy_data_new_2.csv",
+        "sorted_energy_data_new_3.csv",
         header=None,
         names=["commit", "energy-pkg", "energy-core", "energy-gpu"],
     )

@@ -1,0 +1,39 @@
+{
+    "config_version": "1.0.0",
+    "repo": {
+        "url": "https://github.com/jenkins-infra/pipeline-library",
+        "branch": "master"
+    },
+    "execution_plan": {
+        "mode": "tests",
+        "ignore_failures": false,
+        "granularity": "commits",
+        "pre_command": "mvn clean test-compile",
+        "test_command": "mvn surefire:test",
+        "num_runs": 1,
+        "num_repeats": 1,
+        "randomize_tasks": true,
+        "batch_size": 100,
+        "oldest_commit": "459119fcb93bafae6619772ce3b37c3966bfd24e",
+        "num_commits": 10
+    },
+    "results": {
+        "file": "energy_usage.csv"
+    },
+    "limits": {
+        "temperature_safe_limit": 65000,
+        "energy_regression_percent": 20
+    },
+    "tracked_file_extensions": [
+        "java",
+        "xml",
+        "properties",
+        "yaml",
+        "yml"
+    ],
+    "cpu_thermal_file": "/sys/class/hwmon/hwmon5/temp1_input",
+    "setup_commands": [
+        "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk",
+        "export PATH=$JAVA_HOME/bin:$PATH"
+    ]
+}

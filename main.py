@@ -371,18 +371,18 @@ def main(config_path: str) -> None:
         commits = [c for tag in tags for c in repo.iter_commits(tag, max_count=num_commits)]
     else:
         commits = list(repo.iter_commits(config.repo.branch))
+        commits.reverse()
+        # Restrict commits if oldest_commit or newest_commit is set
+        if config.execution_plan.oldest_commit:
+            oldest_index = next((i for i, c in enumerate(commits) if c.hexsha == config.execution_plan.oldest_commit), None)
+            if oldest_index is not None:
+                commits = commits[oldest_index:]
 
-        # Restrict commits if from_commit or to_commit is set
-        if config.execution_plan.from_commit:
-            from_commit_index = next((i for i, c in enumerate(commits) if c.hexsha == config.execution_plan.from_commit), None)
-            if from_commit_index is not None:
-                commits = commits[from_commit_index:]
-
-        if config.execution_plan.to_commit:
-            to_commit_index = next((i for i, c in enumerate(commits) if c.hexsha == config.execution_plan.to_commit), None)
-            if to_commit_index is not None:
-                # +1 because we include the to_commit itself
-                commits = commits[: to_commit_index + 1]
+        if config.execution_plan.newest_commit:
+            newest_index = next((i for i, c in enumerate(commits) if c.hexsha == config.execution_plan.newest_commit), None)
+            if newest_index is not None:
+                # +1 because we include the newest_commit itself
+                commits = commits[: newest_index + 1]
 
         if num_commits:
             commits = commits[:num_commits]
