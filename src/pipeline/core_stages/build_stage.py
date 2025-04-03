@@ -13,28 +13,43 @@ class BuildStage(PipelineStage):
     """Builds the project if in 'benchmarks' mode, or skip if 'tests' mode has no build commands."""
 
     def run(self, context: dict[str, Any]) -> None:
-        """Builds the project if in 'benchmarks' mode, or skip if 'tests' mode has no build commands.
+        """Executes the build stage of the pipeline based on the provided context and configuration.
 
-        If the pipeline is in 'benchmarks' mode, we expect compile_commands.
-        If any build command fails, we abort the commit.
-        If the build fails and failures are not ignored, we abort the pipeline.
-        If the pipeline is in 'tests' mode, we don't build anything.
+        This method handles two primary modes of operation:
+        1. Benchmarks Mode: Executes a series of build commands specified in the configuration.
+           If any command fails, the pipeline may be aborted based on the configuration.
+        2. Batch Mode: Creates multiple copies of the repository, runs build commands in each
+           copy, and handles failures similarly to benchmarks mode.
+
+        Args:
+            context (dict[str, Any]): A dictionary to store the state of the pipeline execution.
+                Keys used:
+                    - "build_failed" (bool): Indicates if any build command failed.
+                    - "abort_pipeline" (bool): Indicates if the pipeline should be aborted.
+
+        Raises:
+            None: This method does not raise exceptions but modifies the context to signal
+            failures or pipeline abortion.
+
+        Notes:
+            - The behavior of the pipeline is influenced by the configuration, specifically:
+                - `config.execution_plan.mode`: Determines if the pipeline is in benchmarks mode.
+                - `config.execution_plan.batch_size`: Specifies the number of repository copies
+                  to create in batch mode.
+                - `config.execution_plan.compile_commands`: The list of build commands to execute.
+                - `config.execution_plan.ignore_failures`: If True, the pipeline will not abort
+                  on build failures.
+            - The repository path is derived from `config.repo_path`.
         """
         config = Config.get_config()
 
-        # If the pipeline is in 'benchmarks' mode, we expect compile_commands.
-        if config.execution_plan.mode == ModeEnum.benchmarks:
-            compile_cmds = config.execution_plan.compile_commands or []
-            for cmd in compile_cmds:
-                logging.info("Running build command: %s", cmd)
-                result = run_command(cmd, cwd=config.repo_path)
-                if result.returncode != 0:
-                    logging.error("Build command failed. Aborting commit.")
-                    context["build_failed"] = True
-                    if not config.execution_plan.ignore_failures:
-                        context["abort_pipeline"] = True
-                    break
-        else:
-            # In 'tests' mode, maybe no formal build is required.
-            # Or you can put commands in compile_commands as well, if desired.
-            pass
+        compile_cmds = config.execution_plan.compile_commands or []
+        for cmd in compile_cmds:
+            logging.info("Running build command: %s", cmd)
+            result = run_command(cmd, cwd=config.repo_path)
+            if result.returncode != 0:
+                logging.error("Build command failed. Aborting commit.")
+                context["build_failed"] = True
+                if not config.execution_plan.ignore_failures:
+                    context["abort_pipeline"] = True
+                break

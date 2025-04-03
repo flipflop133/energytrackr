@@ -7,6 +7,7 @@ import git
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
+from utils import run_command
 
 
 class CheckoutStage(PipelineStage):
@@ -24,8 +25,10 @@ class CheckoutStage(PipelineStage):
             context: A dictionary containing the current execution context,
                     including the commit to checkout.
         """
-        commit = context["current_commit"]
-        repo_path = Config.get_config().repo_path  # we'll store this after cloning in main
+        commit = context["commit"]
+        config = Config.get_config()
+        commit = context["commit"]
+        repo_path = config.repo_path  # we'll store this after cloning in main
         repo = git.Repo(repo_path)
 
         try:

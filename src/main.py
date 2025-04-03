@@ -19,11 +19,12 @@ from pipeline.core_stages.checkout_stage import CheckoutStage
 from pipeline.core_stages.measure_stage import MeasureEnergyStage
 from pipeline.core_stages.post_test_stage import PostTestStage
 from pipeline.core_stages.pre_build_stage import PreBuildStage
+from pipeline.core_stages.prepare_batch_stage import PrepareBatchStage
+from pipeline.core_stages.set_directory_stage import SetDirectoryStage
 from pipeline.core_stages.stability_check_stage import StabilityCheckStage
-from pipeline.custom_stages.java_setup_stage import JavaSetupStage
 from pipeline.core_stages.temperature_check_stage import TemperatureCheckStage
-from pipeline.core_stages.test_stage import TestStage
 from pipeline.core_stages.verify_perf_stage import VerifyPerfStage
+from pipeline.custom_stages.java_setup_stage import JavaSetupStage
 from pipeline.pipeline import Pipeline
 from pipeline.stage_interface import PipelineStage
 
@@ -114,23 +115,28 @@ def gather_commits(repo: git.Repo) -> list[git.Commit]:
         return commits
 
 
-def build_pipeline_stages() -> list[PipelineStage]:
-    """Assembles the pipeline stages in the order you want.
+pre_stages: list[PipelineStage] = [
+    VerifyPerfStage(),
+    # StabilityCheckStage(),
+]
 
-    You can also insert plugin-based logic here.
-    """
-    return [
-        VerifyPerfStage(),
-        # StabilityCheckStage(),
-        CheckoutStage(),
-        JavaSetupStage(),
-        PreBuildStage(),
-        BuildStage(),
-        TestStage(),
-        TemperatureCheckStage(),
-        MeasureEnergyStage(),
-        PostTestStage(),
-    ]
+pre_test_stages: list[PipelineStage] = [
+    SetDirectoryStage(),
+    CheckoutStage(),
+    JavaSetupStage(),
+    BuildStage(),
+    # PreBuildStage(),
+]
+
+pre_batch_stages: list[PipelineStage] = [PrepareBatchStage(pre_test_stages=pre_test_stages)]
+
+batch_stages: list[PipelineStage] = [
+    TemperatureCheckStage(),
+    SetDirectoryStage(),
+    JavaSetupStage(),
+    MeasureEnergyStage(),
+    PostTestStage(),
+]
 
 
 def main() -> None:
@@ -184,18 +190,31 @@ def main() -> None:
     if conf.execution_plan.randomize_tasks:
         random.shuffle(tasks)
 
-    pipeline_stages = build_pipeline_stages()
-    pipeline = Pipeline(pipeline_stages)
+    # group tasks into batches
+    batches = [tasks[i : i + conf.execution_plan.batch_size] for i in range(0, len(tasks), conf.execution_plan.batch_size)]
+
+    pipeline = Pipeline(stages=batch_stages)
+    for batch in batches:
+        # Display number of tasks in each batch
+        logging.info("Processing batch of %d tasks", len(batch))
+    # run pre stages
+    for stage in pre_stages:
+        stage.run({})
 
     start_time = time.time()
     with tqdm(total=len(tasks), desc="Energy Pipeline", unit="task") as progress_bar:
-        for commit in tasks:
+        for batch in batches:
+            # Display number of tasks in each batch
+            logging.info("Processing batch of %d tasks", len(batch))
+            # run pre batch stages
+            for stage in pre_batch_stages:
+                stage.run({"commits": batch})
             # Update progress bar and display global stats
             elapsed = int(time.time() - start_time)
             formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed))
             progress_bar.set_postfix(current_commit=commit.hexsha[:8], elapsed=formatted_time)
             progress_bar.update(1)
-            pipeline.run([commit])  # run pipeline on single commit at a time
+            pipeline.run(batch)  # run pipeline on single commit at a time
 
     # Finally, restore HEAD
     repo.git.checkout(conf.repo.branch)
