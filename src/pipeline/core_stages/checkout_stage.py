@@ -7,7 +7,6 @@ import git
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
-from utils import run_command
 
 
 class CheckoutStage(PipelineStage):

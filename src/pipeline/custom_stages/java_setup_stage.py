@@ -12,7 +12,7 @@ from utils import run_command
 class JavaSetupStage(PipelineStage):
     """A specialized stage that sets JAVA_HOME or does other Java-specific tasks."""
 
-    def run(self, context: dict[str, Any]) -> None:
+    def run(self, _context: dict[str, Any]) -> None:
         """Sets up the Java environment variables for the given commit.
 
         Extracts the Java version from the project's pom.xml, maps it to the
@@ -63,38 +63,68 @@ class JavaSetupStage(PipelineStage):
             root = tree.getroot()
 
             # Handle XML namespaces (POM files typically include a namespace)
-            ns = {}
-            if root.tag.startswith("{"):
-                uri = root.tag.split("}")[0].strip("{")
-                ns = {"ns": uri}
+            ns = JavaSetupStage._get_xml_namespace(root)
 
-            # First, try to find <java.version> in the <properties> section
-            properties = root.find("ns:properties", ns)
-            if properties is not None:
-                java_version = properties.find("ns:java.version", ns)
-                if java_version is not None and java_version.text:
-                    return java_version.text.strip()
+            # Try extracting the Java version from <properties>
+            java_version = JavaSetupStage._extract_from_properties(root, ns)
+            if java_version:
+                return java_version
 
-            # Alternatively, check for maven-compiler-plugin settings
-            plugins = root.findall(".//ns:plugin", ns)
-            for plugin in plugins:
-                artifact_id = plugin.find("ns:artifactId", ns)
-                if artifact_id is not None and artifact_id.text.strip() == "maven-compiler-plugin":
-                    configuration = plugin.find("ns:configuration", ns)
-                    if configuration is not None:
-                        source = configuration.find("ns:source", ns)
-                        target = configuration.find("ns:target", ns)
-                        # Return source version if available; otherwise, target version.
-                        if source is not None and source.text:
-                            return source.text.strip()
-                        elif target is not None and target.text:
-                            return target.text.strip()
-
-            logging.error("Java version not found in pom.xml.")
+            # Try extracting the Java version from maven-compiler-plugin
+            java_version = JavaSetupStage._extract_from_compiler_plugin(root, ns)
+            if java_version:
+                return java_version
 
         except Exception:
-            logging.exception("Error parsing pom.xml: %s")
+            logging.exception("Error parsing pom.xml: %s", pom_file)
             return None
         else:
-            logging.error("Unexpected error while extracting Java version.")
+            logging.error("Java version not found in pom.xml.")
             return None
+
+    @staticmethod
+    def _get_xml_namespace(root: ET.Element) -> dict[str, str]:
+        """Extracts the XML namespace from the root element."""
+        if root.tag.startswith("{"):
+            uri = root.tag.split("}")[0].strip("{")
+            return {"ns": uri}
+        return {}
+
+    @staticmethod
+    def _extract_from_properties(root: ET.Element, ns: dict[str, str]) -> str | None:
+        """Extracts the Java version from the <properties> section."""
+        properties = root.find("ns:properties", ns)
+        if properties is not None:
+            java_version = properties.find("ns:java.version", ns)
+            if java_version is not None and java_version.text:
+                return java_version.text.strip()
+        return None
+
+    @staticmethod
+    def _extract_from_compiler_plugin(root: ET.Element, ns: dict[str, str]) -> str | None:
+        """Extracts the Java version from the maven-compiler-plugin configuration."""
+        plugins = root.findall(".//ns:plugin", ns)
+        for plugin in plugins:
+            if JavaSetupStage._is_maven_compiler_plugin(plugin, ns):
+                return JavaSetupStage._get_java_version_from_plugin(plugin, ns)
+        return None
+
+    @staticmethod
+    def _is_maven_compiler_plugin(plugin: ET.Element, ns: dict[str, str]) -> bool:
+        """Checks if the given plugin is the maven-compiler-plugin."""
+        artifact_id = plugin.find("ns:artifactId", ns)
+        return artifact_id is not None and artifact_id.text is not None and artifact_id.text.strip() == "maven-compiler-plugin"
+
+    @staticmethod
+    def _get_java_version_from_plugin(plugin: ET.Element, ns: dict[str, str]) -> str | None:
+        """Extracts the Java version from the maven-compiler-plugin's configuration."""
+        configuration = plugin.find("ns:configuration", ns)
+        if configuration is not None:
+            source = configuration.find("ns:source", ns)
+            target = configuration.find("ns:target", ns)
+            # Return source version if available; otherwise, target version.
+            if source is not None and source.text:
+                return source.text.strip()
+            if target is not None and target.text:
+                return target.text.strip()
+        return None

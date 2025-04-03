@@ -4,10 +4,8 @@ import argparse
 import logging
 import os
 import random
-import time
 
 import git
-from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from config.config_model import PipelineConfig
@@ -139,6 +137,15 @@ batch_stages: list[PipelineStage] = [
 ]
 
 
+def compile_stages() -> dict[str, list[PipelineStage]]:
+    """Compile the pipeline stages based on the execution plan.
+
+    Returns:
+        list[PipelineStage]: The compiled list of pipeline stages.
+    """
+    return {"pre_stages": pre_stages, "pre_batch_stages": pre_batch_stages, "batch_stages": batch_stages}
+
+
 def main() -> None:
     """Main entry point for the Energy Pipeline CLI.
 
@@ -193,28 +200,8 @@ def main() -> None:
     # group tasks into batches
     batches = [tasks[i : i + conf.execution_plan.batch_size] for i in range(0, len(tasks), conf.execution_plan.batch_size)]
 
-    pipeline = Pipeline(stages=batch_stages)
-    for batch in batches:
-        # Display number of tasks in each batch
-        logging.info("Processing batch of %d tasks", len(batch))
-    # run pre stages
-    for stage in pre_stages:
-        stage.run({})
-
-    start_time = time.time()
-    with tqdm(total=len(tasks), desc="Energy Pipeline", unit="task") as progress_bar:
-        for batch in batches:
-            # Display number of tasks in each batch
-            logging.info("Processing batch of %d tasks", len(batch))
-            # run pre batch stages
-            for stage in pre_batch_stages:
-                stage.run({"commits": batch})
-            # Update progress bar and display global stats
-            elapsed = int(time.time() - start_time)
-            formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed))
-            progress_bar.set_postfix(current_commit=commit.hexsha[:8], elapsed=formatted_time)
-            progress_bar.update(1)
-            pipeline.run(batch)  # run pipeline on single commit at a time
+    pipeline = Pipeline(stages=compile_stages())
+    pipeline.run(batches)
 
     # Finally, restore HEAD
     repo.git.checkout(conf.repo.branch)

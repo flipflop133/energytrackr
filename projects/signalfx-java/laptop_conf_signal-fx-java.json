@@ -10,12 +10,15 @@
         "granularity": "commits",
         "pre_command": "mvn clean test-compile",
         "test_command": "mvn surefire:test",
-        "num_runs": 30,
+        "num_runs": 1,
         "num_repeats": 1,
         "randomize_tasks": true,
         "batch_size": 100,
         "oldest_commit": "db1ba94c8a8aae10b021ffd8532bd9d8fc42ae10",
-        "num_commits": 15
+        "num_commits": 5,
+        "compile_commands": [
+            "mvn clean test-compile"
+        ]
     },
     "results": {
         "file": "energy_usage.csv"
