@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Energy Analyzer",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "python3.13t", // or remove if it's your default in the venv
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--config",
+                "projects/signalfx-java/laptop_conf_signal-fx-java.json",
+                "measure"
+            ],
+            "console": "integratedTerminal"
+        }
+    ]
+}

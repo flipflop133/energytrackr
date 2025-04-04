@@ -9,4 +9,4 @@ scipy
 tqdm
 tqdm-stubs
 pydantic
-ruptures
+#ruptures

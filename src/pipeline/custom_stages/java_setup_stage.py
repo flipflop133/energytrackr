@@ -27,7 +27,7 @@ class JavaSetupStage(PipelineStage):
             logging.error("Skipping Java setup stage. Defaulting to system Java.")
             return
 
-        version = self.extract_java_version(repo_path + "/pom.xml")
+        version = self.extract_java_version("pom.xml")
         if not version:
             logging.error("Valid Java version not found. Skipping Java setup stage.")
             return

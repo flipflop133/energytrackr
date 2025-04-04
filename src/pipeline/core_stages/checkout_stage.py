@@ -24,11 +24,10 @@ class CheckoutStage(PipelineStage):
             context: A dictionary containing the current execution context,
                     including the commit to checkout.
         """
-        commit = context["commit"]
+        commit: git.Commit = context["commit"]
         config = Config.get_config()
-        commit = context["commit"]
-        repo_path = config.repo_path  # we'll store this after cloning in main
-        repo = git.Repo(repo_path)
+        logging.info(f"Repo path: {config.repo_path}_{commit}")
+        repo = git.Repo()
 
         try:
             logging.info("Checking out commit %s", commit.hexsha)

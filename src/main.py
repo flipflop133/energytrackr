@@ -14,10 +14,10 @@ from pipeline.core_stages.build_stage import BuildStage
 
 # Core Stages
 from pipeline.core_stages.checkout_stage import CheckoutStage
+from pipeline.core_stages.copy_directory_stage import CopyDirectoryStage
 from pipeline.core_stages.measure_stage import MeasureEnergyStage
 from pipeline.core_stages.post_test_stage import PostTestStage
 from pipeline.core_stages.pre_build_stage import PreBuildStage
-from pipeline.core_stages.prepare_batch_stage import PrepareBatchStage
 from pipeline.core_stages.set_directory_stage import SetDirectoryStage
 from pipeline.core_stages.stability_check_stage import StabilityCheckStage
 from pipeline.core_stages.temperature_check_stage import TemperatureCheckStage
@@ -95,7 +95,7 @@ def gather_commits(repo: git.Repo) -> list[git.Commit]:
 
     else:  # commits
         commits = list(repo.iter_commits(conf.repo.branch))
-        commits.reverse()  # oldest -> newest
+        # commits.reverse()  # oldest -> newest
         if plan.oldest_commit:
             # cut off from oldest_commit forward
             start_idx = next((i for i, c in enumerate(commits) if c.hexsha == plan.oldest_commit), None)
@@ -119,14 +119,13 @@ pre_stages: list[PipelineStage] = [
 ]
 
 pre_test_stages: list[PipelineStage] = [
+    CopyDirectoryStage(),
     SetDirectoryStage(),
     CheckoutStage(),
     JavaSetupStage(),
     BuildStage(),
     # PreBuildStage(),
 ]
-
-pre_batch_stages: list[PipelineStage] = [PrepareBatchStage(pre_test_stages=pre_test_stages)]
 
 batch_stages: list[PipelineStage] = [
     TemperatureCheckStage(),
@@ -143,7 +142,7 @@ def compile_stages() -> dict[str, list[PipelineStage]]:
     Returns:
         list[PipelineStage]: The compiled list of pipeline stages.
     """
-    return {"pre_stages": pre_stages, "pre_batch_stages": pre_batch_stages, "batch_stages": batch_stages}
+    return {"pre_stages": pre_stages, "pre_test_stages": pre_test_stages, "batch_stages": batch_stages}
 
 
 def main() -> None:
@@ -173,7 +172,7 @@ def main() -> None:
     project_dir = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
 
-    conf.repo_path = os.path.join(project_dir, f".cache_{project_name}")
+    conf.repo_path = os.path.abspath(os.path.join(project_dir, f".cache_{project_name}"))
     repo = clone_or_open_repo(conf.repo_path, conf.repo.url, conf.repo.clone_options)
 
     # (Optional) run system-level setup commands

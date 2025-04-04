@@ -45,7 +45,7 @@ class BuildStage(PipelineStage):
         compile_cmds = config.execution_plan.compile_commands or []
         for cmd in compile_cmds:
             logging.info("Running build command: %s", cmd)
-            result = run_command(cmd, cwd=config.repo_path)
+            result = run_command(cmd)
             if result.returncode != 0:
                 logging.error("Build command failed. Aborting commit.")
                 context["build_failed"] = True
