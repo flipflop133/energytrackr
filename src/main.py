@@ -181,23 +181,26 @@ def main() -> None:
             logging.info("Running setup command: %s", cmd)
             os.system(cmd)
 
-    # Gather commits
     commits = gather_commits(repo)
     logging.info("Collected %d commits to process.", len(commits))
 
-    # If desired, randomize or replicate commits
-    # e.g., tasks = commits * (num_runs * num_repeats)
-    # or do it in smaller batches, etc.
-    tasks = []
-    for commit in commits:
-        # Repeat each commit
-        tasks.extend([commit] * (conf.execution_plan.num_runs * conf.execution_plan.num_repeats))
+    # Divide the list of commits into batches of 'batch_size' commits each
+    commit_batches = [
+        commits[i : i + conf.execution_plan.batch_size] for i in range(0, len(commits), conf.execution_plan.batch_size)
+    ]
 
-    if conf.execution_plan.randomize_tasks:
-        random.shuffle(tasks)
+    batches = []
+    for commit_batch in commit_batches:
+        batch_tasks = []
+        for commit in commit_batch:
+            # Add all the runs and repeats for this commit to the batch
+            runs_per_commit = conf.execution_plan.num_runs * conf.execution_plan.num_repeats
+            batch_tasks.extend([commit] * runs_per_commit)
 
-    # group tasks into batches
-    batches = [tasks[i : i + conf.execution_plan.batch_size] for i in range(0, len(tasks), conf.execution_plan.batch_size)]
+        if conf.execution_plan.randomize_tasks:
+            random.shuffle(batch_tasks)
+
+        batches.append(batch_tasks)
 
     pipeline = Pipeline(stages=compile_stages())
     pipeline.run(batches)

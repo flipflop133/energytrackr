@@ -10,11 +10,11 @@
         "granularity": "commits",
         "pre_command": "mvn clean test-compile",
         "test_command": "mvn surefire:test",
-        "num_runs": 3,
+        "num_runs": 30,
         "num_repeats": 1,
         "randomize_tasks": true,
         "batch_size": 100,
-        "num_commits": 10,
+        "num_commits": 300,
         "compile_commands": [
             "mvn clean test-compile"
         ]

@@ -24,14 +24,14 @@ class CheckoutStage(PipelineStage):
             context: A dictionary containing the current execution context,
                     including the commit to checkout.
         """
-        commit: git.Commit = context["commit"]
+        commit: str = context["commit"]
         config = Config.get_config()
         logging.info(f"Repo path: {config.repo_path}_{commit}")
         repo = git.Repo()
 
         try:
-            logging.info("Checking out commit %s", commit.hexsha)
-            repo.git.checkout(commit.hexsha)
+            logging.info("Checking out commit %s", commit)
+            repo.git.checkout(commit)
         except Exception:
-            logging.exception("Failed to checkout commit %s", commit.hexsha)
+            logging.exception("Failed to checkout commit %s", commit)
             context["abort_pipeline"] = True
