@@ -5,7 +5,7 @@ from typing import Any
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
-from utils import run_command
+from utils.utils import run_command
 
 
 class PostTestStage(PipelineStage):
@@ -24,7 +24,7 @@ class PostTestStage(PipelineStage):
             return
 
         logging.info("Running post-test command: %s", post_cmd)
-        result = run_command(post_cmd, cwd=config.repo_path)
+        result = run_command(post_cmd, cwd=context.get("repo_path"))
         if result.returncode != 0:
             logging.error("Post-test command failed with exit code %d", result.returncode)
             if not config.execution_plan.ignore_failures:

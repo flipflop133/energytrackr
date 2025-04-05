@@ -5,7 +5,7 @@ from typing import Any
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
-from utils import run_command
+from utils.utils import run_command
 
 
 class PreBuildStage(PipelineStage):
@@ -38,7 +38,7 @@ class PreBuildStage(PipelineStage):
         # For brevity we skip that logic or replicate from your original code.
 
         logging.info("Running pre-build command: %s", pre_cmd)
-        result = run_command(pre_cmd, cwd=config.repo_path)
+        result = run_command(pre_cmd, cwd=context.get("repo_path"))
 
         if result.returncode != 0:
             logging.error("Pre-build command failed with return code %d", result.returncode)

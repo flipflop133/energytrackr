@@ -141,3 +141,6 @@ before step 4, run:
 - [ ] Check that pc won't go into sleep mode during the test
 - [ ] Check that most background processes are disabled
 - [ ] Unload drivers/modules that could interfere with the measurement
+- [ ] Add tests with code coverage
+- [ ] Add github actions
+- [ ] Add documentation probably with sphinx

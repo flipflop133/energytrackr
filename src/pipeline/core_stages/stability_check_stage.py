@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 from pipeline.stage_interface import PipelineStage
-from utils import run_command
+from utils.utils import run_command
 
 
 class StabilityCheckStage(PipelineStage):

@@ -5,7 +5,7 @@ from typing import Any
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
-from utils import run_command
+from utils.utils import run_command
 
 
 class BuildStage(PipelineStage):

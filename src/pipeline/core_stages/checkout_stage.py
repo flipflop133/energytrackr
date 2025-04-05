@@ -5,7 +5,6 @@ from typing import Any
 
 import git
 
-from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
 
 
@@ -25,8 +24,7 @@ class CheckoutStage(PipelineStage):
                     including the commit to checkout.
         """
         commit: str = context["commit"]
-        config = Config.get_config()
-        logging.info(f"Repo path: {config.repo_path}_{commit}")
+        logging.info(f"Repo path: {context.get('repo_path')}_{commit}")
         repo = git.Repo()
 
         try:

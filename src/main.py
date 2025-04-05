@@ -95,7 +95,6 @@ def gather_commits(repo: git.Repo) -> list[git.Commit]:
 
     else:  # commits
         commits = list(repo.iter_commits(conf.repo.branch))
-        # commits.reverse()  # oldest -> newest
         if plan.oldest_commit:
             # cut off from oldest_commit forward
             start_idx = next((i for i, c in enumerate(commits) if c.hexsha == plan.oldest_commit), None)
@@ -145,25 +144,7 @@ def compile_stages() -> dict[str, list[PipelineStage]]:
     return {"pre_stages": pre_stages, "pre_test_stages": pre_test_stages, "batch_stages": batch_stages}
 
 
-def main() -> None:
-    """Main entry point for the Energy Pipeline CLI.
-
-    Parses command-line arguments to determine the command to execute
-    (either 'measure' or 'stability-test') and the configuration file
-    to use. Loads the pipeline configuration, sets up the repository
-    path, and executes optional system-level setup commands. Gathers
-    the commits to process and optionally randomizes or replicates them
-    according to the execution plan. Assembles the pipeline stages and
-    runs the pipeline on each commit, updating a progress bar with global
-    statistics. Finally, restores the repository's HEAD to the latest
-    commit on the specified branch.
-    """
-    parser = argparse.ArgumentParser(description="Energy Pipeline CLI")
-    parser.add_argument("command", choices=["measure", "stability-test"], help="Which command to run")
-    parser.add_argument("--config", default="config.json", help="Path to config file")
-    args = parser.parse_args()
-
-    # Otherwise 'measure'
+def measure() -> None:
     load_pipeline_config(args.config)
     conf = Config.get_config()
 
@@ -172,8 +153,8 @@ def main() -> None:
     project_dir = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
 
-    conf.repo_path = os.path.abspath(os.path.join(project_dir, f".cache_{project_name}"))
-    repo = clone_or_open_repo(conf.repo_path, conf.repo.url, conf.repo.clone_options)
+    repo_path: str = os.path.abspath(os.path.join(project_dir, f".cache_{project_name}"))
+    repo = clone_or_open_repo(repo_path, conf.repo.url, conf.repo.clone_options)
 
     # (Optional) run system-level setup commands
     if conf.setup_commands:
@@ -202,7 +183,7 @@ def main() -> None:
 
         batches.append(batch_tasks)
 
-    pipeline = Pipeline(stages=compile_stages())
+    pipeline = Pipeline(compile_stages(), repo_path)
     pipeline.run(batches)
 
     # Finally, restore HEAD
@@ -210,8 +191,67 @@ def main() -> None:
     logging.info("Restored HEAD to latest commit on branch %s.", conf.repo.branch)
 
 
+def main(args: argparse.Namespace) -> None:
+    """Main entry point for the Energy Pipeline CLI.
+
+    Parses command-line arguments to determine the command to execute
+    (either 'measure' or 'stability-test') and the configuration file
+    to use. Loads the pipeline configuration, sets up the repository
+    path, and executes optional system-level setup commands. Gathers
+    the commits to process and optionally randomizes or replicates them
+    according to the execution plan. Assembles the pipeline stages and
+    runs the pipeline on each commit, updating a progress bar with global
+    statistics. Finally, restores the repository's HEAD to the latest
+    commit on the specified branch.
+    """
+    # switch case for command
+    match args.command:
+        case "measure":
+            # Measure energy consumption
+            measure()
+        case "stability-test":
+            # Run stability test
+            pass
+        case "sort":
+            # Sort a result file
+            pass
+        case "plot":
+            # Plot a result file
+            pass
+        case _:
+            raise ValueError(f"Unknown command: {args.command}")
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments.
+
+    Returns:
+        argparse.Namespace: Parsed command-line arguments.
+    """
+    parser = argparse.ArgumentParser(description="Energy Pipeline CLI")
+    subparsers = parser.add_subparsers(dest="command", required=True, help="Subcommand to run")
+
+    # measure subcommand
+    measure_parser = subparsers.add_parser("measure", help="Run energy measurement")
+    measure_parser.add_argument("--config", default="config.json", help="Path to config file")
+
+    # stability-test subcommand
+    stability_parser = subparsers.add_parser("stability-test", help="Run stability test")
+    stability_parser.add_argument("--config", default="config.json", help="Path to config file")
+
+    # sort subcommand
+    sort_parser = subparsers.add_parser("sort", help="Sort a result file")
+    sort_parser.add_argument("file", help="Path to the result file to sort")
+
+    # plot subcommand
+    plot_parser = subparsers.add_parser("plot", help="Plot a result file")
+    plot_parser.add_argument("file", help="Path to the result file to plot")
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     with logging_redirect_tqdm():
         # Redirect tqdm output to logging
-        main()
+        main(parse_args())

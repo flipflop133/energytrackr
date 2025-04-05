@@ -4,15 +4,14 @@ import logging
 import xml.etree.ElementTree as ET
 from typing import Any
 
-from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
-from utils import run_command
+from utils.utils import run_command
 
 
 class JavaSetupStage(PipelineStage):
     """A specialized stage that sets JAVA_HOME or does other Java-specific tasks."""
 
-    def run(self, _context: dict[str, Any]) -> None:
+    def run(self, context: dict[str, Any]) -> None:
         """Sets up the Java environment variables for the given commit.
 
         Extracts the Java version from the project's pom.xml, maps it to the
@@ -21,7 +20,7 @@ class JavaSetupStage(PipelineStage):
         Args:
             context: A dictionary containing the current execution context.
         """
-        repo_path = Config.get_config().repo_path
+        repo_path = context.get("repo_path")
         if not repo_path:
             logging.error("Repository path is not set in the configuration.")
             logging.error("Skipping Java setup stage. Defaulting to system Java.")

@@ -145,11 +145,6 @@ class PipelineConfig(BaseModel):
 
     config_version: str = Field(default="1.0.0", description="Version of the configuration schema.", examples=["1.0.0"])
     repo: RepositoryDefinition = Field(..., description="Repository configuration details.")
-    repo_path: str | None = Field(
-        default=None,
-        description="Local path where the repository is cloned.",
-        examples=["/path/to/repo"],
-    )
     execution_plan: ExecutionPlanDefinition = Field(..., description="Execution plan for running tests or benchmarks.")
     limits: LimitsDefinition = Field(
         ...,

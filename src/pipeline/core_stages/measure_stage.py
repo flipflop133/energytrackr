@@ -7,7 +7,7 @@ from typing import Any
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
-from utils import run_command
+from utils.utils import run_command
 
 
 class MeasureEnergyStage(PipelineStage):
@@ -41,11 +41,10 @@ class MeasureEnergyStage(PipelineStage):
             logging.warning("No test command => no energy measurement performed.")
             return
 
-        repo_path = config.repo_path
         perf_command = f"perf stat -e power/energy-pkg/ {test_cmd}"
 
         logging.info("Measuring energy with: %s", perf_command)
-        result = run_command(perf_command, cwd=repo_path)
+        result = run_command(perf_command)
 
         # If `perf` fails:
         if result.returncode != 0:
@@ -66,6 +65,7 @@ class MeasureEnergyStage(PipelineStage):
 
         # Log to CSV
         commit_hash = context["commit"].hexsha
+        repo_path = context["repo_path"]
         assert repo_path is not None, "Repository path is not set in the configuration."
         output_file = Path(repo_path).parent / "energy_measurements" / f"energy_results_{self.timestamp}.csv"
         output_file.parent.mkdir(parents=True, exist_ok=True)

@@ -1,9 +1,10 @@
+"""SetDirectoryStage: A pipeline stage to change the working directory to a commit-specific directory."""
+
 import logging
 import os
 from pathlib import Path
 from typing import Any
 
-from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
 
 
@@ -11,8 +12,7 @@ class SetDirectoryStage(PipelineStage):
     """Pipeline stage to change the working directory to a commit-specific directory."""
 
     def run(self, context: dict[str, Any]) -> None:
-        """
-        Executes the logic to change the current working directory to the commit-specific directory.
+        """Executes the logic to change the current working directory to the commit-specific directory.
 
         Args:
             context (dict[str, Any]): A dictionary containing contextual information.
@@ -25,9 +25,8 @@ class SetDirectoryStage(PipelineStage):
         if "commit" not in context:
             raise KeyError("Missing 'commit' in context")
 
-        config = Config.get_config()
         commit_id = context["commit"]
-        target_dir = Path(f"{config.repo_path}_{commit_id}").resolve()
+        target_dir = Path(f"{context.get('repo_path')}_{commit_id}").resolve()
 
         if not target_dir.is_dir():
             raise FileNotFoundError(f"Target directory does not exist: {target_dir}")
