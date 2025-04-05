@@ -105,6 +105,7 @@ class Pipeline:
         Raises:
             Exception: If any exception occurs during the execution of pre-test stages.
         """
+        failed_commits = []
         with tqdm(total=len(batches), desc="Energy Pipeline", unit="batch") as progress_bar:
             for batch in batches:
                 logging.info("Processing batch of %d tasks", len(batch))
@@ -148,6 +149,9 @@ class Pipeline:
                 with tqdm(total=len(batch), desc="Batch stages", unit="commit", leave=False) as inner_progress_bar:
                     logging.info("Starting pipeline over %d commits...", len(batch))
                     for commit in batch:
+                        if commit.hexsha in failed_commits:
+                            logging.warning("Skipping failed commit %s", commit.hexsha)
+                            continue
                         inner_progress_bar.set_postfix(current_commit=commit.hexsha[:8])
                         inner_progress_bar.update(1)
                         commit_context = {
@@ -159,8 +163,9 @@ class Pipeline:
                         logging.info("==== Processing commit %s ====", commit.hexsha)
 
                         if not self._run_stage_group(self.stages.get("batch_stages", []), commit_context):
-                            logging.warning("Aborting remaining stages for commit %s", commit.hexsha)
-                            return
+                            logging.warning(f"Commit {commit.hexsha} failed to process.")
+                            failed_commits.append(commit.hexsha)
+                            continue
 
                         logging.info("==== Done with commit %s ====\n", commit.hexsha)
 

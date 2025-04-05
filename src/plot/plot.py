@@ -1,5 +1,6 @@
 """Create a plot of median energy consumption from CSV file."""
 
+import logging
 import os
 import sys
 from datetime import datetime
@@ -161,14 +162,32 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
     plt.savefig(output_filename)
 
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python plot_energy.py <path_to_energy_results_csv>")
-        sys.exit(1)
+def create_energy_plots(input_path: str) -> None:
+    """Generates energy consumption plots from a CSV file and saves them as PNG images.
 
-    input_path = sys.argv[1]
+    Args:
+        input_path (str): The file path to the input CSV file. The CSV file should contain
+                          energy consumption data with the following columns:
+                          - "commit": Identifier for the commit or data point.
+                          - "energy-pkg": Energy consumption of the package.
+                          - "energy-core": Energy consumption of the CPU cores.
+                          - "energy-gpu": Energy consumption of the GPU.
+
+    Behavior:
+        - Validates the existence of the input file. If the file does not exist, logs an error
+          message and exits the program.
+        - Extracts the folder name from the input path to use as the project name.
+        - Generates a timestamp to uniquely identify the output files.
+        - Reads the CSV file into a DataFrame and generates plots for each energy-related column
+          ("energy-pkg", "energy-core", "energy-gpu").
+        - Saves the generated plots as PNG files in the same folder as the input CSV file. The
+          filenames include the project name, column name, and timestamp.
+
+    Raises:
+        SystemExit: If the input file does not exist.
+    """
     if not os.path.isfile(input_path):
-        print(f"Error: File not found: {input_path}")
+        logging.info(f"Error: File not found: {input_path}")
         sys.exit(1)
 
     # Get the folder where the CSV is located and use it as the project name

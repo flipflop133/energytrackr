@@ -25,6 +25,8 @@ from pipeline.core_stages.verify_perf_stage import VerifyPerfStage
 from pipeline.custom_stages.java_setup_stage import JavaSetupStage
 from pipeline.pipeline import Pipeline
 from pipeline.stage_interface import PipelineStage
+from plot.plot import create_energy_plots
+from utils.sort import reorder_commits
 
 
 def load_pipeline_config(config_path: str) -> None:
@@ -144,21 +146,36 @@ def compile_stages() -> dict[str, list[PipelineStage]]:
     return {"pre_stages": pre_stages, "pre_test_stages": pre_test_stages, "batch_stages": batch_stages}
 
 
-def measure() -> None:
-    load_pipeline_config(args.config)
-    conf = Config.get_config()
+def measure(config_path: str) -> None:
+    """Executes the measurement process for a given repository based on the provided configuration.
 
+    This function performs the following steps:
+    1. Loads the pipeline configuration from the specified path.
+    2. Sets up the repository directory and clones or opens the repository.
+    3. Optionally runs system-level setup commands defined in the configuration.
+    4. Collects commits from the repository and divides them into batches for processing.
+    5. Executes the pipeline stages on the batched tasks.
+    6. Restores the repository's HEAD to the latest commit on the specified branch.
+
+    Args:
+        config_path (str): The file path to the configuration file.
+
+    Raises:
+        Any exceptions raised during the execution of the pipeline or repository operations.
+    """
+    load_pipeline_config(config_path)
+    config = Config.get_config()
     # Set up repo path
-    project_name = os.path.basename(conf.repo.url).replace(".git", "").lower()
+    project_name = os.path.basename(config.repo.url).replace(".git", "").lower()
     project_dir = os.path.join("projects", project_name)
     os.makedirs(project_dir, exist_ok=True)
 
     repo_path: str = os.path.abspath(os.path.join(project_dir, f".cache_{project_name}"))
-    repo = clone_or_open_repo(repo_path, conf.repo.url, conf.repo.clone_options)
+    repo = clone_or_open_repo(repo_path, config.repo.url, config.repo.clone_options)
 
     # (Optional) run system-level setup commands
-    if conf.setup_commands:
-        for cmd in conf.setup_commands:
+    if config.setup_commands:
+        for cmd in config.setup_commands:
             logging.info("Running setup command: %s", cmd)
             os.system(cmd)
 
@@ -167,7 +184,7 @@ def measure() -> None:
 
     # Divide the list of commits into batches of 'batch_size' commits each
     commit_batches = [
-        commits[i : i + conf.execution_plan.batch_size] for i in range(0, len(commits), conf.execution_plan.batch_size)
+        commits[i : i + config.execution_plan.batch_size] for i in range(0, len(commits), config.execution_plan.batch_size)
     ]
 
     batches = []
@@ -175,10 +192,10 @@ def measure() -> None:
         batch_tasks = []
         for commit in commit_batch:
             # Add all the runs and repeats for this commit to the batch
-            runs_per_commit = conf.execution_plan.num_runs * conf.execution_plan.num_repeats
+            runs_per_commit = config.execution_plan.num_runs * config.execution_plan.num_repeats
             batch_tasks.extend([commit] * runs_per_commit)
 
-        if conf.execution_plan.randomize_tasks:
+        if config.execution_plan.randomize_tasks:
             random.shuffle(batch_tasks)
 
         batches.append(batch_tasks)
@@ -187,8 +204,8 @@ def measure() -> None:
     pipeline.run(batches)
 
     # Finally, restore HEAD
-    repo.git.checkout(conf.repo.branch)
-    logging.info("Restored HEAD to latest commit on branch %s.", conf.repo.branch)
+    repo.git.checkout(config.repo.branch)
+    logging.info("Restored HEAD to latest commit on branch %s.", config.repo.branch)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -208,16 +225,13 @@ def main(args: argparse.Namespace) -> None:
     match args.command:
         case "measure":
             # Measure energy consumption
-            measure()
-        case "stability-test":
-            # Run stability test
-            pass
+            measure(args.config)
         case "sort":
             # Sort a result file
-            pass
+            reorder_commits(args.file, args.repo_path, args.output_file)
         case "plot":
             # Plot a result file
-            pass
+            create_energy_plots(args.file)
         case _:
             raise ValueError(f"Unknown command: {args.command}")
 
@@ -235,13 +249,11 @@ def parse_args() -> argparse.Namespace:
     measure_parser = subparsers.add_parser("measure", help="Run energy measurement")
     measure_parser.add_argument("--config", default="config.json", help="Path to config file")
 
-    # stability-test subcommand
-    stability_parser = subparsers.add_parser("stability-test", help="Run stability test")
-    stability_parser.add_argument("--config", default="config.json", help="Path to config file")
-
     # sort subcommand
     sort_parser = subparsers.add_parser("sort", help="Sort a result file")
     sort_parser.add_argument("file", help="Path to the result file to sort")
+    sort_parser.add_argument("repo_path", help="Path to the repository")
+    sort_parser.add_argument("output_file", help="Path to the output file")
 
     # plot subcommand
     plot_parser = subparsers.add_parser("plot", help="Plot a result file")
