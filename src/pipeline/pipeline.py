@@ -144,7 +144,16 @@ class Pipeline:
                 pre_test_stages = self.stages.get("pre_test_stages", [])
 
                 # Run pre-test stages concurrently using ProcessPoolExecutor.
-                with concurrent.futures.ProcessPoolExecutor() as executor:
+                with (
+                    tqdm(
+                        total=len(unique_commit_hexshas),
+                        desc="Pre batch stages",
+                        unit="commit",
+                        leave=False,
+                        position=1,
+                    ) as pre_test_bar,
+                    concurrent.futures.ProcessPoolExecutor() as executor,
+                ):
                     futures = {
                         executor.submit(
                             run_pre_test_stages_for_commit,
@@ -154,33 +163,24 @@ class Pipeline:
                         ): commit_hexsha
                         for commit_hexsha in unique_commit_hexshas
                     }
-                    with tqdm(
-                        total=len(futures),
-                        desc="Pre batch stages",
-                        unit="commit",
-                        leave=False,
-                        position=1,
-                    ) as inner_progress_bar:
-                        inner_progress_bar.update(0)
-                        for future in concurrent.futures.as_completed(futures):
-                            commit_hexsha = futures[future]
-                            try:
-                                result = future.result(timeout=60)
-                            except Exception:
-                                logger.exception(f"Commit {commit_hexsha} generated an exception.")
-                                return
-                            # Displqy logs for the commit.
-                            log_context_buffer(result)
+                    for future in concurrent.futures.as_completed(futures):
+                        commit_hexsha = futures[future]
+                        try:
+                            result = future.result(timeout=60)
+                        except Exception:
+                            logger.exception(f"Commit {commit_hexsha} generated an exception.")
+                            return
 
-                            # Optionally check the result for an abort signal:
-                            if result.get("abort_pipeline"):
-                                logger.warning("Aborting pre-test stages for commit %s", commit_hexsha)
-                                failed_commits.add(commit_hexsha)
+                        # Display logs for the commit.
+                        log_context_buffer(result)
 
-                            inner_progress_bar.set_postfix(
-                                failed_commits=len(failed_commits),
-                            )
-                            inner_progress_bar.update(1)
+                        # Optionally check the result for an abort signal.
+                        if result.get("abort_pipeline"):
+                            logger.warning("Aborting pre-test stages for commit %s", commit_hexsha)
+                            failed_commits.add(commit_hexsha)
+
+                        pre_test_bar.set_postfix(failed_commits=len(failed_commits))
+                        pre_test_bar.update(1)
 
                 # Remove failed commits from the batch.
                 batch_to_process = [commit for commit in batch if commit.hexsha not in failed_commits]
@@ -190,15 +190,15 @@ class Pipeline:
                     desc="Batch stages",
                     unit="commit",
                     leave=False,
-                    position=1,
-                ) as inner_progress_bar:
+                    position=2,
+                ) as batch_stage_bar:
                     logger.info("Starting pipeline over %d commits...", len(batch_to_process))
                     for commit in batch_to_process:
                         if commit.hexsha in failed_commits:
                             logger.warning("Skipping failed commit %s", commit.hexsha)
                             continue
-                        inner_progress_bar.set_postfix(current_commit=commit.hexsha[:8])
-                        inner_progress_bar.update(1)
+                        batch_stage_bar.set_postfix(current_commit=commit.hexsha[:8])
+                        batch_stage_bar.update(1)
                         commit_context = {
                             "commit": commit,
                             "build_failed": False,
