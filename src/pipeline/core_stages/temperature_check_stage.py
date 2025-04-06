@@ -1,11 +1,11 @@
 """Stage to check CPU temperature before proceeding with the pipeline."""
 
-import logging
 import time
 from typing import Any
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
+from utils.logger import logger
 
 
 class TemperatureCheckStage(PipelineStage):
@@ -33,11 +33,11 @@ class TemperatureCheckStage(PipelineStage):
             try:
                 with open(temp_file) as f:
                     temp = int(f.read().strip())
-                logging.info("CPU temperature: %d (limit: %d)", temp, safe_limit)
+                logger.info("CPU temperature: %d (limit: %d)", temp, safe_limit)
                 if temp < safe_limit:
                     break
-                logging.warning("CPU too hot (%d), waiting...", temp)
+                logger.warning("CPU too hot (%d), waiting...", temp)
             except Exception as e:
-                logging.warning("Could not read temperature (%s). Proceeding anyway.", e)
+                logger.warning("Could not read temperature (%s). Proceeding anyway.", e)
                 break
             time.sleep(2)

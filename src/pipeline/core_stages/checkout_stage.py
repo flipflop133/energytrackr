@@ -1,11 +1,12 @@
 """Module to checkout a specific commit in a git repository."""
 
-import logging
+import os
 from typing import Any
 
 import git
 
 from pipeline.stage_interface import PipelineStage
+from utils.logger import logger
 
 
 class CheckoutStage(PipelineStage):
@@ -24,12 +25,13 @@ class CheckoutStage(PipelineStage):
                     including the commit to checkout.
         """
         commit: str = context["commit"]
-        logging.info(f"Repo path: {context.get('repo_path')}_{commit}")
-        repo = git.Repo()
+        logger.info(f"Repo path: {context.get('repo_path')}_{commit}", context=context)
+        cwd = os.getcwd()
+        repo = git.Repo(cwd)
 
         try:
-            logging.info("Checking out commit %s", commit)
+            logger.info(f"Checking out commit {commit}", context=context)
             repo.git.checkout(commit)
         except Exception:
-            logging.exception("Failed to checkout commit %s", commit)
+            logger.exception(f"Failed to checkout commit {commit}", context=context)
             context["abort_pipeline"] = True

@@ -1,11 +1,11 @@
 """Pipeline stage to copy a directory to a target location."""
 
-import logging
 import shutil
 from pathlib import Path
 from typing import Any
 
 from pipeline.stage_interface import PipelineStage
+from utils.logger import logger
 
 
 class CopyDirectoryStage(PipelineStage):
@@ -26,15 +26,15 @@ class CopyDirectoryStage(PipelineStage):
             FileExistsError: If the target directory already exists.
         """
         source = Path(context.get("repo_path")).resolve()
-        logging.info(f"Source directory: {source}")
+        logger.info(f"Source directory: {source}", context=context)
         target = Path(f"{context.get('repo_path')}_{context['commit']}").resolve()
 
         if not source.is_dir():
             raise FileNotFoundError(f"Source directory does not exist: {source}")
 
         if target.exists():
-            logging.info(f"Target directory already exists: {target}")
+            logger.info(f"Target directory already exists: {target}", context=context)
         else:
-            logging.info(f"Copying directory from {source} to {target}")
+            logger.info(f"Copying directory from {source} to {target}", context=context)
             shutil.copytree(src=source, dst=target)
-            logging.info("Copy completed.")
+            logger.info("Copy completed.", context=context)

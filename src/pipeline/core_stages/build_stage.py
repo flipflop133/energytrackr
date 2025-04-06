@@ -1,10 +1,10 @@
 """Module to build the project if in 'benchmarks' mode or skip if in 'tests' mode."""
 
-import logging
 from typing import Any
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
+from utils.logger import logger
 from utils.utils import run_command
 
 
@@ -44,10 +44,10 @@ class BuildStage(PipelineStage):
 
         compile_cmds = config.execution_plan.compile_commands or []
         for cmd in compile_cmds:
-            logging.info("Running build command: %s", cmd)
-            result = run_command(cmd)
+            logger.info(f"Running build command: {cmd}", context)
+            result = run_command(cmd, context=context)
             if result.returncode != 0:
-                logging.error("Build command failed. Aborting commit.")
+                logger.error(f"Build command failed: {cmd} (code {result.returncode})", context)
                 context["build_failed"] = True
                 if not config.execution_plan.ignore_failures:
                     context["abort_pipeline"] = True

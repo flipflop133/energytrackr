@@ -1,11 +1,11 @@
 """SetDirectoryStage: A pipeline stage to change the working directory to a commit-specific directory."""
 
-import logging
 import os
 from pathlib import Path
 from typing import Any
 
 from pipeline.stage_interface import PipelineStage
+from utils.logger import logger
 
 
 class SetDirectoryStage(PipelineStage):
@@ -31,5 +31,5 @@ class SetDirectoryStage(PipelineStage):
         if not target_dir.is_dir():
             raise FileNotFoundError(f"Target directory does not exist: {target_dir}")
 
-        logging.info(f"Changing directory to {target_dir}")
+        logger.info(f"Changing directory to {target_dir}", context=context)
         os.chdir(target_dir)
