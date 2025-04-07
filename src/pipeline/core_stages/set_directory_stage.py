@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from pipeline.stage_interface import PipelineStage
+from utils.exceptions import MissingContextKeyError, TargetDirectoryNotFoundError
 
 
 class SetDirectoryStage(PipelineStage):
@@ -23,13 +24,13 @@ class SetDirectoryStage(PipelineStage):
             FileNotFoundError: If the target directory does not exist.
         """
         if "commit" not in context:
-            raise KeyError("Missing 'commit' in context")
+            raise MissingContextKeyError("commit")
 
         commit_id = context["commit"]
         target_dir = Path(f"{context.get('repo_path')}_{commit_id}").resolve()
 
         if not target_dir.is_dir():
-            raise FileNotFoundError(f"Target directory does not exist: {target_dir}")
+            raise TargetDirectoryNotFoundError(target_dir)
 
         logging.info(f"Changing directory to {target_dir}")
         os.chdir(target_dir)

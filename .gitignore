@@ -5,3 +5,6 @@ __pycache__/
 
 # java files
 /target/
+
+# Sphinx docs
+/docs/build/

@@ -17,15 +17,14 @@ from pipeline.core_stages.checkout_stage import CheckoutStage
 from pipeline.core_stages.copy_directory_stage import CopyDirectoryStage
 from pipeline.core_stages.measure_stage import MeasureEnergyStage
 from pipeline.core_stages.post_test_stage import PostTestStage
-from pipeline.core_stages.pre_build_stage import PreBuildStage
 from pipeline.core_stages.set_directory_stage import SetDirectoryStage
-from pipeline.core_stages.stability_check_stage import StabilityCheckStage
 from pipeline.core_stages.temperature_check_stage import TemperatureCheckStage
 from pipeline.core_stages.verify_perf_stage import VerifyPerfStage
 from pipeline.custom_stages.java_setup_stage import JavaSetupStage
 from pipeline.pipeline import Pipeline
 from pipeline.stage_interface import PipelineStage
 from plot.plot import create_energy_plots
+from utils.exceptions import UnknownCommandError
 from utils.sort import reorder_commits
 
 
@@ -116,7 +115,6 @@ def gather_commits(repo: git.Repo) -> list[git.Commit]:
 
 pre_stages: list[PipelineStage] = [
     VerifyPerfStage(),
-    # StabilityCheckStage(),
 ]
 
 pre_test_stages: list[PipelineStage] = [
@@ -125,7 +123,6 @@ pre_test_stages: list[PipelineStage] = [
     CheckoutStage(),
     JavaSetupStage(),
     BuildStage(),
-    # PreBuildStage(),
 ]
 
 batch_stages: list[PipelineStage] = [
@@ -233,7 +230,7 @@ def main(args: argparse.Namespace) -> None:
             # Plot a result file
             create_energy_plots(args.file)
         case _:
-            raise ValueError(f"Unknown command: {args.command}")
+            raise UnknownCommandError(args.command)
 
 
 def parse_args() -> argparse.Namespace:

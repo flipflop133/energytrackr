@@ -3,18 +3,7 @@
 from typing import Optional
 
 from config.config_model import PipelineConfig
-
-
-class ConfigurationSingletonError(ValueError):
-    """Custom ValueError for errors related to the configuration singleton."""
-
-    def __str__(self) -> str:
-        """Returns the custom error message.
-
-        Returns:
-            str: The custom error message.
-        """
-        return "Configuration already initialized."
+from utils.exceptions import ConfigurationSingletonError
 
 
 class Config:
