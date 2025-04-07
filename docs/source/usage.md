@@ -7,6 +7,7 @@ This guide walks you through the steps to use the Energy Pipeline for detecting 
 ## 🧩 Overview
 
 The pipeline automates:
+
 - Cloning and checking out each commit
 - Running your tests N times per commit
 - Measuring energy with Intel RAPL
@@ -25,6 +26,7 @@ You need to create a config file in JSON format that follows your `config.schema
 - Output paths
 
 Example:
+
 ```json
 {
   "repo": {
@@ -48,6 +50,7 @@ Example:
 ## 🛠️ 2. System Preparation
 
 Ensure:
+
 - You're in a TTY session (not desktop environment)
 - Minimal background services are running
 - Battery is full and charging

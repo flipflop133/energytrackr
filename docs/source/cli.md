@@ -3,6 +3,7 @@
 The Energy Pipeline is controlled via the `main.py` command-line interface (CLI).
 
 This CLI allows you to:
+
 - Run energy measurements over Git commits
 - Check system stability
 - Sort result files by commit order
@@ -37,13 +38,13 @@ Runs the pipeline and saves results to a CSV file.
 python main.py measure --config path/to/config.json
 ```
 
-### Options:
+### Options
 
 | Option     | Description                  | Default       |
 | ---------- | ---------------------------- | ------------- |
 | `--config` | Path to the config JSON file | `config.json` |
 
-### Example:
+### Example
 
 ```bash
 python main.py measure --config configs/myproject.json
@@ -56,6 +57,7 @@ python main.py measure --config configs/myproject.json
 Checks if the system is in a stable condition for running measurements.
 
 It verifies:
+
 - CPU temperature
 - Permissions to read performance counters
 - Access to Intel RAPL interface
@@ -88,7 +90,7 @@ This will generate one plot per energy metric (e.g., `energy-pkg`, `energy-core`
   - Breaking commit markers
   - Normality analysis
 
-### Example:
+### Example
 
 ```bash
 python main.py plot results/sorted_results.csv
@@ -104,7 +106,7 @@ Sorts a CSV file by Git history to align results with chronological commits.
 python main.py sort <input_csv> <repo_path> <output_csv>
 ```
 
-### Parameters:
+### Parameters
 
 | Name         | Description                                |
 | ------------ | ------------------------------------------ |
@@ -112,7 +114,7 @@ python main.py sort <input_csv> <repo_path> <output_csv>
 | `repo_path`  | Path to the Git repository                 |
 | `output_csv` | Path where the sorted file will be written |
 
-### Example:
+### Example
 
 ```bash
 python main.py sort results/raw.csv /path/to/project results/sorted.csv

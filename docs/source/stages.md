@@ -25,6 +25,7 @@ context: dict[str, Any]
 ```
 
 Common fields in context:
+
 - `commit`: `git.Commit` object (or commit hash string in subprocesses)
 - `repo_path`: path to local Git repo
 - `build_failed`: `bool` flag set if a build fails
@@ -50,6 +51,7 @@ class PipelineStage(ABC):
 These are safety checks before anything is processed.
 
 ### ✅ `VerifyPerfStage`
+
 - Verifies `perf` access permissions.
 - Logs system state and capabilities.
 - Aborts the pipeline if setup is incorrect.
@@ -61,20 +63,25 @@ These are safety checks before anything is processed.
 These prepare each commit for measurement. They run concurrently to speed up processing.
 
 ### 📁 `CopyDirectoryStage`
+
 - Copies the repository to a fresh directory for this commit.
 - Ensures isolation between batches.
 
 ### 🏷 `SetDirectoryStage`
+
 - Sets the working directory in context to the correct copied repo path.
 
 ### 🌲 `CheckoutStage`
+
 - Checks out the specified commit in the local copy of the repo.
 
 ### ☕ `JavaSetupStage`
+
 - Detects Java version from Maven `pom.xml`.
 - Sets environment variables to match that version.
 
 ### 🔨 `BuildStage`
+
 - Builds the project using the test command.
 - Marks the commit as `build_failed` in context if it fails.
 
@@ -85,28 +92,33 @@ These prepare each commit for measurement. They run concurrently to speed up pro
 These stages are run `num_runs * num_repeats` times per commit.
 
 ### 🌡️ `TemperatureCheckStage`
+
 - Monitors CPU temperature.
 - Waits or aborts if too hot (to avoid noise in energy readings).
 
 ### 📁 `SetDirectoryStage` *(again)*
+
 - Redundant set for safety in parallel runs.
 
 ### ☕ `JavaSetupStage` *(again)*
+
 - Re-applies Java settings to ensure consistent environment.
 
 ### ⚡ `MeasureEnergyStage`
+
 - Runs the test command.
 - Collects energy metrics from RAPL (e.g., `energy-pkg`, `energy-core`, `energy-gpu`).
 - Saves them to a result file with the commit hash.
 
 ### 🧹 `PostTestStage`
+
 - Cleans up temporary files or resets settings if needed.
 
 ---
 
 ## 🧠 Execution Flow Summary
 
-```
+```text
 [Measure Command]
  └── Batches Commits (X batches of Y commits)
      └── For Each Batch:
@@ -140,11 +152,11 @@ context["build_failed"] = True
 1. Create a new class implementing `PipelineStage`.
 2. Add it to one of these lists in `main.py`:
 
-```python
-pre_stages = [...]
-pre_test_stages = [...]
-batch_stages = [...]
-```
+    ```python
+    pre_stages = [...]
+    pre_test_stages = [...]
+    batch_stages = [...]
+    ```
 
 3. The pipeline will pick it up automatically.
 

@@ -48,6 +48,7 @@ Pipeline (per batch)
 ```
 
 This model enables:
+
 - ✅ Pre-building commits once and reusing them
 - ✅ Concurrent stage execution where safe
 - ✅ Fine-grained extensibility per stage group
@@ -57,11 +58,13 @@ This model enables:
 ## 🧠 Shared Context
 
 All stages receive a `context: dict[str, Any]` which allows:
+
 - Passing commit information
 - Communicating control signals (`abort_pipeline`, `build_failed`, etc.)
 - Sharing paths, results, and state between stages
 
 Example usage:
+
 ```python
 context["build_failed"] = True
 context["abort_pipeline"] = True
@@ -79,7 +82,7 @@ Each stage is a self-contained Python class and can be loaded dynamically from u
 - Implements `run(context: dict)` method
 - Exposes `get_stage()` function (used for dynamic loading)
 
-### Example:
+### Example
 
 ```python
 # modules/python_env_stage.py

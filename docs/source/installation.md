@@ -45,6 +45,7 @@ pip install -r docs/requirements.txt
 ```
 
 > Create this file if it doesn't exist:
+
 ```txt
 # docs/requirements.txt
 sphinx
@@ -113,6 +114,7 @@ docker run -it --privileged pipeline:latest
 ```
 
 To mount your configuration and code:
+
 ```bash
 docker run -it --privileged \
   -v $(pwd)/configs:/configs \

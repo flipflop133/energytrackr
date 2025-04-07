@@ -4,6 +4,26 @@ A modular, pluggable pipeline to **detect energy regressions** across Git commit
 
 ---
 
+## TODO - sorted by priority
+
+- [x] Don't erase produced CSV files, use a timestamp with project name
+- [x] Automatically detect java version in pom and use export this one, so tests don't fail
+- [x] Build project one time for each commit, for this copy the project x batch times and checkout in each one and compile in each one than for the 30 runs for each commit we just need to run the tests, copying and compiling can be done in parallel and with unlocked frequencies
+- [x] Add documentation probably with sphinx
+- [ ] Save run conditions (temperature, CPU governor, number of CPU cycles, etc.), perf could be use for part of this and fastfetch for the rest. Also save config file. Place all this metadata either in the CSV or in a separate file
+- [ ] Display run conditions on the graph (e.g. temperature)
+- [ ] From measured CPU cycles, use CPU power usage provided by manufacturer to display a second line on the graph to compare energy consumption from RAPL with theoretical estimations.
+- [ ] Run only the same tests between commits
+- [ ] Do a warm-up run before the actual measurement
+- [ ] Add a cooldown between measurements, 1 second by default
+- [ ] Check that pc won't go into sleep mode during the test
+- [ ] Check that most background processes are disabled
+- [ ] Unload drivers/modules that could interfere with the measurement
+- [ ] Add tests with code coverage
+- [ ] Add github actions
+
+---
+
 ## 🚀 Features
 
 - 🔌 **Modular architecture** — add/remove stages easily
