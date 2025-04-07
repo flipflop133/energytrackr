@@ -4,7 +4,16 @@ import concurrent.futures
 from typing import Any
 
 import git
-from rich.progress import BarColumn, Progress, SpinnerColumn, TimeElapsedColumn
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+    MofNCompleteColumn,
+    TransferSpeedColumn,
+)
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
@@ -127,14 +136,16 @@ class Pipeline:
         failed_commits: set[str] = set()
 
         with Progress(
-            SpinnerColumn(),
-            "[bold blue]{task.description}",
-            BarColumn(),
-            "[progress.percentage]{task.percentage:>3.0f}%",
+            SpinnerColumn(style="green"),
+            TextColumn("[bold]{task.description}"),
+            BarColumn(bar_width=None, complete_style="cyan", finished_style="green"),
+            TextColumn("[progress.percentage]{task.percentage:>5.1f}%"),
+            TextColumn("{task.completed:>4}/{task.total:<4}", justify="right"),
             TimeElapsedColumn(),
+            TimeRemainingColumn(),
             transient=True,
         ) as progress:
-            pipeline_task = progress.add_task("Energy Pipeline", total=len(batches))
+            pipeline_task = progress.add_task("🔋Energy Pipeline", total=len(batches))
 
             for batch in batches:
                 logger.info("Processing batch of %d tasks", len(batch))
@@ -180,14 +191,19 @@ class Pipeline:
                             logger.warning("Aborting pre-test stages for commit %s", commit_hexsha)
                             failed_commits.add(commit_hexsha)
 
-                        progress.update(
-                            pre_test_task, advance=1, description=f"Pre batch stages (failed: {len(failed_commits)})"
-                        )
+                        description = "Pre batch stages"
+                        if failed_commits:
+                            description += f" (failed: {len(failed_commits)})"
+                        progress.update(pre_test_task, advance=1, description=description)
 
                 progress.remove_task(pre_test_task)
 
                 batch_to_process = [commit for commit in batch if commit.hexsha not in failed_commits]
-                batch_stage_task = progress.add_task("Batch stages", total=len(batch_to_process))
+
+                batch_stage_task = progress.add_task(
+                    "[green]🧪Batch stages",
+                    total=len(batch_to_process),
+                )
 
                 logger.info("Starting pipeline over %d commits...", len(batch_to_process))
                 for commit in batch_to_process:
@@ -195,7 +211,7 @@ class Pipeline:
                         logger.warning("Skipping failed commit %s", commit.hexsha)
                         continue
 
-                    progress.update(batch_stage_task, description=f"Batch stages ({commit.hexsha[:8]})")
+                    progress.update(batch_stage_task, description=f"🧪Batch stages ({commit.hexsha[:8]})")
                     progress.advance(batch_stage_task)
 
                     commit_context = {

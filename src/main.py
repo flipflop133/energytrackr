@@ -1,12 +1,10 @@
 """Energy Pipeline CLI."""
 
 import argparse
-import logging
 import os
 import random
 
 import git
-from rich.logging import RichHandler
 
 from config.config_model import PipelineConfig
 from config.config_store import Config
@@ -17,16 +15,14 @@ from pipeline.core_stages.checkout_stage import CheckoutStage
 from pipeline.core_stages.copy_directory_stage import CopyDirectoryStage
 from pipeline.core_stages.measure_stage import MeasureEnergyStage
 from pipeline.core_stages.post_test_stage import PostTestStage
-from pipeline.core_stages.pre_build_stage import PreBuildStage
 from pipeline.core_stages.set_directory_stage import SetDirectoryStage
-from pipeline.core_stages.stability_check_stage import StabilityCheckStage
 from pipeline.core_stages.temperature_check_stage import TemperatureCheckStage
 from pipeline.core_stages.verify_perf_stage import VerifyPerfStage
 from pipeline.custom_stages.java_setup_stage import JavaSetupStage
 from pipeline.pipeline import Pipeline
 from pipeline.stage_interface import PipelineStage
 from plot.plot import create_energy_plots
-from utils.logger import ContextLogger, logger
+from utils.logger import logger
 from utils.sort import reorder_commits
 
 
@@ -59,11 +55,11 @@ def clone_or_open_repo(repo_path: str, repo_url: str, clone_options: list[str] |
         git.Repo: An instance of the Git repository at the specified path.
     """
     if not os.path.exists(repo_path):
-        logger.info("Cloning %s into %s", repo_url, repo_path)
+        logger.info(f"Cloning {repo_url} into {repo_path}")
         clone_opts = clone_options or []
         return git.Repo.clone_from(repo_url, repo_path, multi_options=clone_opts)
     else:
-        logger.info("Using existing repo at %s", repo_path)
+        logger.info(f"Using existing repo at {repo_path}")
         return git.Repo(repo_path)
 
 
@@ -117,7 +113,6 @@ def gather_commits(repo: git.Repo) -> list[git.Commit]:
 
 pre_stages: list[PipelineStage] = [
     VerifyPerfStage(),
-    # StabilityCheckStage(),
 ]
 
 pre_test_stages: list[PipelineStage] = [
@@ -126,7 +121,6 @@ pre_test_stages: list[PipelineStage] = [
     CheckoutStage(),
     JavaSetupStage(),
     BuildStage(),
-    # PreBuildStage(),
 ]
 
 batch_stages: list[PipelineStage] = [
@@ -264,7 +258,4 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    # Use RichHandler for clean logging display
-    logging.setLoggerClass(ContextLogger)
-    logging.basicConfig(level=logging.DEBUG, format="%(message)s", handlers=[RichHandler(rich_tracebacks=True)])
     main(parse_args())
