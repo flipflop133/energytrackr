@@ -6,7 +6,7 @@ import os
 import random
 
 import git
-from tqdm.contrib.logging import logging_redirect_tqdm
+from rich.logging import RichHandler
 
 from config.config_model import PipelineConfig
 from config.config_store import Config
@@ -26,11 +26,8 @@ from pipeline.custom_stages.java_setup_stage import JavaSetupStage
 from pipeline.pipeline import Pipeline
 from pipeline.stage_interface import PipelineStage
 from plot.plot import create_energy_plots
-from utils.logger import ContextLogger
+from utils.logger import ContextLogger, logger
 from utils.sort import reorder_commits
-
-logging.setLoggerClass(ContextLogger)
-logger = logging.getLogger("energy-pipeline")
 
 
 def load_pipeline_config(config_path: str) -> None:
@@ -267,7 +264,7 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(message)s")
-    with logging_redirect_tqdm():
-        # Redirect tqdm output to logging
-        main(parse_args())
+    # Use RichHandler for clean logging display
+    logging.setLoggerClass(ContextLogger)
+    logging.basicConfig(level=logging.DEBUG, format="%(message)s", handlers=[RichHandler(rich_tracebacks=True)])
+    main(parse_args())

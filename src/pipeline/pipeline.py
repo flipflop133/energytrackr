@@ -4,7 +4,7 @@ import concurrent.futures
 from typing import Any
 
 import git
-from tqdm import tqdm
+from rich.progress import BarColumn, Progress, SpinnerColumn, TimeElapsedColumn
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
@@ -126,7 +126,16 @@ class Pipeline:
         """
         failed_commits: set[str] = set()
 
-        with tqdm(total=len(batches), desc="Energy Pipeline", unit="batch", position=0) as progress_bar:
+        with Progress(
+            SpinnerColumn(),
+            "[bold blue]{task.description}",
+            BarColumn(),
+            "[progress.percentage]{task.percentage:>3.0f}%",
+            TimeElapsedColumn(),
+            transient=True,
+        ) as progress:
+            pipeline_task = progress.add_task("Energy Pipeline", total=len(batches))
+
             for batch in batches:
                 logger.info("Processing batch of %d tasks", len(batch))
 
@@ -143,17 +152,9 @@ class Pipeline:
                 unique_commit_hexshas = list({commit.hexsha for commit in batch})
                 pre_test_stages = self.stages.get("pre_test_stages", [])
 
-                # Run pre-test stages concurrently using ProcessPoolExecutor.
-                with (
-                    tqdm(
-                        total=len(unique_commit_hexshas),
-                        desc="Pre batch stages",
-                        unit="commit",
-                        leave=False,
-                        position=1,
-                    ) as pre_test_bar,
-                    concurrent.futures.ProcessPoolExecutor() as executor,
-                ):
+                pre_test_task = progress.add_task("Pre batch stages", total=len(unique_commit_hexshas))
+
+                with concurrent.futures.ProcessPoolExecutor() as executor:
                     futures = {
                         executor.submit(
                             run_pre_test_stages_for_commit,
@@ -179,39 +180,38 @@ class Pipeline:
                             logger.warning("Aborting pre-test stages for commit %s", commit_hexsha)
                             failed_commits.add(commit_hexsha)
 
-                        pre_test_bar.set_postfix(failed_commits=len(failed_commits))
-                        pre_test_bar.update(1)
+                        progress.update(
+                            pre_test_task, advance=1, description=f"Pre batch stages (failed: {len(failed_commits)})"
+                        )
 
-                # Remove failed commits from the batch.
+                progress.remove_task(pre_test_task)
+
                 batch_to_process = [commit for commit in batch if commit.hexsha not in failed_commits]
-                # Run pipeline stages for each commit in the batch sequentially.
-                with tqdm(
-                    total=len(batch_to_process),
-                    desc="Batch stages",
-                    unit="commit",
-                    leave=False,
-                    position=2,
-                ) as batch_stage_bar:
-                    logger.info("Starting pipeline over %d commits...", len(batch_to_process))
-                    for commit in batch_to_process:
-                        if commit.hexsha in failed_commits:
-                            logger.warning("Skipping failed commit %s", commit.hexsha)
-                            continue
-                        batch_stage_bar.set_postfix(current_commit=commit.hexsha[:8])
-                        batch_stage_bar.update(1)
-                        commit_context = {
-                            "commit": commit,
-                            "build_failed": False,
-                            "abort_pipeline": False,
-                            "repo_path": self.repo_path,
-                        }
-                        logger.info("==== Processing commit %s ====", commit.hexsha)
+                batch_stage_task = progress.add_task("Batch stages", total=len(batch_to_process))
 
-                        if not self._run_stage_group(self.stages.get("batch_stages", []), commit_context):
-                            logger.warning(f"Commit {commit.hexsha} failed to process.")
-                            failed_commits.add(commit.hexsha)
-                            continue
+                logger.info("Starting pipeline over %d commits...", len(batch_to_process))
+                for commit in batch_to_process:
+                    if commit.hexsha in failed_commits:
+                        logger.warning("Skipping failed commit %s", commit.hexsha)
+                        continue
 
-                        logger.info("==== Done with commit %s ====\n", commit.hexsha)
+                    progress.update(batch_stage_task, description=f"Batch stages ({commit.hexsha[:8]})")
+                    progress.advance(batch_stage_task)
 
-                progress_bar.update(1)
+                    commit_context = {
+                        "commit": commit,
+                        "build_failed": False,
+                        "abort_pipeline": False,
+                        "repo_path": self.repo_path,
+                    }
+                    logger.info("==== Processing commit %s ====", commit.hexsha)
+
+                    if not self._run_stage_group(self.stages.get("batch_stages", []), commit_context):
+                        logger.warning(f"Commit {commit.hexsha} failed to process.")
+                        failed_commits.add(commit.hexsha)
+                        continue
+
+                    logger.info("==== Done with commit %s ====\n", commit.hexsha)
+
+                progress.remove_task(batch_stage_task)
+                progress.advance(pipeline_task)
