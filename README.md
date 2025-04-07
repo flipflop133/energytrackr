@@ -158,10 +158,10 @@ Expose it via `get_stage()` and list it in your config:
 
 ## 📚 Documentation
 
-- 📘 [Full Documentation (Sphinx)](https://yourdocs.readthedocs.io)
-- 🧱 [Pipeline Architecture](https://yourdocs.readthedocs.io/en/latest/architecture.html)
-- ⚙️ [Usage Guide](https://yourdocs.readthedocs.io/en/latest/usage.html)
-- 🧩 [Writing Custom Stages](https://yourdocs.readthedocs.io/en/latest/stages.html)
+- 📘 [Full Documentation (Sphinx)](https://energy-analyzer.readthedocs.io)
+- 🧱 [Pipeline Architecture](https://energy-analyzer.readthedocs.io/en/latest/architecture.html)
+- ⚙️ [Usage Guide](https://energy-analyzer.readthedocs.io/en/latest/usage.html)
+- 🧩 [Writing Custom Stages](https://energy-analyzer.readthedocs.io/en/latest/stages.html)
 
 ---
 

@@ -155,7 +155,7 @@ This checks if your system is in a stable state for measurement (e.g., temperatu
 
 ```bash
 # Clone repo
-git clone https://github.com/your-username/energy-pipeline.git
+git clone https://github.com/flipflop133/energy_analyzer
 cd energy-pipeline
 
 # Create virtual environment
