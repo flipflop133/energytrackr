@@ -30,7 +30,7 @@ class JavaSetupStage(PipelineStage):
             return
 
         java_home = self.map_version_to_home(version)
-        logger.info("Setting up Java environment with JAVA_HOME: %s", java_home, context=context)
+        logger.info(f"Setting up Java environment with JAVA_HOME: {java_home}", context=context)
         run_command(f"export JAVA_HOME={java_home}", context=context)
         run_command("export PATH=$JAVA_HOME/bin:$PATH", context=context)
 
@@ -53,6 +53,7 @@ class JavaSetupStage(PipelineStage):
           1. Look for <java.version> in the <properties> section (backward compatibility).
           2. Extract a properties map and then find the Java version from the maven-compiler-plugin
              configuration (supporting <release>, <source>, and <target> tags with property resolution).
+          3. Also check profiles for maven-compiler-plugin configuration.
 
         Args:
             pom_file (str): Path to the POM file.
@@ -75,8 +76,13 @@ class JavaSetupStage(PipelineStage):
             # 2. Extract all properties into a dictionary for property substitution
             properties_map = JavaSetupStage._extract_properties_map(root, ns)
 
-            # Try extracting the Java version from maven-compiler-plugin (supports <release>, <source>, and <target>)
+            # 3. Try extracting the Java version from maven-compiler-plugin in the main build
             java_version = JavaSetupStage._extract_from_compiler_plugin(root, ns, properties_map)
+            if java_version:
+                return java_version
+
+            # 4. Also check profiles for maven-compiler-plugin configuration
+            java_version = JavaSetupStage._extract_from_profiles(root, ns, properties_map)
             if java_version:
                 return java_version
 
@@ -120,7 +126,7 @@ class JavaSetupStage(PipelineStage):
 
     @staticmethod
     def _extract_from_compiler_plugin(root: ET.Element, ns: dict[str, str], properties_map: dict[str, str]) -> str | None:
-        """Extracts the Java version from the maven-compiler-plugin configuration.
+        """Extracts the Java version from the maven-compiler-plugin configuration in the main build.
 
         This method supports the <release> tag as well as <source> and <target> tags,
         with resolution of property placeholders.
@@ -134,6 +140,24 @@ class JavaSetupStage(PipelineStage):
         return None
 
     @staticmethod
+    def _extract_from_profiles(root: ET.Element, ns: dict[str, str], properties_map: dict[str, str]) -> str | None:
+        """Extracts the Java version from the maven-compiler-plugin configuration within profiles."""
+        profiles = root.findall("ns:profiles/ns:profile", ns)
+        for profile in profiles:
+            build = profile.find("ns:build", ns)
+            if build is None:
+                continue
+            plugins = build.find("ns:plugins", ns)
+            if plugins is None:
+                continue
+            for plugin in plugins.findall("ns:plugin", ns):
+                if JavaSetupStage._is_maven_compiler_plugin(plugin, ns):
+                    version = JavaSetupStage._get_java_version_from_plugin(plugin, ns, properties_map)
+                    if version:
+                        return version
+        return None
+
+    @staticmethod
     def _is_maven_compiler_plugin(plugin: ET.Element, ns: dict[str, str]) -> bool:
         """Checks if the given plugin is the maven-compiler-plugin."""
         artifact_id = plugin.find("ns:artifactId", ns)
@@ -144,20 +168,43 @@ class JavaSetupStage(PipelineStage):
         """Extracts the Java version from the maven-compiler-plugin's configuration.
 
         Supports tags <release>, <source>, and <target>. Resolves property placeholders
-        such as ${source.version} using the provided properties dictionary.
+        such as ${source.version} using the provided properties dictionary. It checks both
+        direct configuration and configuration within executions.
         """
+        # Check direct configuration element
         configuration = plugin.find("ns:configuration", ns)
         if configuration is not None:
-            for tag in ["release", "source", "target"]:
-                version_el = configuration.find(f"ns:{tag}", ns)
-                if version_el is not None and version_el.text:
-                    version = version_el.text.strip()
-                    # Resolve property if the version is in the form ${...}
-                    if version.startswith("${") and version.endswith("}"):
-                        key = version[2:-1]
-                        resolved = properties.get(key)
-                        if resolved:
-                            return resolved
-                    else:
+            version = JavaSetupStage._get_version_from_configuration(configuration, ns, properties)
+            if version:
+                return version
+
+        # Check executions if direct configuration is not found
+        executions = plugin.find("ns:executions", ns)
+        if executions is not None:
+            for execution in executions.findall("ns:execution", ns):
+                configuration = execution.find("ns:configuration", ns)
+                if configuration is not None:
+                    version = JavaSetupStage._get_version_from_configuration(configuration, ns, properties)
+                    if version:
                         return version
+
+        return None
+
+    @staticmethod
+    def _get_version_from_configuration(
+        configuration: ET.Element, ns: dict[str, str], properties: dict[str, str]
+    ) -> str | None:
+        """Helper method to extract Java version from a configuration element."""
+        for tag in ["release", "source", "target"]:
+            version_el = configuration.find(f"ns:{tag}", ns)
+            if version_el is not None and version_el.text:
+                version = version_el.text.strip()
+                # Resolve property if the version is in the form ${...}
+                if version.startswith("${") and version.endswith("}"):
+                    key = version[2:-1]
+                    resolved = properties.get(key)
+                    if resolved:
+                        return resolved
+                else:
+                    return version
         return None

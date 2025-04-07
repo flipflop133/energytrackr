@@ -116,22 +116,15 @@ class Pipeline:
            `ProcessPoolExecutor`.
         3. Processes each commit in the batch sequentially through the pipeline stages.
 
-        Progress is displayed using `tqdm` progress bars at various levels:
+        Progress is displayed using `rich.progress` with multiple progress bars for:
         - Overall pipeline progress across batches.
         - Pre-test stages progress for unique commits in a batch.
         - Batch stages progress for individual commits in a batch.
 
-        Logging is used to provide detailed information about the pipeline's execution, including:
-        - Batch and commit processing status.
-        - Exceptions encountered during pre-test stages.
-        - Warnings for aborted stages or commits.
+        The progress descriptions now include the cumulative number of failed commits
+        (both from the pre-test and batch phases).
 
-        The pipeline can be aborted at various stages based on the context flags:
-        - `build_failed`: Indicates a failure in the build process.
-        - `abort_pipeline`: Signals to stop further processing.
-
-        Raises:
-            Exception: If any exception occurs during the execution of pre-test stages.
+        Logging is used to provide detailed information about the pipeline's execution.
         """
         failed_commits: set[str] = set()
 
@@ -211,7 +204,10 @@ class Pipeline:
                         logger.warning("Skipping failed commit %s", commit.hexsha)
                         continue
 
-                    progress.update(batch_stage_task, description=f"🧪Batch stages ({commit.hexsha[:8]})")
+                    # Update the progress description to include the current commit and failed count.
+                    progress.update(
+                        batch_stage_task, description=f"🧪Batch stages ({commit.hexsha[:8]}) (failed: {len(failed_commits)})"
+                    )
                     progress.advance(batch_stage_task)
 
                     commit_context = {
@@ -229,5 +225,7 @@ class Pipeline:
 
                     logger.info("==== Done with commit %s ====\n", commit.hexsha)
 
+                # Log the summary of batch processing.
+                logger.info("Batch stages completed with %d failed commits.", len(failed_commits))
                 progress.remove_task(batch_stage_task)
                 progress.advance(pipeline_task)
