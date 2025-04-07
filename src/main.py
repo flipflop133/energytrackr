@@ -1,12 +1,10 @@
 """Energy Pipeline CLI."""
 
 import argparse
-import logging
 import os
 import random
 
 import git
-from tqdm.contrib.logging import logging_redirect_tqdm
 
 from config.config_model import PipelineConfig
 from config.config_store import Config
@@ -25,6 +23,7 @@ from pipeline.pipeline import Pipeline
 from pipeline.stage_interface import PipelineStage
 from plot.plot import create_energy_plots
 from utils.exceptions import UnknownCommandError
+from utils.logger import logger
 from utils.sort import reorder_commits
 
 
@@ -57,11 +56,11 @@ def clone_or_open_repo(repo_path: str, repo_url: str, clone_options: list[str] |
         git.Repo: An instance of the Git repository at the specified path.
     """
     if not os.path.exists(repo_path):
-        logging.info("Cloning %s into %s", repo_url, repo_path)
+        logger.info(f"Cloning {repo_url} into {repo_path}")
         clone_opts = clone_options or []
         return git.Repo.clone_from(repo_url, repo_path, multi_options=clone_opts)
     else:
-        logging.info("Using existing repo at %s", repo_path)
+        logger.info(f"Using existing repo at {repo_path}")
         return git.Repo(repo_path)
 
 
@@ -173,11 +172,11 @@ def measure(config_path: str) -> None:
     # (Optional) run system-level setup commands
     if config.setup_commands:
         for cmd in config.setup_commands:
-            logging.info("Running setup command: %s", cmd)
+            logger.info("Running setup command: %s", cmd)
             os.system(cmd)
 
     commits = gather_commits(repo)
-    logging.info("Collected %d commits to process.", len(commits))
+    logger.info("Collected %d commits to process.", len(commits))
 
     # Divide the list of commits into batches of 'batch_size' commits each
     commit_batches = [
@@ -202,7 +201,7 @@ def measure(config_path: str) -> None:
 
     # Finally, restore HEAD
     repo.git.checkout(config.repo.branch)
-    logging.info("Restored HEAD to latest commit on branch %s.", config.repo.branch)
+    logger.info("Restored HEAD to latest commit on branch %s.", config.repo.branch)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -260,7 +259,4 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    with logging_redirect_tqdm():
-        # Redirect tqdm output to logging
-        main(parse_args())
+    main(parse_args())

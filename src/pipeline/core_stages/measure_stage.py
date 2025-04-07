@@ -1,12 +1,12 @@
 """Module for measuring energy consumption using perf."""
 
-import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
+from utils.logger import logger
 from utils.utils import run_command
 
 
@@ -33,32 +33,32 @@ class MeasureEnergyStage(PipelineStage):
         """
         config = Config.get_config()
         if context["build_failed"]:
-            logging.info("Skipping energy measurement because build failed.")
+            logger.info("Skipping energy measurement because build failed.", context=context)
             return
 
         test_cmd = config.execution_plan.test_command
         if not test_cmd:
-            logging.warning("No test command => no energy measurement performed.")
+            logger.info("Skipping energy measurement because no test command is provided.", context=context)
             return
 
         perf_command = f"perf stat -e power/energy-pkg/ {test_cmd}"
 
-        logging.info("Measuring energy with: %s", perf_command)
-        result = run_command(perf_command)
+        logger.info(f"Measuring energy with:{perf_command}", context=context)
+        result = run_command(perf_command, context=context)
 
         # If `perf` fails:
         if result.returncode != 0:
-            logging.error("Perf command failed (code %d).", result.returncode)
+            logger.error(f"Perf command failed: (code {result.returncode}).", context=context)
             if not config.execution_plan.ignore_failures:
                 context["abort_pipeline"] = True
                 return
             else:
-                logging.warning("Ignoring failures; continuing anyway.")
+                logger.warning("Ignoring failures; continuing anyway.", context=context)
 
         # Extract the reading from perf output
         energy_pkg = self.extract_energy_value(result.stdout, "power/energy-pkg/")
         if energy_pkg is None:
-            logging.warning("No energy data found in perf output.")
+            logger.warning("No energy data found in perf output.", context=context)
             if not config.execution_plan.ignore_failures:
                 context["abort_pipeline"] = True
                 return
@@ -73,7 +73,7 @@ class MeasureEnergyStage(PipelineStage):
         with output_file.open("a") as fh:
             fh.write(f"{commit_hash},{energy_pkg}\n")
 
-        logging.info("Appended energy data to %s", output_file)
+        logger.info(f"Appended energy data to {output_file}", context=context)
 
     @staticmethod
     def extract_energy_value(perf_output: str, event_name: str) -> str | None:

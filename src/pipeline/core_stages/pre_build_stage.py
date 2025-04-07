@@ -1,10 +1,10 @@
 """Module to run pre-build commands (e.g., setting up environment)."""
 
-import logging
 from typing import Any
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
+from utils.logger import logger
 from utils.utils import run_command
 
 
@@ -37,10 +37,10 @@ class PreBuildStage(PipelineStage):
         # Check patterns in commit.stats.files, if so desired.
         # For brevity we skip that logic or replicate from your original code.
 
-        logging.info("Running pre-build command: %s", pre_cmd)
-        result = run_command(pre_cmd, cwd=context.get("repo_path"))
+        logger.info("Running pre-build command: %s", pre_cmd)
+        result = run_command(pre_cmd, cwd=context.get("repo_path"), context=context)
 
         if result.returncode != 0:
-            logging.error("Pre-build command failed with return code %d", result.returncode)
+            logger.error("Pre-build command failed with return code %d", result.returncode)
             if not config.execution_plan.ignore_failures:
                 context["abort_pipeline"] = True

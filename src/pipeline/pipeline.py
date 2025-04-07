@@ -1,14 +1,23 @@
 """Pipeline orchestrator for running stages on commits in a repository."""
 
 import concurrent.futures
-import logging
 from typing import Any
 
 import git
-from tqdm import tqdm
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+    MofNCompleteColumn,
+    TransferSpeedColumn,
+)
 
 from config.config_store import Config
 from pipeline.stage_interface import PipelineStage
+from utils.logger import logger
 
 
 def run_pre_test_stages_for_commit(commit_hexsha: str, stages: list[PipelineStage], repo_path: str) -> dict[str, Any]:
@@ -25,14 +34,20 @@ def run_pre_test_stages_for_commit(commit_hexsha: str, stages: list[PipelineStag
     Returns:
         dict: The context after processing the stages.
     """
-    commit_context = {"commit": str, "build_failed": False, "abort_pipeline": False, "repo_path": repo_path}
+    commit_context = {
+        "commit": str,
+        "build_failed": False,
+        "abort_pipeline": False,
+        "repo_path": repo_path,
+        "worker_process": True,
+    }
     try:
         # Re-open the repository in the worker process.
         repo = git.Repo(repo_path)
         commit = repo.commit(commit_hexsha)
         commit_context["commit"] = commit.hexsha
     except Exception:
-        logging.exception(f"Failed to open repo or retrieve commit {commit_hexsha}")
+        logger.exception(f"Failed to open repo or retrieve commit {commit_hexsha}")
         commit_context["abort_pipeline"] = True
         return commit_context
 
@@ -42,6 +57,19 @@ def run_pre_test_stages_for_commit(commit_hexsha: str, stages: list[PipelineStag
         if commit_context.get("abort_pipeline"):
             break
     return commit_context
+
+
+def log_context_buffer(context: dict[str, Any]) -> None:
+    logs = context.get("log_buffer", [])
+    commit_id = context.get("commit", "UNKNOWN")
+
+    if not logs:
+        return
+
+    logger.info("----- Logs for commit %s -----", commit_id[:8])
+    for level, msg in logs:
+        logger.log(level, msg)
+    logger.info("----- End of logs for %s -----\n", commit_id[:8])
 
 
 class Pipeline:
@@ -68,7 +96,7 @@ class Pipeline:
         for stage in stages:
             stage.run(context)
             if context.get("abort_pipeline"):
-                logging.warning("Aborting remaining stages for stage %s", stage.__class__.__name__)
+                logger.warning("Aborting remaining stages for stage %s", stage.__class__.__name__)
                 return False
         return True
 
@@ -88,30 +116,39 @@ class Pipeline:
            `ProcessPoolExecutor`.
         3. Processes each commit in the batch sequentially through the pipeline stages.
 
-        Progress is displayed using `tqdm` progress bars at various levels:
+        Progress is displayed using `rich.progress` with multiple progress bars for:
         - Overall pipeline progress across batches.
         - Pre-test stages progress for unique commits in a batch.
         - Batch stages progress for individual commits in a batch.
 
-        Logging is used to provide detailed information about the pipeline's execution, including:
-        - Batch and commit processing status.
-        - Exceptions encountered during pre-test stages.
-        - Warnings for aborted stages or commits.
+        The progress descriptions now include the cumulative number of failed commits
+        (both from the pre-test and batch phases).
 
-        The pipeline can be aborted at various stages based on the context flags:
-        - `build_failed`: Indicates a failure in the build process.
-        - `abort_pipeline`: Signals to stop further processing.
-
-        Raises:
-            Exception: If any exception occurs during the execution of pre-test stages.
+        Logging is used to provide detailed information about the pipeline's execution.
         """
-        failed_commits = []
-        with tqdm(total=len(batches), desc="Energy Pipeline", unit="batch") as progress_bar:
+        failed_commits: set[str] = set()
+
+        with Progress(
+            SpinnerColumn(style="green"),
+            TextColumn("[bold]{task.description}"),
+            BarColumn(bar_width=None, complete_style="cyan", finished_style="green"),
+            TextColumn("[progress.percentage]{task.percentage:>5.1f}%"),
+            TextColumn("{task.completed:>4}/{task.total:<4}", justify="right"),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            transient=True,
+        ) as progress:
+            pipeline_task = progress.add_task("🔋Energy Pipeline", total=len(batches))
+
             for batch in batches:
-                logging.info("Processing batch of %d tasks", len(batch))
+                logger.info("Processing batch of %d tasks", len(batch))
 
                 # Run pre-stages sequentially.
-                pre_context = {"build_failed": False, "abort_pipeline": False, "repo_path": self.repo_path}
+                pre_context = {
+                    "build_failed": False,
+                    "abort_pipeline": False,
+                    "repo_path": self.repo_path,
+                }
                 if not self._run_stage_group(self.stages.get("pre_stages", []), pre_context):
                     return
 
@@ -119,7 +156,8 @@ class Pipeline:
                 unique_commit_hexshas = list({commit.hexsha for commit in batch})
                 pre_test_stages = self.stages.get("pre_test_stages", [])
 
-                # Run pre-test stages concurrently using ProcessPoolExecutor.
+                pre_test_task = progress.add_task("Pre batch stages", total=len(unique_commit_hexshas))
+
                 with concurrent.futures.ProcessPoolExecutor() as executor:
                     futures = {
                         executor.submit(
@@ -130,43 +168,64 @@ class Pipeline:
                         ): commit_hexsha
                         for commit_hexsha in unique_commit_hexshas
                     }
-                    with tqdm(total=len(futures), desc="Pre batch stages", unit="commit", leave=False) as inner_progress_bar:
-                        for future in concurrent.futures.as_completed(futures):
-                            commit_hexsha = futures[future]
-                            try:
-                                result = future.result()
-                            except Exception:
-                                logging.exception(f"Commit {commit_hexsha} generated an exception.")
-                                return
-                            inner_progress_bar.set_postfix(current_commit=commit_hexsha[:8])
-                            inner_progress_bar.update(1)
-                            # Optionally check the result for an abort signal:
-                            if result.get("abort_pipeline"):
-                                logging.warning("Aborting pre-test stages for commit %s", commit_hexsha)
-                                return
+                    for future in concurrent.futures.as_completed(futures):
+                        commit_hexsha = futures[future]
+                        try:
+                            result = future.result(timeout=60)
+                        except Exception:
+                            logger.exception(f"Commit {commit_hexsha} generated an exception.")
+                            return
 
-                # Run pipeline stages for each commit in the batch sequentially.
-                with tqdm(total=len(batch), desc="Batch stages", unit="commit", leave=False) as inner_progress_bar:
-                    logging.info("Starting pipeline over %d commits...", len(batch))
-                    for commit in batch:
-                        if commit.hexsha in failed_commits:
-                            logging.warning("Skipping failed commit %s", commit.hexsha)
-                            continue
-                        inner_progress_bar.set_postfix(current_commit=commit.hexsha[:8])
-                        inner_progress_bar.update(1)
-                        commit_context = {
-                            "commit": commit,
-                            "build_failed": False,
-                            "abort_pipeline": False,
-                            "repo_path": self.repo_path,
-                        }
-                        logging.info("==== Processing commit %s ====", commit.hexsha)
+                        # Display logs for the commit.
+                        log_context_buffer(result)
 
-                        if not self._run_stage_group(self.stages.get("batch_stages", []), commit_context):
-                            logging.warning(f"Commit {commit.hexsha} failed to process.")
-                            failed_commits.append(commit.hexsha)
-                            continue
+                        # Optionally check the result for an abort signal.
+                        if result.get("abort_pipeline"):
+                            logger.warning("Aborting pre-test stages for commit %s", commit_hexsha)
+                            failed_commits.add(commit_hexsha)
 
-                        logging.info("==== Done with commit %s ====\n", commit.hexsha)
+                        description = "Pre batch stages"
+                        if failed_commits:
+                            description += f" (failed: {len(failed_commits)})"
+                        progress.update(pre_test_task, advance=1, description=description)
 
-                progress_bar.update(1)
+                progress.remove_task(pre_test_task)
+
+                batch_to_process = [commit for commit in batch if commit.hexsha not in failed_commits]
+
+                batch_stage_task = progress.add_task(
+                    "[green]🧪Batch stages",
+                    total=len(batch_to_process),
+                )
+
+                logger.info("Starting pipeline over %d commits...", len(batch_to_process))
+                for commit in batch_to_process:
+                    if commit.hexsha in failed_commits:
+                        logger.warning("Skipping failed commit %s", commit.hexsha)
+                        continue
+
+                    # Update the progress description to include the current commit and failed count.
+                    progress.update(
+                        batch_stage_task, description=f"🧪Batch stages ({commit.hexsha[:8]}) (failed: {len(failed_commits)})"
+                    )
+                    progress.advance(batch_stage_task)
+
+                    commit_context = {
+                        "commit": commit,
+                        "build_failed": False,
+                        "abort_pipeline": False,
+                        "repo_path": self.repo_path,
+                    }
+                    logger.info("==== Processing commit %s ====", commit.hexsha)
+
+                    if not self._run_stage_group(self.stages.get("batch_stages", []), commit_context):
+                        logger.warning(f"Commit {commit.hexsha} failed to process.")
+                        failed_commits.add(commit.hexsha)
+                        continue
+
+                    logger.info("==== Done with commit %s ====\n", commit.hexsha)
+
+                # Log the summary of batch processing.
+                logger.info("Batch stages completed with %d failed commits.", len(failed_commits))
+                progress.remove_task(batch_stage_task)
+                progress.advance(pipeline_task)

@@ -1,11 +1,11 @@
 """Module to check the stability of the system before running the pipeline."""
 
-import logging
 import statistics
 import time
 from typing import Any
 
 from pipeline.stage_interface import PipelineStage
+from utils.logger import logger
 from utils.utils import run_command
 
 
@@ -19,13 +19,13 @@ class StabilityCheckStage(PipelineStage):
         context["abort_pipeline"] = True. Otherwise, the pipeline is allowed to
         proceed.
         """
-        logging.info("Running stability test before measuring energy.")
+        logger.info("Running stability test before measuring energy.")
 
         if not self.is_system_stable():
-            logging.error("System is not stable. Aborting pipeline.")
+            logger.error("System is not stable. Aborting pipeline.")
             context["abort_pipeline"] = True
         else:
-            logging.info("System is stable. Proceeding.")
+            logger.info("System is stable. Proceeding.")
 
     def is_system_stable(self, k: float = 3.5, warmup: int = 5, duration: int = 30) -> bool:
         """Runs a stability test on power usage.
