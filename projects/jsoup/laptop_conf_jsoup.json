@@ -8,7 +8,6 @@
         "mode": "tests",
         "ignore_failures": true,
         "granularity": "commits",
-        "pre_command": "mvn clean test-compile",
         "test_command": "mvn surefire:test",
         "num_runs": 30,
         "num_repeats": 1,
@@ -16,7 +15,9 @@
         "batch_size": 100,
         "compile_commands": [
             "mvn clean test-compile"
-        ]
+        ],
+        "newest_commit": "c37e8d66dd7acd1cef8a5fc860140f8796c84ab4",
+        "num_commits": 200
     },
     "results": {
         "file": "energy_usage.csv"

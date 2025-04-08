@@ -93,21 +93,36 @@ def gather_commits(repo: git.Repo) -> list[git.Commit]:
             commits.extend(list(repo.iter_commits(tag, max_count=plan.num_commits)))
         return commits
 
-    else:  # commits
+    else:  # commits granularity
+        # Get all commits from the branch in descending order (newest-first)
         commits = list(repo.iter_commits(conf.repo.branch))
+        # Reverse to get ascending order (oldest-first) to make filtering more intuitive
+        commits = list(reversed(commits))
+
+        # If an oldest_commit is specified, start from that commit onward
         if plan.oldest_commit:
-            # cut off from oldest_commit forward
             start_idx = next((i for i, c in enumerate(commits) if c.hexsha == plan.oldest_commit), None)
             if start_idx is not None:
                 commits = commits[start_idx:]
+            else:
+                logger.warning("Oldest commit %s not found in commit history.", plan.oldest_commit)
+
+        # If a newest_commit is specified, stop at that commit (inclusive)
         if plan.newest_commit:
-            # cut off up to newest_commit
             end_idx = next((i for i, c in enumerate(commits) if c.hexsha == plan.newest_commit), None)
             if end_idx is not None:
                 commits = commits[: end_idx + 1]
+            else:
+                logger.warning("Newest commit %s not found in commit history.", plan.newest_commit)
 
+        # Finally, if a number of commits is specified, reverse back to descending order (newest-first)
+        # then take the first num_commits. This ensures that if newest_commit is the tip, it remains first.
         if plan.num_commits:
+            commits = list(reversed(commits))
             commits = commits[: plan.num_commits]
+
+        logger.info("Gathered %d commits from branch %s", len(commits), conf.repo.branch)
+        logger.info("Gathered commits: %s", commits)
 
         return commits
 
