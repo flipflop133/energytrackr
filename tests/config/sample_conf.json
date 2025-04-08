@@ -1,0 +1,31 @@
+{
+    "repo": {
+        "url": "https://github.com/example/project.git",
+        "branch": "main",
+        "clone_options": []
+    },
+    "execution_plan": {
+        "mode": "tests",
+        "granularity": "commits",
+        "test_command": "pytest",
+        "test_command_path": ".",
+        "ignore_failures": true,
+        "num_commits": 5,
+        "num_runs": 1,
+        "num_repeats": 1,
+        "batch_size": 2,
+        "randomize_tasks": false
+    },
+    "limits": {
+        "temperature_safe_limit": 90000,
+        "energy_regression_percent": 15
+    },
+    "tracked_file_extensions": [
+        "py"
+    ],
+    "cpu_thermal_file": "/sys/class/thermal/thermal_zone0/temp",
+    "setup_commands": [],
+    "results": {
+        "file": "results.csv"
+    }
+}

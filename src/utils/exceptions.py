@@ -40,7 +40,7 @@ class SourceDirectoryNotFoundError(Exception):
         Args:
             path (Path): The path to the source directory that was not found.
         """
-        super().__init__(f"Source directory not found: {path.name}")
+        super().__init__(f"Source directory not found: {path.resolve()}")
 
 
 class TargetDirectoryNotFoundError(Exception):
@@ -52,7 +52,7 @@ class TargetDirectoryNotFoundError(Exception):
         Args:
             path (Path): The path to the target directory that was not found.
         """
-        super().__init__(f"Target directory not found: {path.name}")
+        super().__init__(f"Target directory not found: {path.resolve()}")
 
 
 class MissingContextKeyError(Exception):
