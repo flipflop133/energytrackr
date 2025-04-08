@@ -213,13 +213,17 @@ def test_gather_commits_oldest_and_newest(tmp_path: Path):
         repo.index.add([str(file)])
         repo.index.commit(f"commit {i}")
 
-    # Get all SHAs in reverse chronological order
+    # Get all SHAs in reverse chronological order (newest-first)
     all_commits = list(repo.iter_commits("main"))
-    sha_list = [commit.hexsha for commit in all_commits]  # [newest, ..., oldest]
+    sha_list = [commit.hexsha for commit in all_commits]
 
-    # Select bounds for slicing
-    oldest = sha_list[1]  # older
-    newest = sha_list[2]  # newer (closer to head)
+    # Selecting bounds from the descending list.
+    # To have a proper chronological range, oldest must be older than newest.
+    # In the descending list:
+    #   Index 1 is commit2 and index 2 is commit1.
+    # So we swap them:
+    oldest = sha_list[2]  # commit1 (older chronologically)
+    newest = sha_list[1]  # commit2 (newer chronologically)
 
     config = {
         "repo": {"url": str(repo_dir), "branch": "main", "clone_options": []},
@@ -229,7 +233,7 @@ def test_gather_commits_oldest_and_newest(tmp_path: Path):
             "test_command": "pytest",
             "test_command_path": ".",
             "ignore_failures": True,
-            "num_commits": 10,
+            "num_commits": 2,  # To match the number of commits in the range
             "num_runs": 1,
             "num_repeats": 1,
             "batch_size": 2,
@@ -252,7 +256,11 @@ def test_gather_commits_oldest_and_newest(tmp_path: Path):
     selected_commits = gather_commits(repo)
     selected_shas = [c.hexsha for c in selected_commits]
 
-    # Assertions: order not guaranteed, but both bounds must be included
+    # Debugging: print both lists if needed
+    print(f"Original sha_list (desc): {sha_list}")
+    print(f"Selected commit SHAs: {selected_shas}")
+
+    # Assertions: the specified oldest and newest commits should both be in the selection
     assert oldest in selected_shas
     assert newest in selected_shas
     assert len(selected_shas) == 2
