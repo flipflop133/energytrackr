@@ -22,6 +22,7 @@ from pipeline.custom_stages.java_setup_stage import JavaSetupStage
 from pipeline.pipeline import Pipeline
 from pipeline.stage_interface import PipelineStage
 from plot.plot import create_energy_plots
+from utils.exceptions import UnknownCommandError
 from utils.logger import logger
 from utils.sort import reorder_commits
 
@@ -228,7 +229,7 @@ def main(args: argparse.Namespace) -> None:
             # Plot a result file
             create_energy_plots(args.file)
         case _:
-            raise ValueError(f"Unknown command: {args.command}")
+            raise UnknownCommandError(args.command)
 
 
 def parse_args() -> argparse.Namespace:

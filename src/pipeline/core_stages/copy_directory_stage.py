@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from pipeline.stage_interface import PipelineStage
+from utils.exceptions import SourceDirectoryNotFoundError
 from utils.logger import logger
 
 
@@ -30,7 +31,7 @@ class CopyDirectoryStage(PipelineStage):
         target = Path(f"{context.get('repo_path')}_{context['commit']}").resolve()
 
         if not source.is_dir():
-            raise FileNotFoundError(f"Source directory does not exist: {source}")
+            raise SourceDirectoryNotFoundError(source)
 
         if target.exists():
             logger.info(f"Target directory already exists: {target}", context=context)
