@@ -1,3 +1,5 @@
+"""Test cases for the core functionality of the pipeline."""
+
 import argparse
 import json
 from pathlib import Path
@@ -12,11 +14,11 @@ from config.config_store import Config
 from config.loader import load_pipeline_config
 from pipeline.pipeline import compile_stages, measure
 from utils.args_parser import parse_args
-from utils.exceptions import UnknownCommandError
 from utils.git import clone_or_open_repo, gather_commits
 
 
 def test_clone_or_open_repo(tmp_path: Path) -> None:
+    """Test cloning or opening a Git repository."""
     repo_dir: Path = tmp_path / "dummy_repo"
     repo_dir.mkdir()
     repo: Repo = git.Repo.init(str(repo_dir))
@@ -31,6 +33,7 @@ def test_clone_or_open_repo(tmp_path: Path) -> None:
 
 
 def test_gather_commits(tmp_path: Path) -> None:
+    """Test gathering commits from a Git repository."""
     Config.reset()
 
     # Step 1: Create a dummy Git repo with 3 commits
@@ -63,12 +66,14 @@ def test_gather_commits(tmp_path: Path) -> None:
     commits: list[Commit] = gather_commits(repo)
 
     # Step 5: Assertions
-    assert len(commits) <= 3
+    expected_commit_count = 3
+    assert len(commits) <= expected_commit_count
     commit_shas: list[str] = [c.hexsha for c in commits]
     assert any(sha in commit_shas for sha in commit_hashes)
 
 
-def test_gather_commits_branches(tmp_path: Path):
+def test_gather_commits_branches(tmp_path: Path) -> None:
+    """Test gathering commits from multiple branches in a Git repository."""
     Config.reset()
 
     # Create a repo
@@ -125,10 +130,12 @@ def test_gather_commits_branches(tmp_path: Path):
     commits = gather_commits(repo)
 
     # Now it should return 2 commits: one per branch
-    assert len(commits) == 2
+    expected_commits_count = 2
+    assert len(commits) == expected_commits_count
 
 
-def test_gather_commits_tags(tmp_path: Path):
+def test_gather_commits_tags(tmp_path: Path) -> None:
+    """Test gathering commits from tags in a Git repository."""
     Config.reset()
     repo_dir = tmp_path / "tag_repo"
     repo = git.Repo.init(str(repo_dir), initial_branch="main")
@@ -168,10 +175,12 @@ def test_gather_commits_tags(tmp_path: Path):
     load_pipeline_config(str(config_file))
 
     commits = gather_commits(repo)
-    assert len(commits) == 2  # one per tag
+    expected_commits_count = 2
+    assert len(commits) == expected_commits_count  # one per tag
 
 
-def test_gather_commits_oldest_and_newest(tmp_path: Path):
+def test_gather_commits_oldest_and_newest(tmp_path: Path) -> None:
+    """Test gathering commits with oldest and newest commit bounds."""
     Config.reset()
 
     # Create a dummy Git repo with 4 commits
@@ -228,16 +237,16 @@ def test_gather_commits_oldest_and_newest(tmp_path: Path):
     selected_shas = [c.hexsha for c in selected_commits]
 
     # Debugging: print both lists if needed
-    print(f"Original sha_list (desc): {sha_list}")
-    print(f"Selected commit SHAs: {selected_shas}")
 
     # Assertions: the specified oldest and newest commits should both be in the selection
     assert oldest in selected_shas
     assert newest in selected_shas
-    assert len(selected_shas) == 2
+    expected_commit_count = 2
+    assert len(selected_shas) == expected_commit_count
 
 
 def test_compile_stages() -> None:
+    """Test the compile_stages function."""
     stages: dict[str, str] = compile_stages()
     for key in ["pre_stages", "pre_test_stages", "batch_stages"]:
         assert key in stages
@@ -245,16 +254,18 @@ def test_compile_stages() -> None:
 
 
 def test_parse_args_measure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test parsing arguments for the measure command."""
     test_args: list[str] = ["measure", "--config", "test.json"]
-    monkeypatch.setattr("sys.argv", ["main.py"] + test_args)
+    monkeypatch.setattr("sys.argv", ["main.py", *test_args])
     args = parse_args()
     assert args.command == "measure"
     assert args.config == "test.json"
 
 
 def test_parse_args_sort(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test parsing arguments for the sort command."""
     test_args: list[str] = ["sort", "input.csv", "repo_path", "output.csv"]
-    monkeypatch.setattr("sys.argv", ["main.py"] + test_args)
+    monkeypatch.setattr("sys.argv", ["main.py", *test_args])
     args = parse_args()
     assert args.command == "sort"
     assert args.file == "input.csv"
@@ -263,15 +274,17 @@ def test_parse_args_sort(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_parse_args_plot(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test parsing arguments for the plot command."""
     test_args: list[str] = ["plot", "results.csv"]
-    monkeypatch.setattr("sys.argv", ["main.py"] + test_args)
+    monkeypatch.setattr("sys.argv", ["main.py", *test_args])
     args = parse_args()
     assert args.command == "plot"
     assert args.file == "results.csv"
 
 
 @pytest.fixture
-def sample_config_dict(tmp_path: Path):
+def sample_config_dict() -> dict[str, Any]:
+    """Fixture to create a sample configuration dictionary."""
     return {
         "repo": {
             "url": "https://github.com/example/repo.git",
@@ -288,7 +301,6 @@ def sample_config_dict(tmp_path: Path):
             "num_runs": 1,
             "num_repeats": 1,
             "batch_size": 1,
-            "randomize_tasks": False,
             "randomize_tasks": True,
         },
         "limits": {
@@ -303,6 +315,7 @@ def sample_config_dict(tmp_path: Path):
 
 
 def test_measure_pipeline(tmp_path: Path, sample_config_dict: dict[str, Any]) -> None:
+    """Test the measure function in the pipeline module."""
     Config.reset()
     # Write temp config file
     config_file = tmp_path / "config.json"
@@ -336,6 +349,6 @@ def test_measure_pipeline(tmp_path: Path, sample_config_dict: dict[str, Any]) ->
         mock_system.assert_called_with("echo setup")
 
 
-def make_args(**kwargs) -> argparse.Namespace:
+def make_args(**kwargs: dict[str, object]) -> argparse.Namespace:
     """Helper to create argparse.Namespace for tests."""
     return argparse.Namespace(**kwargs)

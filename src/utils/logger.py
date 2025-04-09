@@ -1,12 +1,11 @@
 """Logger with context support for logging messages in a structured way."""
 
 import logging
+import os
+from datetime import datetime
 from typing import Any, cast, override
 
 from rich.logging import RichHandler
-
-import os
-from datetime import datetime
 
 
 class ContextLogger(logging.Logger):

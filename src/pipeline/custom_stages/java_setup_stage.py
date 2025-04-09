@@ -1,3 +1,5 @@
+"""JavaSetupStage: A specialized stage for setting up Java environment variables."""
+
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -57,6 +59,7 @@ class JavaSetupStage(PipelineStage):
 
         Args:
             pom_file (str): Path to the POM file.
+            context (dict[str, Any]): The context dictionary for logging.
 
         Returns:
             Optional[str]: The Java version specified in the POM file, or None if not found.
@@ -192,7 +195,9 @@ class JavaSetupStage(PipelineStage):
 
     @staticmethod
     def _get_version_from_configuration(
-        configuration: ET.Element, ns: dict[str, str], properties: dict[str, str]
+        configuration: ET.Element,
+        ns: dict[str, str],
+        properties: dict[str, str],
     ) -> str | None:
         """Helper method to extract Java version from a configuration element."""
         for tag in ["release", "source", "target"]:

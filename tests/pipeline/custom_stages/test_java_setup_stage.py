@@ -1,5 +1,6 @@
+"""Unit tests for JavaSetupStage class."""
+
 import os
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -8,19 +9,21 @@ from pipeline.custom_stages.java_setup_stage import JavaSetupStage
 
 
 def write_pom(tmp_path: Path, content: str) -> Path:
+    """Write a POM file to the specified path."""
     pom_path = tmp_path / "pom.xml"
     pom_path.write_text(content.strip())
     return pom_path
 
 
-def test_extract_from_java_version_tag(tmp_path):
+def test_extract_from_java_version_tag(tmp_path: str) -> None:
+    """Test extracting Java version from <java.version> tag."""
     pom = """
-    <project xmlns="http://maven.apache.org/POM/4.0.0">
-      <properties>
-        <java.version>1.8</java.version>
-      </properties>
-    </project>
-    """
+		<project xmlns="http://maven.apache.org/POM/4.0.0">
+			<properties>
+				<java.version>1.8</java.version>
+			</properties>
+		</project>
+		"""
     write_pom(tmp_path, pom)
     os.chdir(tmp_path)
     stage = JavaSetupStage()
@@ -28,22 +31,23 @@ def test_extract_from_java_version_tag(tmp_path):
     assert version == "1.8"
 
 
-def test_extract_from_compiler_plugin_source(tmp_path):
+def test_extract_from_compiler_plugin_source(tmp_path: str) -> None:
+    """Test extracting Java version from maven-compiler-plugin source."""
     pom = """
-    <project xmlns="http://maven.apache.org/POM/4.0.0">
-      <build>
-        <plugins>
-          <plugin>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <configuration>
-              <source>11</source>
-              <target>11</target>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
-    </project>
-    """
+		<project xmlns="http://maven.apache.org/POM/4.0.0">
+			<build>
+				<plugins>
+					<plugin>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<configuration>
+							<source>11</source>
+							<target>11</target>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</project>
+		"""
     write_pom(tmp_path, pom)
     os.chdir(tmp_path)
     stage = JavaSetupStage()
@@ -51,25 +55,26 @@ def test_extract_from_compiler_plugin_source(tmp_path):
     assert version == "11"
 
 
-def test_extract_from_property_reference(tmp_path):
+def test_extract_from_property_reference(tmp_path: str) -> None:
+    """Test extracting Java version from property reference."""
     pom = """
-    <project xmlns="http://maven.apache.org/POM/4.0.0">
-      <properties>
-        <source.version>17</source.version>
-      </properties>
-      <build>
-        <plugins>
-          <plugin>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <configuration>
-              <source>${source.version}</source>
-              <target>${source.version}</target>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
-    </project>
-    """
+		<project xmlns="http://maven.apache.org/POM/4.0.0">
+			<properties>
+				<source.version>17</source.version>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<configuration>
+							<source>${source.version}</source>
+							<target>${source.version}</target>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</project>
+		"""
     write_pom(tmp_path, pom)
     os.chdir(tmp_path)
     stage = JavaSetupStage()
@@ -77,36 +82,39 @@ def test_extract_from_property_reference(tmp_path):
     assert version == "17"
 
 
-def test_map_version_to_home_classic():
+def test_map_version_to_home_classic() -> None:
+    """Test mapping Java version to home directory for classic versions."""
     assert JavaSetupStage.map_version_to_home("1.8") == "/usr/lib/jvm/java-8-openjdk"
 
 
-def test_map_version_to_home_direct():
+def test_map_version_to_home_direct() -> None:
+    """Test mapping Java version to home directory for direct versions."""
     assert JavaSetupStage.map_version_to_home("17") == "/usr/lib/jvm/java-17-openjdk"
 
 
-def test_extract_from_profiles(tmp_path):
+def test_extract_from_profiles(tmp_path: str) -> None:
+    """Test extracting Java version from profiles."""
     pom = """
-    <project xmlns="http://maven.apache.org/POM/4.0.0">
-      <properties>
-        <target.version>21</target.version>
-      </properties>
-      <profiles>
-        <profile>
-          <build>
-            <plugins>
-              <plugin>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                  <target>${target.version}</target>
-                </configuration>
-              </plugin>
-            </plugins>
-          </build>
-        </profile>
-      </profiles>
-    </project>
-    """
+		<project xmlns="http://maven.apache.org/POM/4.0.0">
+			<properties>
+				<target.version>21</target.version>
+			</properties>
+			<profiles>
+				<profile>
+					<build>
+						<plugins>
+							<plugin>
+								<artifactId>maven-compiler-plugin</artifactId>
+								<configuration>
+									<target>${target.version}</target>
+								</configuration>
+							</plugin>
+						</plugins>
+					</build>
+				</profile>
+			</profiles>
+		</project>
+		"""
     write_pom(tmp_path, pom)
     os.chdir(tmp_path)
     stage = JavaSetupStage()
@@ -121,7 +129,8 @@ def test_extract_from_profiles(tmp_path):
         "<notxml>",  # not valid xml
     ],
 )
-def test_extract_java_version_handles_invalid_files(tmp_path, invalid_pom):
+def test_extract_java_version_handles_invalid_files(tmp_path: str, invalid_pom: str) -> None:
+    """Test that the method handles invalid POM files gracefully."""
     (tmp_path / "pom.xml").write_text(invalid_pom)
     os.chdir(tmp_path)
     stage = JavaSetupStage()

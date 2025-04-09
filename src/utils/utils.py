@@ -1,7 +1,6 @@
 """Utility functions."""
 
 import subprocess
-from datetime import datetime
 from typing import Any
 
 from utils.logger import logger

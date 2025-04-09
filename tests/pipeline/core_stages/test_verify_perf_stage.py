@@ -1,3 +1,5 @@
+"""Unit tests for the VerifyPerfStage class."""
+
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -11,12 +13,14 @@ from pipeline.core_stages.verify_perf_stage import VerifyPerfStage
 
 
 @pytest.fixture(autouse=True)
-def reset_config_singleton():
+def reset_config_singleton() -> None:
+    """Fixture to reset the config singleton before each test."""
     Config.reset()
 
 
 # Sample minimal config for testing
 def make_config(ignore_failures: bool = False) -> PipelineConfig:
+    """Create a minimal config for testing."""
     config_dict = {
         "config_version": "1.0.0",
         "repo": {
@@ -47,8 +51,8 @@ def make_config(ignore_failures: bool = False) -> PipelineConfig:
     return Config.get_config()
 
 
-def test_perf_paranoid_is_minus_one(monkeypatch):
-    """Should not abort when paranoid is -1"""
+def test_perf_paranoid_is_minus_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Should not abort when paranoid is -1."""
     Config.reset()
     monkeypatch.setattr("pipeline.core_stages.verify_perf_stage.run_command", lambda *_args, **_kw: MagicMock(stdout="-1\n"))
 
@@ -61,8 +65,8 @@ def test_perf_paranoid_is_minus_one(monkeypatch):
     assert "abort_pipeline" not in context
 
 
-def test_perf_paranoid_non_minus_one_abort(monkeypatch):
-    """Should abort pipeline when paranoid != -1 and ignore_failures = False"""
+def test_perf_paranoid_non_minus_one_abort(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Should abort pipeline when paranoid != -1 and ignore_failures = False."""
     monkeypatch.setattr("utils.utils.run_command", lambda *_args, **_kw: MagicMock(stdout="2\n"))
     make_config(ignore_failures=False)
 
@@ -73,8 +77,8 @@ def test_perf_paranoid_non_minus_one_abort(monkeypatch):
     assert context["abort_pipeline"] is True
 
 
-def test_perf_paranoid_non_minus_one_ignore(monkeypatch):
-    """Should NOT abort when paranoid != -1 but ignore_failures = True"""
+def test_perf_paranoid_non_minus_one_ignore(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Should NOT abort when paranoid != -1 but ignore_failures = True."""
     monkeypatch.setattr("utils.utils.run_command", lambda *_args, **_kw: MagicMock(stdout="1\n"))
     make_config(ignore_failures=True)
 

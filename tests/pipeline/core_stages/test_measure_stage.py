@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -10,12 +10,16 @@ from pipeline.core_stages.measure_stage import MeasureEnergyStage
 
 
 class DummyCommit:
+    """Dummy commit class for testing purposes."""
+
     def __init__(self, hexsha: str = "abc123") -> None:
+        """Initialize a dummy commit object."""
         self.hexsha = hexsha
 
 
 @pytest.fixture
 def dummy_context(tmp_path: str) -> dict[str, str | bool]:
+    """Fixture to provide a dummy context for testing."""
     return {
         "commit": DummyCommit(),
         "repo_path": str(tmp_path / "repo"),
@@ -26,6 +30,8 @@ def dummy_context(tmp_path: str) -> dict[str, str | bool]:
 
 @pytest.fixture
 def mock_config() -> SimpleNamespace:
+    """Fixture to provide a mock config object."""
+
     class DummyConfig:
         class ExecutionPlan:
             test_command = "run-tests.sh"
@@ -39,7 +45,8 @@ def mock_config() -> SimpleNamespace:
 
 
 @patch("pipeline.core_stages.measure_stage.run_command")
-def test_measure_energy_success(mock_run, dummy_context, mock_config) -> None:
+def test_measure_energy_success(mock_run: MagicMock, dummy_context: dict[str, str], mock_config: SimpleNamespace) -> None:  # noqa: ARG001
+    """Test the MeasureEnergyStage with a successful run."""
     mock_run.return_value = SimpleNamespace(returncode=0, stdout="42 power/energy-pkg/")
     dummy_context["repo_path"] = str(Path(dummy_context["repo_path"]))
     Path(dummy_context["repo_path"]).mkdir(parents=True, exist_ok=True)
@@ -55,7 +62,12 @@ def test_measure_energy_success(mock_run, dummy_context, mock_config) -> None:
 
 
 @patch("pipeline.core_stages.measure_stage.run_command")
-def test_measure_energy_perf_failure_abort(mock_run, dummy_context, mock_config):
+def test_measure_energy_perf_failure_abort(
+    mock_run: MagicMock,
+    dummy_context: dict[str, str],
+    mock_config: SimpleNamespace,  # noqa: ARG001
+) -> None:
+    """Test that the pipeline aborts if the test command fails."""
     mock_run.return_value = SimpleNamespace(returncode=1, stdout="")
 
     stage = MeasureEnergyStage()
@@ -65,7 +77,12 @@ def test_measure_energy_perf_failure_abort(mock_run, dummy_context, mock_config)
 
 
 @patch("pipeline.core_stages.measure_stage.run_command")
-def test_measure_energy_ignore_failure_warning(mock_run, dummy_context, mock_config):
+def test_measure_energy_ignore_failure_warning(
+    mock_run: MagicMock,
+    dummy_context: dict[str, str],
+    mock_config: SimpleNamespace,
+) -> None:
+    """Test that the pipeline does not abort when ignore_failures is True."""
     mock_run.return_value = SimpleNamespace(returncode=1, stdout="")
 
     # change config to allow ignoring failures
@@ -78,7 +95,9 @@ def test_measure_energy_ignore_failure_warning(mock_run, dummy_context, mock_con
 
 
 @patch("pipeline.core_stages.measure_stage.run_command")
-def test_measure_energy_no_test_command(mock_run, dummy_context):
+def test_measure_energy_no_test_command(mock_run: MagicMock, dummy_context: dict[str, str]) -> None:
+    """Test that the pipeline skips the measure stage if no test command is provided."""
+
     class DummyConfig:
         class ExecutionPlan:
             test_command = ""
@@ -94,7 +113,8 @@ def test_measure_energy_no_test_command(mock_run, dummy_context):
 
 
 @patch("pipeline.core_stages.measure_stage.run_command")
-def test_measure_energy_build_failed_skips(mock_run, dummy_context):
+def test_measure_energy_build_failed_skips(mock_run: MagicMock, dummy_context: dict[str, str]) -> None:
+    """Test that the pipeline skips the measure stage if build failed."""
     dummy_context["build_failed"] = True
 
     class DummyConfig:
@@ -112,7 +132,12 @@ def test_measure_energy_build_failed_skips(mock_run, dummy_context):
 
 
 @patch("pipeline.core_stages.measure_stage.run_command")
-def test_measure_energy_no_data_found(mock_run, dummy_context, mock_config):
+def test_measure_energy_no_data_found(
+    mock_run: MagicMock,
+    dummy_context: dict[str, str],
+    mock_config: SimpleNamespace,  # noqa: ARG001
+) -> None:
+    """Test that the pipeline aborts if no energy data is found."""
     mock_run.return_value = SimpleNamespace(returncode=0, stdout="no energy info here")
 
     stage = MeasureEnergyStage()
@@ -122,7 +147,12 @@ def test_measure_energy_no_data_found(mock_run, dummy_context, mock_config):
 
 
 @patch("pipeline.core_stages.measure_stage.run_command")
-def test_measure_energy_no_data_ignore_failure(mock_run, dummy_context, mock_config):
+def test_measure_energy_no_data_ignore_failure(
+    mock_run: MagicMock,
+    dummy_context: dict[str, str],
+    mock_config: SimpleNamespace,
+) -> None:
+    """Test that the pipeline does not abort when ignore_failures is True."""
     mock_config.execution_plan.ignore_failures = True
     mock_run.return_value = SimpleNamespace(returncode=0, stdout="...")
 

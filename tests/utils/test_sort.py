@@ -1,22 +1,23 @@
-import os
+"""Unit tests for utils.sort module."""
+
 import csv
 import subprocess
 from pathlib import Path
-from typing import List
+from typing import Any, Never
 
 import pytest
 
 from utils.sort import (
     get_commit_history,
     read_csv,
-    write_csv,
     reorder_commits,
+    write_csv,
 )
 
 
 @pytest.fixture
-def dummy_repo_with_commits(tmp_path: Path):
-    """Creates a dummy git repo with 3 commits."""
+def dummy_repo_with_commits(tmp_path: Path) -> tuple[Path, list[str]]:
+    """Fixture to create a dummy git repository with 3 commits."""
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
     subprocess.run(["git", "init"], cwd=repo_dir, check=True)
@@ -35,21 +36,18 @@ def dummy_repo_with_commits(tmp_path: Path):
     return repo_dir, commits
 
 
-def test_get_commit_history(dummy_repo_with_commits):
+def test_get_commit_history(dummy_repo_with_commits: tuple[Path, list[str]]) -> None:
+    """Test get_commit_history function."""
     repo_dir, expected_commits = dummy_repo_with_commits
     history = get_commit_history(str(repo_dir))
     assert history == expected_commits
 
 
-import subprocess
-import pytest
-from utils.sort import get_commit_history
-
-
-def test_get_commit_history_failure(tmp_path: Path, monkeypatch):
+def test_get_commit_history_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure get_commit_history exits cleanly when subprocess fails."""
 
-    def mock_run(*args, **kwargs):
+    def mock_run(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> Never:  # noqa: ARG001
+        """Mock subprocess.run to simulate a failure."""
         raise subprocess.CalledProcessError(returncode=1, cmd=args[0], output="", stderr="Simulated error")
 
     monkeypatch.setattr("subprocess.run", mock_run)
@@ -58,7 +56,8 @@ def test_get_commit_history_failure(tmp_path: Path, monkeypatch):
         get_commit_history(str(tmp_path))
 
 
-def test_read_csv(tmp_path: Path):
+def test_read_csv(tmp_path: Path) -> None:
+    """Test read_csv function."""
     file_path = tmp_path / "test.csv"
     rows = [
         ("abc123", "12.5"),
@@ -75,7 +74,8 @@ def test_read_csv(tmp_path: Path):
     assert data == [("abc123", "12.5"), ("abc123", "13.1"), ("def456", "10.2")]
 
 
-def test_write_csv(tmp_path: Path):
+def test_write_csv(tmp_path: Path) -> None:
+    """Test write_csv function."""
     file_path = tmp_path / "out.csv"
     sample_data = [("abc123", "12.5"), ("def456", "10.2")]
     write_csv(str(file_path), sample_data)
@@ -87,7 +87,8 @@ def test_write_csv(tmp_path: Path):
     assert rows == [["abc123", "12.5"], ["def456", "10.2"]]
 
 
-def test_reorder_commits(tmp_path: Path, dummy_repo_with_commits):
+def test_reorder_commits(tmp_path: Path, dummy_repo_with_commits: tuple[Path, list[str]]) -> None:
+    """Test reorder_commits function."""
     repo_dir, commits = dummy_repo_with_commits
 
     # Input CSV has commits in reverse order, with a duplicate

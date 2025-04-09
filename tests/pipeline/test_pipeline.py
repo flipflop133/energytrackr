@@ -1,31 +1,41 @@
-import pytest
+"""Unit tests for the Pipeline class and its methods."""
+
+import concurrent.futures
+import logging
 from unittest.mock import MagicMock, patch
+
+import pytest
 from git import Commit
 
-from pipeline.pipeline import Pipeline, run_pre_test_stages_for_commit, log_context_buffer
+from pipeline.pipeline import Pipeline, log_context_buffer, run_pre_test_stages_for_commit
+from pipeline.stage_interface import PipelineStage
 
 
 @pytest.fixture
-def dummy_commit():
+def dummy_commit() -> Commit:
+    """Fixture to create a dummy commit object."""
     commit = MagicMock(spec=Commit)
     commit.hexsha = "deadbeef"
     return commit
 
 
 @pytest.fixture
-def dummy_stages():
+def dummy_stages() -> dict[str, list[PipelineStage]]:
+    """Fixture to create dummy stages for the pipeline."""
     stage_mock = MagicMock()
     stage_mock.run = MagicMock()
     return {"pre_stages": [stage_mock], "pre_test_stages": [stage_mock], "batch_stages": [stage_mock]}
 
 
 @pytest.fixture
-def dummy_repo_path(tmp_path):
-    return str(tmp_path / "repo")
+def dummy_repo_path(tmp_path: str) -> str:
+    """Fixture to create a temporary repository path."""
+    return f"{tmp_path} / repo"
 
 
 @pytest.fixture
-def dummy_context():
+def dummy_context() -> dict[str, str | bool]:
+    """Fixture to create a dummy context for the pipeline."""
     return {
         "commit": "deadbeef",
         "build_failed": False,
@@ -36,10 +46,11 @@ def dummy_context():
     }
 
 
-def test_run_pre_test_stages_for_commit_success(monkeypatch, tmp_path, dummy_commit):
+def test_run_pre_test_stages_for_commit_success(monkeypatch: pytest.MonkeyPatch, tmp_path: str, dummy_commit: Commit) -> None:
+    """Test successful execution of pre-test stages for a commit."""
     repo = MagicMock()
     repo.commit.return_value = dummy_commit
-    monkeypatch.setattr("git.Repo", lambda path: repo)
+    monkeypatch.setattr("git.Repo", lambda _path: repo)
 
     dummy_stage = MagicMock()
     dummy_stage.run = MagicMock()
@@ -50,8 +61,9 @@ def test_run_pre_test_stages_for_commit_success(monkeypatch, tmp_path, dummy_com
     dummy_stage.run.assert_called_once()
 
 
-def test_run_pre_test_stages_for_commit_failure(monkeypatch):
-    monkeypatch.setattr("git.Repo", lambda path: (_ for _ in ()).throw(Exception("Repo error")))
+def test_run_pre_test_stages_for_commit_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test failure in pre-test stages for a commit."""
+    monkeypatch.setattr("git.Repo", lambda _path: (_ for _ in ()).throw(Exception("Repo error")))
     dummy_stage = MagicMock()
 
     result = run_pre_test_stages_for_commit("badsha", [dummy_stage], "/fake")
@@ -59,11 +71,8 @@ def test_run_pre_test_stages_for_commit_failure(monkeypatch):
     dummy_stage.run.assert_not_called()
 
 
-import logging
-from pipeline.pipeline import log_context_buffer
-
-
-def test_log_context_buffer_logs_messages(caplog):
+def test_log_context_buffer_logs_messages(caplog: pytest.LogCaptureFixture) -> None:
+    """Test that log_context_buffer logs messages correctly."""
     context = {
         "commit": "abc1234",
         "log_buffer": [
@@ -72,36 +81,29 @@ def test_log_context_buffer_logs_messages(caplog):
         ],
     }
 
-    # Ensure messages go to your custom logger name
+    # Ensure our logger is used and hooked up properly
+    test_logger = logging.getLogger("energy-pipeline")
+    test_logger.propagate = True  # Let caplog see the logs
+
     with caplog.at_level(logging.INFO, logger="energy-pipeline"):
         log_context_buffer(context)
 
     assert any("This is info" in msg for msg in caplog.messages)
     assert any("This is a warning" in msg for msg in caplog.messages)
-    assert any("Logs for commit abc1234" in msg for msg in caplog.messages)
+    assert any("End of logs for abc1234" in msg for msg in caplog.messages)
 
 
-import concurrent.futures
-from unittest.mock import patch, MagicMock
-from pipeline.pipeline import Pipeline, run_pre_test_stages_for_commit
-from pipeline.stage_interface import PipelineStage
+def test_pipeline_run_all_stages(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that all stages are run in the pipeline."""
 
-
-from unittest.mock import patch, MagicMock
-from pipeline.pipeline import Pipeline
-from pipeline.stage_interface import PipelineStage
-import concurrent.futures
-
-
-def test_pipeline_run_all_stages(monkeypatch):
     class DummyStage(PipelineStage):
-        def run(self, context):
+        def run(self, context: dict[str, any]) -> None:
             context.setdefault("ran", []).append(self.__class__.__name__)
 
     # Dummy commit with fake hexsha
     class DummyCommit:
-        def __init__(self, hexsha):
-            self.hexsha = hexsha
+        def __init__(self, hexsha: str) -> None:
+            self.hexsha: str = hexsha
 
     dummy_commit = DummyCommit("abc1234")
 
@@ -119,7 +121,7 @@ def test_pipeline_run_all_stages(monkeypatch):
 
     # Patch ProcessPoolExecutor to return a real Future
     class DummyExecutor:
-        def __enter__(self):
+        def __enter__(self) -> "DummyExecutor":
             self.future = concurrent.futures.Future()
             self.future.set_result(
                 {
@@ -128,14 +130,14 @@ def test_pipeline_run_all_stages(monkeypatch):
                     "abort_pipeline": False,
                     "worker_process": True,
                     "log_buffer": [(20, "Stage ran")],
-                }
+                },
             )
             return self
 
-        def __exit__(self, exc_type, exc_val, exc_tb):
+        def __exit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object | None) -> None:
             pass
 
-        def submit(self, fn, *args, **kwargs):
+        def submit(self, _fn: callable, *_args: tuple, **_kwargs: dict) -> concurrent.futures.Future:
             return self.future
 
     pipeline = Pipeline(stages, repo_path="fake/path")
