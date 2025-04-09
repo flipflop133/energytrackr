@@ -9,7 +9,7 @@
         "ignore_failures": true,
         "granularity": "commits",
         "test_command": "mvn surefire:test",
-        "num_runs": 30,
+        "num_runs": 15,
         "num_repeats": 1,
         "randomize_tasks": true,
         "batch_size": 100,

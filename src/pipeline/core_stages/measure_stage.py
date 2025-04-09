@@ -56,7 +56,9 @@ class MeasureEnergyStage(PipelineStage):
                 logger.warning("Ignoring failures; continuing anyway.", context=context)
 
         # Extract the reading from perf output
-        energy_pkg = self.extract_energy_value(result.stdout, "power/energy-pkg/")
+        combined_output = result.stdout + "\n" + result.stderr
+        energy_pkg = self.extract_energy_value(combined_output, "power/energy-pkg/")
+
         if energy_pkg is None:
             logger.warning("No energy data found in perf output.", context=context)
             if not config.execution_plan.ignore_failures:

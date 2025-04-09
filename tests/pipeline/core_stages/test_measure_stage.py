@@ -160,3 +160,27 @@ def test_measure_energy_no_data_ignore_failure(
     stage.run(dummy_context)
 
     assert dummy_context["abort_pipeline"] is False
+
+
+@patch("pipeline.core_stages.measure_stage.run_command")
+def test_measure_energy_perf_fails_but_data_saved(
+    mock_run: MagicMock,
+    dummy_context: dict[str, str],
+    mock_config: SimpleNamespace,
+) -> None:
+    """Test that energy data is still extracted and saved even if perf fails but ignore_failures is True."""
+    mock_config.execution_plan.ignore_failures = True
+    mock_run.return_value = SimpleNamespace(returncode=1, stdout="42 power/energy-pkg/")
+
+    dummy_context["repo_path"] = str(Path(dummy_context["repo_path"]))
+    Path(dummy_context["repo_path"]).mkdir(parents=True, exist_ok=True)
+
+    stage = MeasureEnergyStage()
+    stage.run(dummy_context)
+
+    output_dir = Path(dummy_context["repo_path"]).parent / "energy_measurements"
+    output_files = list(output_dir.glob("energy_results_*.csv"))
+
+    assert output_files
+    assert output_files[0].read_text().strip() == "abc123,42"
+    assert dummy_context["abort_pipeline"] is False

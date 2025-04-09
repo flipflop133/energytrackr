@@ -67,7 +67,7 @@ def test_perf_paranoid_is_minus_one(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_perf_paranoid_non_minus_one_abort(monkeypatch: pytest.MonkeyPatch) -> None:
     """Should abort pipeline when paranoid != -1 and ignore_failures = False."""
-    monkeypatch.setattr("utils.utils.run_command", lambda *_args, **_kw: MagicMock(stdout="2\n"))
+    monkeypatch.setattr("pipeline.core_stages.verify_perf_stage.run_command", lambda *_args, **_kw: MagicMock(stdout="2\n"))
     make_config(ignore_failures=False)
 
     context = {}
