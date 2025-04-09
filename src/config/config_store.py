@@ -49,3 +49,9 @@ class Config:
         if cls._pipeline_config is None:
             raise ConfigurationSingletonError()
         return cls._pipeline_config
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset the singleton (for testing purposes only)."""
+        cls._pipeline_config = None
+        cls._instance = None

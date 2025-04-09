@@ -44,10 +44,10 @@ class BuildStage(PipelineStage):
 
         compile_cmds = config.execution_plan.compile_commands or []
         for cmd in compile_cmds:
-            logger.info(f"Running build command: {cmd}", context)
+            logger.info(f"Running build command: {cmd}", context=context)
             result = run_command(cmd, context=context)
             if result.returncode != 0:
-                logger.error(f"Build command failed: {cmd} (code {result.returncode})", context)
+                logger.error(f"Build command failed: {cmd} (code {result.returncode})", context=context)
                 context["build_failed"] = True
                 if not config.execution_plan.ignore_failures:
                     context["abort_pipeline"] = True
