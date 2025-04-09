@@ -1,22 +1,19 @@
-import os
+import argparse
 import json
-import tempfile
 from pathlib import Path
-from typing import List, Any
+from typing import Any
+from unittest.mock import MagicMock, patch
 
-import pytest
 import git
-from git import Repo, Commit
+import pytest
+from git import Commit, Repo
 
-from config.config_model import PipelineConfig
 from config.config_store import Config
-from main import (
-    load_pipeline_config,
-    clone_or_open_repo,
-    gather_commits,
-    compile_stages,
-    parse_args,
-)
+from config.loader import load_pipeline_config
+from pipeline.pipeline import compile_stages, measure
+from utils.args_parser import parse_args
+from utils.exceptions import UnknownCommandError
+from utils.git import clone_or_open_repo, gather_commits
 
 
 def test_clone_or_open_repo(tmp_path: Path) -> None:
@@ -39,7 +36,7 @@ def test_gather_commits(tmp_path: Path) -> None:
     # Step 1: Create a dummy Git repo with 3 commits
     repo_dir: Path = tmp_path / "test_repo"
     repo: Repo = git.Repo.init(str(repo_dir), initial_branch="master")
-    commit_hashes: List[str] = []
+    commit_hashes: list[str] = []
 
     for i in range(3):
         file_path: Path = repo_dir / f"file{i}.txt"
@@ -63,38 +60,12 @@ def test_gather_commits(tmp_path: Path) -> None:
 
     # Step 4: Run test logic
     load_pipeline_config(str(config_file))
-    commits: List[Commit] = gather_commits(repo)
+    commits: list[Commit] = gather_commits(repo)
 
     # Step 5: Assertions
     assert len(commits) <= 3
-    commit_shas: List[str] = [c.hexsha for c in commits]
+    commit_shas: list[str] = [c.hexsha for c in commits]
     assert any(sha in commit_shas for sha in commit_hashes)
-
-
-from unittest.mock import MagicMock, patch
-
-
-from unittest.mock import MagicMock
-import json
-from pathlib import Path
-from git import Repo, Commit
-from main import gather_commits, load_pipeline_config
-from config.config_store import Config
-
-
-from unittest.mock import MagicMock, patch
-import json
-from pathlib import Path
-from git import Repo, Commit
-from config.config_store import Config
-from main import gather_commits, load_pipeline_config
-
-
-from git import Repo, Commit
-from pathlib import Path
-import json
-from config.config_store import Config
-from main import load_pipeline_config, gather_commits
 
 
 def test_gather_commits_branches(tmp_path: Path):
@@ -274,7 +245,7 @@ def test_compile_stages() -> None:
 
 
 def test_parse_args_measure(monkeypatch: pytest.MonkeyPatch) -> None:
-    test_args: List[str] = ["measure", "--config", "test.json"]
+    test_args: list[str] = ["measure", "--config", "test.json"]
     monkeypatch.setattr("sys.argv", ["main.py"] + test_args)
     args = parse_args()
     assert args.command == "measure"
@@ -282,7 +253,7 @@ def test_parse_args_measure(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_parse_args_sort(monkeypatch: pytest.MonkeyPatch) -> None:
-    test_args: List[str] = ["sort", "input.csv", "repo_path", "output.csv"]
+    test_args: list[str] = ["sort", "input.csv", "repo_path", "output.csv"]
     monkeypatch.setattr("sys.argv", ["main.py"] + test_args)
     args = parse_args()
     assert args.command == "sort"
@@ -292,20 +263,11 @@ def test_parse_args_sort(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_parse_args_plot(monkeypatch: pytest.MonkeyPatch) -> None:
-    test_args: List[str] = ["plot", "results.csv"]
+    test_args: list[str] = ["plot", "results.csv"]
     monkeypatch.setattr("sys.argv", ["main.py"] + test_args)
     args = parse_args()
     assert args.command == "plot"
     assert args.file == "results.csv"
-
-
-import json
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-
-import pytest
-
-from main import measure
 
 
 @pytest.fixture
@@ -340,7 +302,7 @@ def sample_config_dict(tmp_path: Path):
     }
 
 
-def test_measure_pipeline(tmp_path: Path, sample_config_dict):
+def test_measure_pipeline(tmp_path: Path, sample_config_dict: dict[str, Any]) -> None:
     Config.reset()
     # Write temp config file
     config_file = tmp_path / "config.json"
@@ -351,11 +313,11 @@ def test_measure_pipeline(tmp_path: Path, sample_config_dict):
     mock_repo.git.checkout = MagicMock()
 
     with (
-        patch("main.clone_or_open_repo", return_value=mock_repo) as mock_clone,
-        patch("main.gather_commits", return_value=[dummy_commit]) as mock_gather,
-        patch("main.compile_stages", return_value={"pre_stages": [], "pre_test_stages": [], "batch_stages": []}),
-        patch("main.Pipeline") as mock_pipeline_cls,
-        patch("main.os.system") as mock_system,
+        patch("pipeline.pipeline.clone_or_open_repo", return_value=mock_repo) as mock_clone,
+        patch("pipeline.pipeline.gather_commits", return_value=[dummy_commit]) as mock_gather,
+        patch("pipeline.pipeline.compile_stages", return_value={"pre_stages": [], "pre_test_stages": [], "batch_stages": []}),
+        patch("pipeline.pipeline.Pipeline") as mock_pipeline_cls,
+        patch("os.system") as mock_system,
     ):
         mock_pipeline = MagicMock()
         mock_pipeline_cls.return_value = mock_pipeline
@@ -374,41 +336,6 @@ def test_measure_pipeline(tmp_path: Path, sample_config_dict):
         mock_system.assert_called_with("echo setup")
 
 
-import argparse
-import pytest
-from unittest.mock import patch, MagicMock
-
-from main import main
-from utils.exceptions import UnknownCommandError
-
-
 def make_args(**kwargs) -> argparse.Namespace:
     """Helper to create argparse.Namespace for tests."""
     return argparse.Namespace(**kwargs)
-
-
-def test_main_dispatch_measure():
-    with patch("main.measure") as mock_measure:
-        args = make_args(command="measure", config="test.json")
-        main(args)
-        mock_measure.assert_called_once_with("test.json")
-
-
-def test_main_dispatch_sort():
-    with patch("main.reorder_commits") as mock_sort:
-        args = make_args(command="sort", file="results.csv", repo_path="/repo", output_file="sorted.csv")
-        main(args)
-        mock_sort.assert_called_once_with("results.csv", "/repo", "sorted.csv")
-
-
-def test_main_dispatch_plot():
-    with patch("main.create_energy_plots") as mock_plot:
-        args = make_args(command="plot", file="results.csv")
-        main(args)
-        mock_plot.assert_called_once_with("results.csv")
-
-
-def test_main_dispatch_invalid_command():
-    args = make_args(command="unknown_cmd")
-    with pytest.raises(UnknownCommandError):
-        main(args)

@@ -1,18 +1,21 @@
-import pytest
+"""Unit tests for the MeasureEnergyStage class."""
+
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
+import pytest
 
 from pipeline.core_stages.measure_stage import MeasureEnergyStage
 
 
 class DummyCommit:
-    def __init__(self, hexsha="abc123"):
+    def __init__(self, hexsha: str = "abc123") -> None:
         self.hexsha = hexsha
 
 
 @pytest.fixture
-def dummy_context(tmp_path):
+def dummy_context(tmp_path: str) -> dict[str, str | bool]:
     return {
         "commit": DummyCommit(),
         "repo_path": str(tmp_path / "repo"),
@@ -22,7 +25,7 @@ def dummy_context(tmp_path):
 
 
 @pytest.fixture
-def mock_config():
+def mock_config() -> SimpleNamespace:
     class DummyConfig:
         class ExecutionPlan:
             test_command = "run-tests.sh"
@@ -36,7 +39,7 @@ def mock_config():
 
 
 @patch("pipeline.core_stages.measure_stage.run_command")
-def test_measure_energy_success(mock_run, dummy_context, mock_config):
+def test_measure_energy_success(mock_run, dummy_context, mock_config) -> None:
     mock_run.return_value = SimpleNamespace(returncode=0, stdout="42 power/energy-pkg/")
     dummy_context["repo_path"] = str(Path(dummy_context["repo_path"]))
     Path(dummy_context["repo_path"]).mkdir(parents=True, exist_ok=True)

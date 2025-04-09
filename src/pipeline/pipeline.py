@@ -1,23 +1,125 @@
 """Pipeline orchestrator for running stages on commits in a repository."""
 
 import concurrent.futures
+import os
+import random
 from typing import Any
 
 import git
 from rich.progress import (
+    BarColumn,
     Progress,
     SpinnerColumn,
     TextColumn,
-    BarColumn,
     TimeElapsedColumn,
     TimeRemainingColumn,
-    MofNCompleteColumn,
-    TransferSpeedColumn,
 )
 
 from config.config_store import Config
+from config.loader import load_pipeline_config
+from pipeline.core_stages.build_stage import BuildStage
+from pipeline.core_stages.checkout_stage import CheckoutStage
+from pipeline.core_stages.copy_directory_stage import CopyDirectoryStage
+from pipeline.core_stages.measure_stage import MeasureEnergyStage
+from pipeline.core_stages.post_test_stage import PostTestStage
+from pipeline.core_stages.set_directory_stage import SetDirectoryStage
+from pipeline.core_stages.temperature_check_stage import TemperatureCheckStage
+from pipeline.core_stages.verify_perf_stage import VerifyPerfStage
+from pipeline.custom_stages.java_setup_stage import JavaSetupStage
 from pipeline.stage_interface import PipelineStage
+from utils.git import clone_or_open_repo, gather_commits
 from utils.logger import logger
+
+pre_stages: list[PipelineStage] = [
+    VerifyPerfStage(),
+]
+
+pre_test_stages: list[PipelineStage] = [
+    CopyDirectoryStage(),
+    SetDirectoryStage(),
+    CheckoutStage(),
+    JavaSetupStage(),
+    BuildStage(),
+]
+
+batch_stages: list[PipelineStage] = [
+    TemperatureCheckStage(),
+    SetDirectoryStage(),
+    JavaSetupStage(),
+    MeasureEnergyStage(),
+    PostTestStage(),
+]
+
+
+def compile_stages() -> dict[str, list[PipelineStage]]:
+    """Compile the pipeline stages based on the execution plan.
+
+    Returns:
+        list[PipelineStage]: The compiled list of pipeline stages.
+    """
+    return {"pre_stages": pre_stages, "pre_test_stages": pre_test_stages, "batch_stages": batch_stages}
+
+
+def measure(config_path: str) -> None:
+    """Executes the measurement process for a given repository based on the provided configuration.
+
+    This function performs the following steps:
+    1. Loads the pipeline configuration from the specified path.
+    2. Sets up the repository directory and clones or opens the repository.
+    3. Optionally runs system-level setup commands defined in the configuration.
+    4. Collects commits from the repository and divides them into batches for processing.
+    5. Executes the pipeline stages on the batched tasks.
+    6. Restores the repository's HEAD to the latest commit on the specified branch.
+
+    Args:
+        config_path (str): The file path to the configuration file.
+
+    Raises:
+        Any exceptions raised during the execution of the pipeline or repository operations.
+    """
+    load_pipeline_config(config_path)
+    config = Config.get_config()
+    # Set up repo path
+    project_name = os.path.basename(config.repo.url).replace(".git", "").lower()
+    project_dir = os.path.join("projects", project_name)
+    os.makedirs(project_dir, exist_ok=True)
+
+    repo_path: str = os.path.abspath(os.path.join(project_dir, f".cache_{project_name}"))
+    repo = clone_or_open_repo(repo_path, config.repo.url, config.repo.clone_options)
+
+    # (Optional) run system-level setup commands
+    if config.setup_commands:
+        for cmd in config.setup_commands:
+            logger.info("Running setup command: %s", cmd)
+            os.system(cmd)
+
+    commits = gather_commits(repo)
+    logger.info("Collected %d commits to process.", len(commits))
+
+    # Divide the list of commits into batches of 'batch_size' commits each
+    commit_batches = [
+        commits[i : i + config.execution_plan.batch_size] for i in range(0, len(commits), config.execution_plan.batch_size)
+    ]
+
+    batches = []
+    for commit_batch in commit_batches:
+        batch_tasks = []
+        for commit in commit_batch:
+            # Add all the runs and repeats for this commit to the batch
+            runs_per_commit = config.execution_plan.num_runs * config.execution_plan.num_repeats
+            batch_tasks.extend([commit] * runs_per_commit)
+
+        if config.execution_plan.randomize_tasks:
+            random.shuffle(batch_tasks)
+
+        batches.append(batch_tasks)
+
+    pipeline = Pipeline(compile_stages(), repo_path)
+    pipeline.run(batches)
+
+    # Finally, restore HEAD
+    repo.git.checkout(config.repo.branch)
+    logger.info("Restored HEAD to latest commit on branch %s.", config.repo.branch)
 
 
 def run_pre_test_stages_for_commit(commit_hexsha: str, stages: list[PipelineStage], repo_path: str) -> dict[str, Any]:
@@ -60,6 +162,25 @@ def run_pre_test_stages_for_commit(commit_hexsha: str, stages: list[PipelineStag
 
 
 def log_context_buffer(context: dict[str, Any]) -> None:
+    """Logs the buffered log messages from the provided context dictionary.
+
+    This function retrieves a list of log messages from the "log_buffer" key
+    in the context dictionary and logs them using the appropriate log level.
+    It also includes the commit ID (retrieved from the "commit" key) in the
+    log headers. If no log messages are present in the buffer, the function
+    exits without logging anything.
+
+    Args:
+        context (dict[str, Any]): A dictionary containing the log buffer and
+            commit information. Expected keys:
+            - "log_buffer" (list[tuple[int, str]]): A list of tuples where each
+              tuple contains a log level (int) and a log message (str).
+            - "commit" (str): A string representing the commit ID. Defaults to
+              "UNKNOWN" if not provided.
+
+    Returns:
+        None
+    """
     logs = context.get("log_buffer", [])
     commit_id = context.get("commit", "UNKNOWN")
 
@@ -206,7 +327,8 @@ class Pipeline:
 
                     # Update the progress description to include the current commit and failed count.
                     progress.update(
-                        batch_stage_task, description=f"🧪Batch stages ({commit.hexsha[:8]}) (failed: {len(failed_commits)})"
+                        batch_stage_task,
+                        description=f"🧪Batch stages ({commit.hexsha[:8]}) (failed: {len(failed_commits)})",
                     )
                     progress.advance(batch_stage_task)
 

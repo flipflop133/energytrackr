@@ -1,11 +1,15 @@
+"""Unit tests for SetDirectoryStage class."""
+
 import os
-import pytest
 from pathlib import Path
+
+import pytest
+
 from pipeline.core_stages.set_directory_stage import SetDirectoryStage
 from utils.exceptions import MissingContextKeyError, TargetDirectoryNotFoundError
 
 
-def test_set_directory_success(tmp_path: Path):
+def test_set_directory_success(tmp_path: Path) -> None:
     """Test successful directory change based on commit context."""
     commit_id = "abc123"
     target_dir = tmp_path / f"repo_{commit_id}"
@@ -22,7 +26,7 @@ def test_set_directory_success(tmp_path: Path):
         os.chdir(current_dir)  # Restore original directory to avoid side effects
 
 
-def test_set_directory_missing_commit():
+def test_set_directory_missing_commit() -> None:
     """Test error when 'commit' key is missing in context."""
     context = {"repo_path": "/fake/path"}
 
@@ -33,7 +37,7 @@ def test_set_directory_missing_commit():
     assert "commit" in str(exc_info.value)
 
 
-def test_set_directory_not_found(tmp_path: Path):
+def test_set_directory_not_found(tmp_path: Path) -> None:
     """Test error when target directory does not exist."""
     commit_id = "deadbeef"
     repo_path = tmp_path / "repo"

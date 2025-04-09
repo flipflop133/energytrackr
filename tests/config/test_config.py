@@ -1,13 +1,13 @@
+"""Unit tests for the configuration module."""
+
 import json
 from pathlib import Path
 
 import pytest
 
-from config.config_model import ExecutionPlanDefinition, ModeEnum, PipelineConfig
+from config.config_model import ExecutionPlanDefinition, GranularityEnum, ModeEnum, PipelineConfig
 from config.config_store import Config
-from main import (
-    load_pipeline_config,
-)
+from config.loader import load_pipeline_config
 from utils.exceptions import ConfigurationSingletonError
 
 
@@ -16,7 +16,7 @@ def test_compile_commands_required_for_benchmarks() -> None:
     with pytest.raises(ValueError, match="compile_commands must be provided"):
         ExecutionPlanDefinition(
             mode=ModeEnum.benchmarks,
-            granularity="commits",
+            granularity=GranularityEnum.commits,
             test_command="run-tests.sh",
             test_command_path=".",
             ignore_failures=True,
@@ -30,6 +30,22 @@ def test_compile_commands_required_for_benchmarks() -> None:
 
 
 def test_load_pipeline_config(tmp_path: Path) -> None:
+    """Test the `load_pipeline_config` function to ensure it correctly loads a pipeline configuration from a JSON file.
+
+    Steps:
+    1. Copy the contents of a sample configuration file (`sample_conf.json`) to a
+        temporary file in the provided `tmp_path`.
+    2. Use the `load_pipeline_config` function to load the configuration from the
+        temporary file.
+    3. Validate that the loaded configuration matches the expected values by
+        asserting specific attributes of the `PipelineConfig` object.
+
+    Assertions:
+    - The `repo.url` attribute of the loaded configuration should match the expected
+      repository URL.
+    - The `execution_plan.num_commits` attribute should match the expected number
+      of commits.
+    """
     # Copy sample_conf.json to a temp path
     sample_path = Path("tests/config/sample_conf.json")
     config_file = tmp_path / "config.json"
@@ -41,7 +57,8 @@ def test_load_pipeline_config(tmp_path: Path) -> None:
     # Validate it loaded correctly
     config_obj: PipelineConfig = Config.get_config()
     assert config_obj.repo.url == "https://github.com/example/project.git"
-    assert config_obj.execution_plan.num_commits == 5
+    expected_num_commits = 5
+    assert config_obj.execution_plan.num_commits == expected_num_commits
 
 
 def test_config_singleton_identity() -> None:
@@ -52,12 +69,14 @@ def test_config_singleton_identity() -> None:
 
 
 def test_get_config_without_set_raises() -> None:
+    """Test that trying to get the config without setting it raises an error."""
     Config.reset()
     with pytest.raises(ConfigurationSingletonError):
         Config.get_config()
 
 
-def test_set_config_twice_raises(tmp_path: Path) -> None:
+def test_set_config_twice_raises() -> None:
+    """Test that trying to set the config twice raises an error."""
     from config.config_store import Config
     from utils.exceptions import ConfigurationSingletonError
 

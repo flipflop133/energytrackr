@@ -1,10 +1,11 @@
+"""Unit tests for the CheckoutStage class in the pipeline.core_stages module."""
+
 import os
 from pathlib import Path
 from typing import Any
 
-import pytest
 import git
-from unittest.mock import patch
+import pytest
 
 from pipeline.core_stages.checkout_stage import CheckoutStage
 
@@ -27,7 +28,8 @@ def dummy_git_repo(tmp_path: Path) -> tuple[git.Repo, list[str]]:
     return repo, commits
 
 
-def test_checkout_stage_success(dummy_git_repo: tuple[git.Repo, list[str]], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_checkout_stage_success(dummy_git_repo: tuple[git.Repo, list[str]]) -> None:
+    """Test the CheckoutStage class with a valid commit."""
     repo, commits = dummy_git_repo
     os.chdir(repo.working_tree_dir)
 
@@ -44,7 +46,8 @@ def test_checkout_stage_success(dummy_git_repo: tuple[git.Repo, list[str]], monk
     assert "abort_pipeline" not in context or context["abort_pipeline"] is False
 
 
-def test_checkout_stage_failure(dummy_git_repo: tuple[git.Repo, list[str]], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_checkout_stage_failure(dummy_git_repo: tuple[git.Repo, list[str]]) -> None:
+    """Test the CheckoutStage class with an invalid commit."""
     repo, _ = dummy_git_repo
     os.chdir(repo.working_tree_dir)
 

@@ -1,10 +1,13 @@
-import pytest
-from unittest.mock import patch, MagicMock
-from config.config_store import Config
-from pipeline.core_stages.verify_perf_stage import VerifyPerfStage
-from config.config_model import PipelineConfig
-from pathlib import Path
 import json
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+
+from config.config_model import PipelineConfig
+from config.config_store import Config
+from config.loader import load_pipeline_config
+from pipeline.core_stages.verify_perf_stage import VerifyPerfStage
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +42,6 @@ def make_config(ignore_failures: bool = False) -> PipelineConfig:
     }
     config_path = Path("temp_config.json")
     config_path.write_text(json.dumps(config_dict))
-    from main import load_pipeline_config
 
     load_pipeline_config(str(config_path))
     return Config.get_config()

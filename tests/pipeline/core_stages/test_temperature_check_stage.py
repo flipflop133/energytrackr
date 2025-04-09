@@ -1,11 +1,10 @@
-import builtins
-import time
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
 import pytest
-from pipeline.core_stages.temperature_check_stage import TemperatureCheckStage
+
+from config.config_model import ExecutionPlanDefinition, LimitsDefinition, PipelineConfig, RepositoryDefinition
 from config.config_store import Config
-from config.config_model import PipelineConfig, RepositoryDefinition, ExecutionPlanDefinition, LimitsDefinition
+from pipeline.core_stages.temperature_check_stage import TemperatureCheckStage
 
 
 @pytest.fixture
