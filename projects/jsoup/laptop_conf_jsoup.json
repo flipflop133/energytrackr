@@ -16,7 +16,7 @@
         "compile_commands": [
             "mvn clean test-compile"
         ],
-        "newest_commit": "c37e8d66dd7acd1cef8a5fc860140f8796c84ab4",
+        "newest_commit": "da4e275eaddcef242b3912d85b3bbf35f713c80b",
         "num_commits": 200
     },
     "results": {

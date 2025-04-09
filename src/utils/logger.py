@@ -5,6 +5,9 @@ from typing import Any, cast, override
 
 from rich.logging import RichHandler
 
+import os
+from datetime import datetime
+
 
 class ContextLogger(logging.Logger):
     """Custom logger class that supports logging with additional context.
@@ -94,7 +97,35 @@ class ContextLogger(logging.Logger):
         self._log_with_context(level, str(msg), context, *args, **kwargs)
 
 
+# Set custom logger class
 logging.setLoggerClass(ContextLogger)
-logging.basicConfig(level=logging.DEBUG, format="%(message)s", handlers=[RichHandler(rich_tracebacks=True)])
+
+# Create and configure logger
 logger = cast(ContextLogger, logging.getLogger("energy-pipeline"))
 logger.setLevel(logging.DEBUG)
+logger.propagate = False  # Prevent messages from propagating to ancestor loggers
+
+# Add handlers only if not already added
+if not logger.handlers:
+    # Rich handler for pretty stdout
+    rich_handler = RichHandler(rich_tracebacks=True)
+    rich_handler.setLevel(logging.DEBUG)
+    logger.addHandler(rich_handler)
+
+    # Optional file handler
+    SAVE_LOGS_TO_FILE = True
+    if SAVE_LOGS_TO_FILE:
+        log_dir = "logs"
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = os.path.join(log_dir, f"debug_{timestamp}.log")
+        log_dir = os.path.dirname(log_file)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.WARNING)
+        file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)

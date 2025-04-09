@@ -82,9 +82,11 @@ def measure(config_path: str) -> None:
     # Set up repo path
     project_name = os.path.basename(config.repo.url).replace(".git", "").lower()
     project_dir = os.path.join("projects", project_name)
+    cache_dir = os.path.join(project_dir, ".cache")
+    os.makedirs(cache_dir, exist_ok=True)
     os.makedirs(project_dir, exist_ok=True)
 
-    repo_path: str = os.path.abspath(os.path.join(project_dir, f".cache_{project_name}"))
+    repo_path: str = os.path.abspath(os.path.join(project_dir, f".cache/.cache_{project_name}"))
     repo = clone_or_open_repo(repo_path, config.repo.url, config.repo.clone_options)
 
     # (Optional) run system-level setup commands
