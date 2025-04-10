@@ -20,6 +20,7 @@ from config.loader import load_pipeline_config
 from pipeline.core_stages.build_stage import BuildStage
 from pipeline.core_stages.checkout_stage import CheckoutStage
 from pipeline.core_stages.copy_directory_stage import CopyDirectoryStage
+from pipeline.core_stages.filter_commits import FilterCommitsStage
 from pipeline.core_stages.measure_stage import MeasureEnergyStage
 from pipeline.core_stages.post_test_stage import PostTestStage
 from pipeline.core_stages.set_directory_stage import SetDirectoryStage
@@ -32,6 +33,7 @@ from utils.logger import logger
 
 pre_stages: list[PipelineStage] = [
     VerifyPerfStage(),
+    FilterCommitsStage(),
 ]
 
 pre_test_stages: list[PipelineStage] = [
@@ -271,6 +273,7 @@ class Pipeline:
                     "build_failed": False,
                     "abort_pipeline": False,
                     "repo_path": self.repo_path,
+                    "batch": batch,
                 }
                 if not self._run_stage_group(self.stages.get("pre_stages", []), pre_context):
                     return
