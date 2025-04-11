@@ -1,3 +1,5 @@
+"""Plotting script for energy consumption data."""
+
 import logging
 import os
 import sys
@@ -10,9 +12,9 @@ import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.collections import PathCollection
+from matplotlib.colors import to_rgba
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
-from matplotlib.colors import to_rgba
 from scipy.stats import shapiro, ttest_ind
 
 # ---------------------------
@@ -31,6 +33,16 @@ WINDOW_SIZE = 15  # Sliding window size
 # ---------------------------
 @dataclass
 class ChangeEvent:
+    """Data structure to hold energy change events.
+
+    This structure is used to represent significant changes in energy consumption.
+
+    Attributes:
+        index (int): The index of the commit where the change occurred.
+        severity (float): The severity of the change (e.g., 0.25 for a 25% change).
+        direction (str): The direction of the change ("increase" for regressions or "decrease" for improvements).
+    """
+
     index: int
     severity: float  # Always positive (e.g., 0.25 for a 25% change)
     direction: str  # "increase" for regressions (worse energy) or "decrease" for improvements
@@ -38,6 +50,21 @@ class ChangeEvent:
 
 @dataclass
 class EnergyPlotData:
+    """Data structure to hold energy plot data.
+
+    This structure is used to pass all the necessary data for plotting energy consumption trends.
+
+    Attributes:
+        x_indices (np.ndarray): X-axis indices for plotting.
+        short_hashes (list[str]): Short commit hashes for labeling.
+        y_medians (list[float]): Median energy values for each commit.
+        y_errors (list[float]): Standard deviation of energy values for error bars.
+        distribution_data (list[np.ndarray]): Distribution data for each commit.
+        normality_flags (list[bool]): Flags indicating normality of distributions.
+        change_events (list[ChangeEvent]): Detected energy change events.
+        energy_column (str): The name of the energy column being plotted.
+    """
+
     x_indices: np.ndarray[Any, np.dtype[np.int64]]
     short_hashes: list[str]
     y_medians: list[float]
@@ -52,8 +79,28 @@ class EnergyPlotData:
 # Data Preparation Functions
 # ---------------------------
 def prepare_commit_statistics(
-    df: pd.DataFrame, energy_column: str
+    df: pd.DataFrame,
+    energy_column: str,
 ) -> tuple[list[str], list[str], np.ndarray[Any, np.dtype[np.int64]], list[float], list[float]]:
+    """Prepares commit statistics for energy data.
+
+    This function computes the median and standard deviation of energy values
+    associated with each commit, filtering out commits with insufficient measurements.
+    It also generates short commit hashes for plotting.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame containing energy data.
+                           It must include columns 'commit' and the specified energy column.
+        energy_column (str): The name of the column in the DataFrame containing energy values.
+
+    Returns:
+        tuple[list[str], list[str], np.ndarray[Any, np.dtype[np.int64]], list[float], list[float]]:
+            - A list of valid commit identifiers.
+            - A list of short commit hashes.
+            - An array of x indices for plotting.
+            - A list of median energy values for each commit.
+            - A list of standard deviation values for each commit.
+    """
     commit_counts = df.groupby("commit").size().reset_index(name="count")
     df_median = df.groupby("commit", sort=False)[energy_column].median().reset_index()
     df_std = df.groupby("commit", sort=False)[energy_column].std().reset_index()
@@ -72,8 +119,32 @@ def prepare_commit_statistics(
 
 
 def compute_distribution_and_normality(
-    df: pd.DataFrame, valid_commits: list[str], energy_column: str
+    df: pd.DataFrame,
+    valid_commits: list[str],
+    energy_column: str,
 ) -> tuple[list[np.ndarray[Any, Any]], list[bool]]:
+    """Computes the distribution data and normality flags for energy values associated with a list of valid commits.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame containing energy data.
+                           It must include columns 'commit' and the specified energy column.
+        valid_commits (list[str]): A list of commit identifiers to filter the data.
+        energy_column (str): The name of the column in the DataFrame containing energy values.
+
+    Returns:
+        tuple[list[np.ndarray[Any, Any]], list[bool]]:
+            - A list of numpy arrays, where each array contains the energy values
+              for a specific commit.
+            - A list of boolean flags indicating whether the energy values for each
+              commit passed the Shapiro-Wilk normality test (True if normal, False otherwise).
+              If the number of values is below the threshold for the test, the flag defaults to True.
+
+    Notes:
+        - The function uses a global constant `MIN_VALUES_FOR_NORMALITY_TEST` to determine
+          the minimum number of values required to perform the Shapiro-Wilk test.
+        - The global constant `NORMALITY_P_THRESHOLD` is used as the p-value threshold
+          for determining normality.
+    """
     distribution_data: list[np.ndarray[Any, Any]] = []
     normality_flags = []
     for commit in valid_commits:
@@ -90,24 +161,84 @@ def compute_distribution_and_normality(
 # ---------------------------
 # Energy Change Detection Function
 # ---------------------------
+
+
+def get_change_direction(baseline_median: float, test_median: float, min_pct_change: float) -> str | None:
+    """Determine the direction of change given baseline and test medians.
+
+    Args:
+        baseline_median (float): The median energy of the baseline window.
+        test_median (float): The median energy of the test window.
+        min_pct_change (float): The minimum percentage change threshold.
+
+    Returns:
+      "increase" if test_median is at least (1 + min_pct_change)*baseline_median,
+      "decrease" if test_median is at most (1 - min_pct_change)*baseline_median,
+      Otherwise, None.
+    """
+    if test_median >= baseline_median * (1 + min_pct_change):
+        return "increase"
+    if test_median <= baseline_median * (1 - min_pct_change):
+        return "decrease"
+    return None
+
+
+def find_first_change(
+    y_medians: list[float],
+    window_range: tuple[int, int],
+    baseline_median: float,
+    min_pct_change: float,
+    direction: str,
+) -> tuple[int, float] | None:
+    """Search within indices [start, end) for the first commit meeting the change threshold.
+
+    Parameters:
+      y_medians      : List of median energy values.
+      window_range   : Tuple (start, end) defining the range to search.
+      baseline_median: The median energy of the baseline window.
+      min_pct_change : The minimum percentage change threshold.
+      direction      : 'increase' for regressions, 'decrease' for improvements.
+
+    Returns:
+      A tuple (commit_index, severity) if a change is found; otherwise, None.
+    """
+    for j in range(window_range[0], window_range[1] - 1):
+        if direction == "increase" and y_medians[j + 1] >= y_medians[j] * (1 + min_pct_change):
+            severity = (y_medians[j + 1] - baseline_median) / baseline_median
+            return j + 1, severity
+        if direction == "decrease" and y_medians[j + 1] <= y_medians[j] * (1 - min_pct_change):
+            severity = (baseline_median - y_medians[j + 1]) / baseline_median
+            return j + 1, severity
+    return None
+
+
 def detect_energy_changes(
     distribution_data: list[np.ndarray[Any, Any]],
     y_medians: list[float],
-    short_hashes: list[str],
     window_size: int = WINDOW_SIZE,
     min_pct_change: float = MIN_PCT_INCREASE,
     p_threshold: float = WELCH_P_THRESHOLD,
 ) -> list[ChangeEvent]:
-    """
-    Detect energy changes using a sliding window approach.
-    This function returns a list of ChangeEvent indicating the commit index,
-    the severity (as a fraction), and the direction ("increase" or "decrease").
+    """Detect energy changes using a sliding window approach.
+
+    Returns a list of ChangeEvent (with commit index, severity, and change direction),
+    where changes could be energy increases ("increase") or improvements ("decrease").
+
+    Args:
+        distribution_data (list[np.ndarray[Any, Any]]): Distribution data for each commit.
+        y_medians (list[float]): Median energy values for each commit.
+        window_size (int): Size of the sliding window to use for change detection.
+        min_pct_change (float): Minimum percentage change to consider significant.
+        p_threshold (float): P-value threshold for Welch's t-test.
+
+    Returns:
+        list[ChangeEvent]: List of detected energy change events.
     """
     changes = []
     i = window_size
 
     while i < len(distribution_data) - window_size:
-        # Create the baseline and test windows
+        # Define baseline and test windows.
         baseline = np.concatenate(distribution_data[i - window_size : i])
         test = np.concatenate(distribution_data[i : i + window_size])
         if len(baseline) < MIN_VALUES_FOR_NORMALITY_TEST or len(test) < MIN_VALUES_FOR_NORMALITY_TEST:
@@ -116,28 +247,23 @@ def detect_energy_changes(
 
         baseline_median = np.median(baseline)
         test_median = np.median(test)
-        # Perform statistical test between the two windows
         _, p_value = ttest_ind(baseline, test, equal_var=False)
+        if p_value >= p_threshold:
+            i += 1
+            continue
 
-        if p_value < p_threshold:
-            # Check for regression (energy increase)
-            if test_median >= baseline_median * (1 + min_pct_change):
-                for j in range(i, i + window_size - 1):
-                    if y_medians[j + 1] >= y_medians[j] * (1 + min_pct_change):
-                        severity = (y_medians[j + 1] - baseline_median) / baseline_median
-                        changes.append(ChangeEvent(index=j + 1, severity=severity, direction="increase"))
-                        break
-                i += window_size
-                continue
-            # Check for improvement (energy decrease)
-            elif test_median <= baseline_median * (1 - min_pct_change):
-                for j in range(i, i + window_size - 1):
-                    if y_medians[j + 1] <= y_medians[j] * (1 - min_pct_change):
-                        severity = (baseline_median - y_medians[j + 1]) / baseline_median
-                        changes.append(ChangeEvent(index=j + 1, severity=severity, direction="decrease"))
-                        break
-                i += window_size
-                continue
+        direction = get_change_direction(baseline_median, test_median, min_pct_change)
+        if direction is None:
+            i += 1
+            continue
+
+        result = find_first_change(y_medians, (i, i + window_size), baseline_median, min_pct_change, direction)
+        if result is not None:
+            event_index, severity = result
+            changes.append(ChangeEvent(index=event_index, severity=severity, direction=direction))
+            i += window_size  # Skip ahead to avoid duplicate detections.
+            continue
+
         i += 1
 
     return changes
@@ -147,9 +273,15 @@ def detect_energy_changes(
 # Plotting Functions
 # ---------------------------
 def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
-    """
+    """Plot energy data with violin plots and error bars.
+
     Plot energy data with violin plots for the distributions, errorbars for the medians,
     and vertical shaded areas indicating energy changes with colors and opacity representing the severity.
+
+    Args:
+        ax (Axes): The matplotlib Axes object to plot on.
+        plot_data (EnergyPlotData): The data to be plotted, including commit indices, short hashes,
+            median values, error values, distribution data, normality flags, and change events.
     """
     x_indices = plot_data.x_indices
     short_hashes = plot_data.short_hashes
@@ -237,12 +369,16 @@ def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
 
 
 def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: str) -> None:
-    """
-    Create and save a plot for a given energy column from the CSV data.
+    """Create and save a plot for a given energy column from the CSV data.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing the energy data.
+        energy_column (str): The name of the energy column to plot.
+        output_filename (str): The filename to save the plot.
     """
     valid_commits, short_hashes, x_indices, y_medians, y_errors = prepare_commit_statistics(df, energy_column)
     distribution_data, normality_flags = compute_distribution_and_normality(df, valid_commits, energy_column)
-    change_events = detect_energy_changes(distribution_data, y_medians, short_hashes)
+    change_events = detect_energy_changes(distribution_data, y_medians)
 
     plot_data = EnergyPlotData(
         x_indices=x_indices,
@@ -264,8 +400,12 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
 
 
 def create_energy_plots(input_path: str) -> None:
-    """
-    Load the CSV data, generate plots for each energy metric, and save the images.
+    """Load the CSV data, generate plots for each energy metric, and save the images.
+
+    This function skips processing columns that are empty.
+
+    Args:
+        input_path (str): Path to the CSV file containing energy data.
     """
     if not os.path.isfile(input_path):
         logging.info(f"Error: File not found: {input_path}")
@@ -281,6 +421,11 @@ def create_energy_plots(input_path: str) -> None:
         names=["commit", "energy-pkg", "energy-core", "energy-gpu"],
     )
 
+    # Process only non-empty columns
     for column in ["energy-pkg", "energy-core", "energy-gpu"]:
+        if df[column].dropna().empty:
+            logging.info(f"Skipping processing for column '{column}' because it is empty.")
+            continue
+
         output_filename = os.path.join(folder, f"{project_name}_{column}_{timestamp_now}.png")
         create_energy_plot(df, column, output_filename)
