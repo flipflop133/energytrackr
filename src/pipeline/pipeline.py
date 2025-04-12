@@ -319,6 +319,11 @@ class Pipeline:
                         if result.get("abort_pipeline"):
                             logger.warning("Aborting pre-test stages for commit %s", commit_hexsha)
                             failed_commits.add(commit_hexsha)
+                            return
+
+                        if result.get("build_failed"):
+                            logger.warning("Build failed for commit %s", commit_hexsha)
+                            failed_commits.add(commit_hexsha)
 
                         description = "Pre batch stages"
                         if failed_commits:
@@ -334,16 +339,18 @@ class Pipeline:
                     total=len(batch_to_process),
                 )
 
+                failed_tests_commits: set[str] = set()
+
                 logger.info("Starting pipeline over %d commits...", len(batch_to_process))
                 for commit in batch_to_process:
-                    if commit.hexsha in failed_commits:
+                    if commit.hexsha in failed_tests_commits:
                         logger.warning("Skipping failed commit %s", commit.hexsha)
                         continue
 
                     # Update the progress description to include the current commit and failed count.
                     progress.update(
                         batch_stage_task,
-                        description=f"🧪Batch stages ({commit.hexsha[:8]}) (failed: {len(failed_commits)})",
+                        description=f"🧪Batch stages ({commit.hexsha[:8]}) (failed: {len(failed_tests_commits)})",
                     )
                     progress.advance(batch_stage_task)
 
@@ -357,12 +364,12 @@ class Pipeline:
 
                     if not self._run_stage_group(self.stages.get("batch_stages", []), commit_context):
                         logger.warning(f"Commit {commit.hexsha} failed to process.")
-                        failed_commits.add(commit.hexsha)
+                        failed_tests_commits.add(commit.hexsha)
                         continue
 
                     logger.info("==== Done with commit %s ====\n", commit.hexsha)
 
                 # Log the summary of batch processing.
-                logger.info("Batch stages completed with %d failed commits.", len(failed_commits))
+                logger.info("Batch stages completed with %d failed commits.", len(failed_tests_commits))
                 progress.remove_task(batch_stage_task)
                 progress.advance(pipeline_task)
