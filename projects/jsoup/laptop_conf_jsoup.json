@@ -17,7 +17,7 @@
             "mvn clean test-compile"
         ],
         "newest_commit": "5986ca1d8ed0c68a35f42ea0b919d8ec66c3294e",
-        "num_commits": 400
+        "num_commits": 200
     },
     "results": {
         "file": "energy_usage.csv"
@@ -34,7 +34,7 @@
         "yml"
     ],
     "cpu_thermal_file": "/sys/class/hwmon/hwmon5/temp1_input",
-    "ignored_directories": [
-        "src/test"
-    ]
+    "regression_detection": {
+        "min_commits_before": 1
+    }
 }

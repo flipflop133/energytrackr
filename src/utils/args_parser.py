@@ -25,5 +25,6 @@ def parse_args() -> argparse.Namespace:
     # plot subcommand
     plot_parser = subparsers.add_parser("plot", help="Plot a result file")
     plot_parser.add_argument("file", help="Path to the result file to plot")
+    plot_parser.add_argument("repo_path", help="Path to the repository")
 
     return parser.parse_args()

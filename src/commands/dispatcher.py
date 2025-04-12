@@ -26,6 +26,6 @@ def handle_command(args: argparse.Namespace) -> None:
             reorder_commits(args.file, args.repo_path, args.output_file)
         case "plot":
             # Plot a result file
-            create_energy_plots(args.file)
+            create_energy_plots(args.file, args.repo_path)
         case _:
             raise UnknownCommandError(args.command)

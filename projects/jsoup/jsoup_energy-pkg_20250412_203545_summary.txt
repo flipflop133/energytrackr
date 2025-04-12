@@ -1,0 +1,82 @@
+Energy Consumption Change Summary for 'energy-pkg'
+Project: jsoup
+Date: 20250412_203545
+================================================================================
+Commit: f4c700b8cf147638eb09aa76a7ef4f2de70f8ea9 (Short: f4c700b)
+Direction: Regression (Increase)
+Severity: 2%
+Commit Message: Added TokeniserState tests (#859)
+Commit Link: https://github.com/jhy/jsoup/commit/f4c700b8cf147638eb09aa76a7ef4f2de70f8ea9
+--------------------------------------------------------------------------------
+Commit: 197815a029b9a58566655b0ef343bb8c6a57fb2e (Short: 197815a)
+Direction: Regression (Increase)
+Severity: 8%
+Commit Message: Fix typo in README.md (#1028)
+Commit Link: https://github.com/jhy/jsoup/commit/197815a029b9a58566655b0ef343bb8c6a57fb2e
+--------------------------------------------------------------------------------
+Commit: 834c81bb55d7ccdc0d7b158595ad7aa92db6ed8b (Short: 834c81b)
+Direction: Improvement (Decrease)
+Severity: 8%
+Commit Message: Change log for #1038
+Commit Link: https://github.com/jhy/jsoup/commit/834c81bb55d7ccdc0d7b158595ad7aa92db6ed8b
+--------------------------------------------------------------------------------
+Commit: 04f0ab3bf48a4ea1247fa9619b34cac6f6049a6a (Short: 04f0ab3)
+Direction: Regression (Increase)
+Severity: 9%
+Commit Message: Merge branch 'pr/1038'
+Commit Link: https://github.com/jhy/jsoup/commit/04f0ab3bf48a4ea1247fa9619b34cac6f6049a6a
+--------------------------------------------------------------------------------
+Commit: a0b87bf10a9a520b49748c619c868caed8d7a109 (Short: a0b87bf)
+Direction: Improvement (Decrease)
+Severity: 12%
+Commit Message: Ensure enough data is buffered to survive a Mark reset
+Commit Link: https://github.com/jhy/jsoup/commit/a0b87bf10a9a520b49748c619c868caed8d7a109
+--------------------------------------------------------------------------------
+Commit: a7d704f2713cafb49356ed592a71772dde1f90e2 (Short: a7d704f)
+Direction: Regression (Increase)
+Severity: 25%
+Commit Message: 2020 date
+Commit Link: https://github.com/jhy/jsoup/commit/a7d704f2713cafb49356ed592a71772dde1f90e2
+--------------------------------------------------------------------------------
+Commit: 0bec593106b90897b8b7b8f3ac82603ca56a0b6c (Short: 0bec593)
+Direction: Improvement (Decrease)
+Severity: 4%
+Commit Message: Readme URL update
+Commit Link: https://github.com/jhy/jsoup/commit/0bec593106b90897b8b7b8f3ac82603ca56a0b6c
+--------------------------------------------------------------------------------
+Commit: a657ae0240b875a703a1e4909d56ad59997d362d (Short: a657ae0)
+Direction: Improvement (Decrease)
+Severity: 23%
+Commit Message: Added forms(), comments(), textNodes(), dataNodes()
+Commit Link: https://github.com/jhy/jsoup/commit/a657ae0240b875a703a1e4909d56ad59997d362d
+--------------------------------------------------------------------------------
+Commit: 27b656744b273eca3f43111fe20cc15aa978e52d (Short: 27b6567)
+Direction: Regression (Increase)
+Severity: 2%
+Commit Message: Build - report on API compat between verisons, and store build artifacts
+Commit Link: https://github.com/jhy/jsoup/commit/27b656744b273eca3f43111fe20cc15aa978e52d
+--------------------------------------------------------------------------------
+Commit: af763d07c41085fcf518e547857d419ffb455d52 (Short: af763d0)
+Direction: Regression (Increase)
+Severity: 13%
+Commit Message: Document#body should return the framset el for frameset docs
+Commit Link: https://github.com/jhy/jsoup/commit/af763d07c41085fcf518e547857d419ffb455d52
+--------------------------------------------------------------------------------
+Commit: b431fb2dd002c0425d5938ca2ce4d1c967336a5b (Short: b431fb2)
+Direction: Regression (Increase)
+Severity: 2%
+Commit Message: Adds easy request session-state and corrects cookie domain and path rules (#1476)
+Commit Link: https://github.com/jhy/jsoup/commit/b431fb2dd002c0425d5938ca2ce4d1c967336a5b
+--------------------------------------------------------------------------------
+Commit: e718ddd847e15331d7d204a021b7f0aa80628a68 (Short: e718ddd)
+Direction: Regression (Increase)
+Severity: 2%
+Commit Message: Testcase for Fux #1542 - but no repro yet
+Commit Link: https://github.com/jhy/jsoup/commit/e718ddd847e15331d7d204a021b7f0aa80628a68
+--------------------------------------------------------------------------------
+Commit: 48d86458bfef17e5ed1118235c422b7a9d4e5c7c (Short: 48d8645)
+Direction: Improvement (Decrease)
+Severity: 2%
+Commit Message: Don't try to unconsume after a potential bufferUp when moving from RCData to TagOpen state
+Commit Link: https://github.com/jhy/jsoup/commit/48d86458bfef17e5ed1118235c422b7a9d4e5c7c
+--------------------------------------------------------------------------------
