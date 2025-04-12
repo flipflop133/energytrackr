@@ -20,6 +20,8 @@ class VerifyPerfStage(PipelineStage):
         command_result = run_command("cat /proc/sys/kernel/perf_event_paranoid")
         perf_event_paranoid = int(command_result.stdout.strip())
         if perf_event_paranoid != -1:
-            logger.error("Perf_event_paranoid is not set to -1")
+            logger.warning("Perf_event_paranoid is not set to -1")
+            logger.warning("User is not allowed to use perf without sudo.")
+            logger.warning("Please run the pipeline with sudo or set perf_event_paranoid to -1.")
             if not Config.get_config().execution_plan.ignore_failures:
                 context["abort_pipeline"] = True
