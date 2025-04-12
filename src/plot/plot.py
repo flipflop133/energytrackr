@@ -24,7 +24,7 @@ MIN_MEASUREMENTS = 2
 NORMALITY_P_THRESHOLD = 0.05
 MIN_VALUES_FOR_NORMALITY_TEST = 3
 WELCH_P_THRESHOLD = 0.05  # Significance threshold for Welch's t-test
-MIN_PCT_INCREASE = 0.05  # Practical threshold for change (10%)
+MIN_PCT_INCREASE = 0.02  # Practical threshold for change (10%)
 WINDOW_SIZE = 15  # Sliding window size
 
 
@@ -215,11 +215,10 @@ def find_first_change(
 def detect_energy_changes(
     distribution_data: list[np.ndarray[Any, Any]],
     y_medians: list[float],
-    window_size: int = WINDOW_SIZE,
     min_pct_change: float = MIN_PCT_INCREASE,
     p_threshold: float = WELCH_P_THRESHOLD,
 ) -> list[ChangeEvent]:
-    """Detect energy changes using a sliding window approach.
+    """Detect energy changes by comparing each commit to its immediate predecessor.
 
     Returns a list of ChangeEvent (with commit index, severity, and change direction),
     where changes could be energy increases ("increase") or improvements ("decrease").
@@ -227,7 +226,6 @@ def detect_energy_changes(
     Args:
         distribution_data (list[np.ndarray[Any, Any]]): Distribution data for each commit.
         y_medians (list[float]): Median energy values for each commit.
-        window_size (int): Size of the sliding window to use for change detection.
         min_pct_change (float): Minimum percentage change to consider significant.
         p_threshold (float): P-value threshold for Welch's t-test.
 
@@ -235,36 +233,34 @@ def detect_energy_changes(
         list[ChangeEvent]: List of detected energy change events.
     """
     changes = []
-    i = window_size
+    # Start from the second commit, comparing to the previous one.
+    for i in range(1, len(distribution_data)):
+        baseline = distribution_data[i - 1]
+        test = distribution_data[i]
 
-    while i < len(distribution_data) - window_size:
-        # Define baseline and test windows.
-        baseline = np.concatenate(distribution_data[i - window_size : i])
-        test = np.concatenate(distribution_data[i : i + window_size])
+        # Ensure there is a minimum number of values in both commits to run the test.
         if len(baseline) < MIN_VALUES_FOR_NORMALITY_TEST or len(test) < MIN_VALUES_FOR_NORMALITY_TEST:
-            i += 1
             continue
 
         baseline_median = np.median(baseline)
         test_median = np.median(test)
         _, p_value = ttest_ind(baseline, test, equal_var=False)
+        # Only proceed if the difference is statistically significant.
         if p_value >= p_threshold:
-            i += 1
             continue
 
         direction = get_change_direction(baseline_median, test_median, min_pct_change)
         if direction is None:
-            i += 1
             continue
 
-        result = find_first_change(y_medians, (i, i + window_size), baseline_median, min_pct_change, direction)
-        if result is not None:
-            event_index, severity = result
-            changes.append(ChangeEvent(index=event_index, severity=severity, direction=direction))
-            i += window_size  # Skip ahead to avoid duplicate detections.
-            continue
+        # Compute severity as the relative percentage difference from the baseline.
+        if direction == "increase":
+            severity = (test_median - baseline_median) / baseline_median
+        else:  # direction == "decrease"
+            severity = (baseline_median - test_median) / baseline_median
 
-        i += 1
+        # Record the change event at commit index i.
+        changes.append(ChangeEvent(index=i, severity=severity, direction=direction))
 
     return changes
 
@@ -399,10 +395,35 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
     plt.close()
 
 
-def create_energy_plots(input_path: str) -> None:
-    """Load the CSV data, generate plots for each energy metric, and save the images.
+def filter_outliers_iqr(df: pd.DataFrame, column: str, multiplier: float = 1.5) -> pd.DataFrame:
+    """
+    Filter out outliers from the given DataFrame column using the IQR method.
 
-    This function skips processing columns that are empty.
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        column (str): The column name on which to apply the filtering.
+        multiplier (float): The multiplier for the IQR to set the bounds (default: 1.5).
+
+    Returns:
+        pd.DataFrame: A DataFrame with outliers removed for the specified column.
+    """
+    q1 = df[column].quantile(0.25)
+    q3 = df[column].quantile(0.75)
+    iqr = q3 - q1
+    lower_bound = q1 - multiplier * iqr
+    upper_bound = q3 + multiplier * iqr
+
+    # Optional: Log or print the bounds for debugging
+    print(f"Filtering '{column}': Q1={q1}, Q3={q3}, IQR={iqr}, lower_bound={lower_bound}, upper_bound={upper_bound}")
+
+    filtered_df = df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
+    return filtered_df
+
+
+def create_energy_plots(input_path: str) -> None:
+    """Load the CSV data, filter out outliers, generate plots for each energy metric, and save the images.
+
+    This function skips processing columns that are empty and filters out extreme outliers using the IQR method.
 
     Args:
         input_path (str): Path to the CSV file containing energy data.
@@ -427,5 +448,13 @@ def create_energy_plots(input_path: str) -> None:
             logging.info(f"Skipping processing for column '{column}' because it is empty.")
             continue
 
+        # Filter outliers for the current energy column
+        df_filtered = filter_outliers_iqr(df, column, multiplier=1.5)
+
+        # Check if there's sufficient data after filtering
+        if df_filtered.empty:
+            logging.info(f"All data filtered out for column '{column}'. Skipping plot generation.")
+            continue
+
         output_filename = os.path.join(folder, f"{project_name}_{column}_{timestamp_now}.png")
-        create_energy_plot(df, column, output_filename)
+        create_energy_plot(df_filtered, column, output_filename)
