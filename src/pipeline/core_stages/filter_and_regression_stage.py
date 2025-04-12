@@ -24,20 +24,20 @@ class FilterAndRegressionStage(PipelineStage):
     def run(self, context: dict[str, Any]) -> None:
         """Executes the filtering and regression augmentation stage of the pipeline.
 
-        This method processes a batch of commits provided in the context, filters them
+        This method processes a list of commits provided in the context, filters them
         based on specified criteria, and augments the filtered commits with their
         neighboring commits in the original order to provide additional regression context.
 
         Args:
             context (dict[str, Any]): A dictionary containing the pipeline context.
                 Expected keys:
-                - "batch": A list of commits to process. Each commit is expected to have
+                - "commits": A list of commits to process. Each commit is expected to have
                   attributes such as `hexsha` and `stats.files`.
                 - "abort_pipeline" (optional): A flag to indicate whether the pipeline should
                   be aborted.
 
         Behavior:
-            - If no commits are provided in the "batch", the pipeline is aborted.
+            - If no commits are provided in the "commits", the pipeline is aborted.
             - Commits are filtered based on the following criteria:
                 - Files modified in the commit should not belong to ignored directories.
                 - At least one file modified in the commit should have a tracked file extension.
@@ -45,7 +45,7 @@ class FilterAndRegressionStage(PipelineStage):
               from the original list, based on the `min_commits_before` and `min_commits_after`
               configuration values.
             - The final list of commits is sorted in the original order and stored back in
-              the "batch" key of the context.
+              the "commits" key of the context.
 
         Logging:
             - Logs the number of commits before and after filtering.
@@ -54,11 +54,9 @@ class FilterAndRegressionStage(PipelineStage):
             - Logs warnings if no commits pass the filter criteria or if the final commit
               count exceeds the original count.
 
-        Raises:
-            None
         """
         # Save the original commit list in order (assumed to be meaningful)
-        original_commits = context.get("batch", [])
+        original_commits = context.get("commits", [])
         original_count = len(original_commits)
         if not original_commits:
             logger.warning("No commits to process.", context=context)
@@ -141,4 +139,7 @@ class FilterAndRegressionStage(PipelineStage):
                 original_count,
                 context=context,
             )
-        context["batch"] = final_commits
+        # Modify the list in place
+        commits_ref = context["commits"]
+        commits_ref.clear()
+        commits_ref.extend(final_commits)

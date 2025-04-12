@@ -109,7 +109,7 @@ def measure(config_path: str) -> None:
         "build_failed": False,
         "abort_pipeline": False,
         "repo_path": repo_path,
-        "batch": commits,  # Entire commit list.
+        "commits": commits,  # Entire commit list.
     }
 
     # Use the globally defined pre_stages (e.g., [VerifyPerfStage(), FilterCommitsStage()])
