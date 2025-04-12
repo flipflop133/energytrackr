@@ -20,7 +20,7 @@ from config.loader import load_pipeline_config
 from pipeline.core_stages.build_stage import BuildStage
 from pipeline.core_stages.checkout_stage import CheckoutStage
 from pipeline.core_stages.copy_directory_stage import CopyDirectoryStage
-from pipeline.core_stages.filter_commits import FilterCommitsStage
+from pipeline.core_stages.filter_and_regression_stage import FilterAndRegressionStage
 from pipeline.core_stages.measure_stage import MeasureEnergyStage
 from pipeline.core_stages.post_test_stage import PostTestStage
 from pipeline.core_stages.set_directory_stage import SetDirectoryStage
@@ -33,7 +33,7 @@ from utils.logger import logger
 
 pre_stages: list[PipelineStage] = [
     VerifyPerfStage(),
-    FilterCommitsStage(),
+    FilterAndRegressionStage(),
 ]
 
 pre_test_stages: list[PipelineStage] = [
@@ -68,20 +68,23 @@ def measure(config_path: str) -> None:
     This function performs the following steps:
     1. Loads the pipeline configuration from the specified path.
     2. Sets up the repository directory and clones or opens the repository.
-    3. Optionally runs system-level setup commands defined in the configuration.
-    4. Collects commits from the repository and divides them into batches for processing.
-    5. Executes the pipeline stages on the batched tasks.
-    6. Restores the repository's HEAD to the latest commit on the specified branch.
+    3. Optionally runs system-level setup commands.
+    4. Collects all commits from the repository.
+    5. Runs the pre-stages once on the complete commit list for initial filtering.
+    6. Divides the filtered commits into batches.
+    7. Executes the remaining pipeline stages on these batches.
+    8. Restores the repository's HEAD to the latest commit on the specified branch.
 
     Args:
         config_path (str): The file path to the configuration file.
 
     Raises:
-        Any exceptions raised during the execution of the pipeline or repository operations.
+        Exceptions raised during the execution of repository operations or pipeline processing.
     """
     load_pipeline_config(config_path)
     config = Config.get_config()
-    # Set up repo path
+
+    # Set up project directories and repository path.
     project_name = os.path.basename(config.repo.url).replace(".git", "").lower()
     project_dir = os.path.join("projects", project_name)
     cache_dir = os.path.join(project_dir, ".cache")
@@ -91,16 +94,33 @@ def measure(config_path: str) -> None:
     repo_path: str = os.path.abspath(os.path.join(project_dir, f".cache/.cache_{project_name}"))
     repo = clone_or_open_repo(repo_path, config.repo.url, config.repo.clone_options)
 
-    # (Optional) run system-level setup commands
+    # (Optional) run system-level setup commands.
     if config.setup_commands:
         for cmd in config.setup_commands:
             logger.info("Running setup command: %s", cmd)
             os.system(cmd)
 
+    # Gather all commits from the repository.
     commits = gather_commits(repo)
     logger.info("Collected %d commits to process.", len(commits))
 
-    # Divide the list of commits into batches of 'batch_size' commits each
+    # --- Run pre-stages once on the full list of commits ---
+    pre_context = {
+        "build_failed": False,
+        "abort_pipeline": False,
+        "repo_path": repo_path,
+        "batch": commits,  # Entire commit list.
+    }
+
+    # Use the globally defined pre_stages (e.g., [VerifyPerfStage(), FilterCommitsStage()])
+    for stage in pre_stages:
+        stage.run(pre_context)
+        if pre_context.get("abort_pipeline"):
+            logger.warning("Pre-stages aborted the pipeline.")
+            return
+
+    # --- Divide the filtered commits into batches ---
+    logger.info("Filtered commits: %d", len(commits))
     commit_batches = [
         commits[i : i + config.execution_plan.batch_size] for i in range(0, len(commits), config.execution_plan.batch_size)
     ]
@@ -267,16 +287,6 @@ class Pipeline:
 
             for batch in batches:
                 logger.info("Processing batch of %d tasks", len(batch))
-
-                # Run pre-stages sequentially.
-                pre_context = {
-                    "build_failed": False,
-                    "abort_pipeline": False,
-                    "repo_path": self.repo_path,
-                    "batch": batch,
-                }
-                if not self._run_stage_group(self.stages.get("pre_stages", []), pre_context):
-                    return
 
                 # Prepare unique commit identifiers (hexsha strings) for the pre-test stages.
                 unique_commit_hexshas = list({commit.hexsha for commit in batch})

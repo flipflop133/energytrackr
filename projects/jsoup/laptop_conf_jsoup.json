@@ -16,7 +16,7 @@
         "compile_commands": [
             "mvn clean test-compile"
         ],
-        "newest_commit": "3ce79cde2b70f1fa64c95bd16778a2e61114d16f",
+        "newest_commit": "5986ca1d8ed0c68a35f42ea0b919d8ec66c3294e",
         "num_commits": 200
     },
     "results": {
@@ -33,5 +33,8 @@
         "yaml",
         "yml"
     ],
-    "cpu_thermal_file": "/sys/class/hwmon/hwmon5/temp1_input"
+    "cpu_thermal_file": "/sys/class/hwmon/hwmon5/temp1_input",
+    "ignored_directories": [
+        "src/test"
+    ]
 }

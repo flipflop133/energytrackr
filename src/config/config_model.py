@@ -140,6 +140,24 @@ class ResultsDefinition(BaseModel):
     )
 
 
+class RegressionDetectionDefinition(BaseModel):
+    """Configuration for regression detection context in the pipeline.
+
+    This model specifies the minimum number of commits to include before and/or after a candidate commit.
+    """
+
+    min_commits_before: int = Field(
+        default=1,
+        description="Minimum number of commits to include before a candidate commit as baseline.",
+        examples=[1],
+    )
+    min_commits_after: int = Field(
+        default=0,
+        description="Minimum number of commits to include after a candidate commit for confirmation.",
+        examples=[0],
+    )
+
+
 class PipelineConfig(BaseModel):
     """Configuration model for the entire pipeline."""
 
@@ -156,6 +174,11 @@ class PipelineConfig(BaseModel):
         description="Set of file extensions to track for changes.",
         examples=[{"java", "xml", "properties", "yaml", "yml"}],
     )
+    ignored_directories: set[str] = Field(
+        default_factory=set,
+        description="Set of directories to ignore during commit filtering.",
+        examples=[{"target", "build", "out"}],
+    )
     cpu_thermal_file: str = Field(
         ...,
         description="Path to the CPU thermal file for monitoring temperature.",
@@ -167,3 +190,8 @@ class PipelineConfig(BaseModel):
         examples=[["export JAVA_HOME=/usr/lib/jvm/java-8-openjdk", "export PATH=$JAVA_HOME/bin:$PATH"]],
     )
     results: ResultsDefinition | None = Field(default=None, description="Results configuration for output files.")
+
+    regression_detection: RegressionDetectionDefinition = Field(
+        default_factory=RegressionDetectionDefinition,
+        description="Configuration for regression detection context commits.",
+    )
