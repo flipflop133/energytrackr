@@ -77,8 +77,8 @@ class ExecutionPlanDefinition(BaseModel):
     test_command: str = Field(..., description="Command to execute tests.", examples=["mvn surefire:test"])
     test_command_path: str = Field(default="", description="Path where the test command should be executed.", examples=["."])
     ignore_failures: bool = Field(
-        default=False,
-        description="Flag indicating whether to ignore test failures.",
+        default=True,
+        description="Flag indicating whether to ignore failures.",
         examples=[False],
     )
     post_command: str | None = Field(

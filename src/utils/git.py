@@ -86,6 +86,5 @@ def gather_commits(repo: Repo) -> list[Commit]:
             commits = commits[-plan.num_commits :]
 
         logger.info("Gathered %d commits from branch %s", len(commits), conf.repo.branch)
-        logger.info("Gathered commits: %s", commits)
 
         return commits

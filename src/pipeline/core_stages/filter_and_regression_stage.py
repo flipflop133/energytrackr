@@ -71,7 +71,7 @@ class FilterAndRegressionStage(PipelineStage):
         min_parents = regression_config.min_commits_before
         min_children = regression_config.min_commits_after
 
-        logger.error("Number of commits before filtering: %d", original_count, context=context)
+        logger.info("Number of commits before filtering: %d", original_count, context=context)
 
         # --- Filtering Step ---
         filtered_commits = []
@@ -92,8 +92,8 @@ class FilterAndRegressionStage(PipelineStage):
             if not remove_commit and has_tracked_file:
                 filtered_commits.append(commit)
 
-        logger.error("Number of commits after filtering: %d", len(filtered_commits), context=context)
-        logger.error("Unique commits after filtering: %d", len({c.hexsha for c in filtered_commits}), context=context)
+        logger.info("Number of commits after filtering: %d", len(filtered_commits), context=context)
+        logger.info("Unique commits after filtering: %d", len({c.hexsha for c in filtered_commits}), context=context)
 
         if not filtered_commits:
             logger.warning("No commits passed the filter criteria.", context=context)
