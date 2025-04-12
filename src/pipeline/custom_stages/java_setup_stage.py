@@ -1,11 +1,11 @@
 """JavaSetupStage: A specialized stage for setting up Java environment variables."""
 
+import os
 import xml.etree.ElementTree as ET
 from typing import Any
 
 from pipeline.stage_interface import PipelineStage
 from utils.logger import logger
-from utils.utils import run_command
 
 
 class JavaSetupStage(PipelineStage):
@@ -33,18 +33,40 @@ class JavaSetupStage(PipelineStage):
 
         java_home = self.map_version_to_home(version)
         logger.info(f"Setting up Java environment with JAVA_HOME: {java_home}", context=context)
-        run_command(f"export JAVA_HOME={java_home}", context=context)
-        run_command("export PATH=$JAVA_HOME/bin:$PATH", context=context)
+
+        # Update the environment variables in the parent process
+        os.environ["JAVA_HOME"] = java_home
+        os.environ["PATH"] = f"{java_home}/bin:" + os.environ.get("PATH", "")
 
     @staticmethod
     def map_version_to_home(version: str) -> str:
         """Maps a Java version string to the corresponding JAVA_HOME path.
 
         For example, '1.8' is mapped to '/usr/lib/jvm/java-8-openjdk'.
-        If the version does not start with '1.', it is used directly.
+        If the extracted Java version is less than 8, then it defaults to Java 8.
+
+        Args:
+            version: The extracted Java version string from the POM file.
+
+        Returns:
+            A string representing the JAVA_HOME path.
         """
-        # Convert version like "1.8" to "8"
-        version_number = version.split(".")[1] if version.startswith("1.") and "." in version else version
+        # Convert versions like "1.8" to "8"
+        if version.startswith("1."):
+            parts = version.split(".")
+            version_number_str = parts[1] if len(parts) > 1 else version[2:]
+        else:
+            version_number_str = version
+
+        try:
+            version_number = int(version_number_str)
+        except ValueError:
+            logger.warning("Unable to parse Java version from '%s'. Defaulting to Java 8.", version)
+            version_number = 8
+
+        # If the version is less than 8, default to using Java 8.
+        version_number = max(version_number, 8)
+
         return f"/usr/lib/jvm/java-{version_number}-openjdk"
 
     @staticmethod
