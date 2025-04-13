@@ -112,12 +112,13 @@ def get_commit_details_from_git(commit_hash: str, repo) -> dict:
     try:
         commit_obj = repo.commit(commit_hash)
         commit_summary = commit_obj.summary  # or commit_obj.message.strip() for full message
+        commit_files = list(commit_obj.stats.files.keys())
         commit_link = "N/A"
         if repo.remotes:
             # Use the first remote's URL
             remote_url = repo.remotes[0].url
             commit_link = generate_commit_link(remote_url, commit_hash)
-        return {"commit_summary": commit_summary, "commit_link": commit_link}
+        return {"commit_summary": commit_summary, "commit_link": commit_link, "files_modified": commit_files}
     except Exception as e:
         logging.error(f"Error retrieving details for commit {commit_hash}: {e}")
         return {"commit_summary": "N/A", "commit_link": "N/A"}
@@ -509,6 +510,13 @@ def export_change_events_summary(
             summary_lines.append(f"Severity: {int(event.severity * 100)}%")
             summary_lines.append(f"Commit Message: {details['commit_summary']}")
             summary_lines.append(f"Commit Link: {details['commit_link']}")
+            summary_lines.append(f"Cohen's d: {event.cohen_d:.2f}")
+            summary_lines.append(f"Normality: {'Normal' if event.direction == 'normal' else 'Non-normal'}")
+            summary_lines.append(
+                f"Median {energy_column}: {np.median(df[df['commit'] == commit_hash][energy_column].values)} Joules",
+            )
+            summary_lines.append(f"Energy Values: {df[df['commit'] == commit_hash][energy_column].values}")
+            summary_lines.append(f"Files modified: {details.get('files_modified', 'N/A')}")
             summary_lines.append("-" * 80)
 
     summary_filename = os.path.join(folder, f"{project_name}_{energy_column}_{timestamp_now}_summary.txt")
