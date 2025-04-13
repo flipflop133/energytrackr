@@ -24,8 +24,7 @@ MIN_MEASUREMENTS = 2
 NORMALITY_P_THRESHOLD = 0.05
 MIN_VALUES_FOR_NORMALITY_TEST = 3
 WELCH_P_THRESHOLD = 0.05  # Significance threshold for Welch's t-test
-MIN_PCT_INCREASE = 0.02  # Practical threshold for change (10%)
-WINDOW_SIZE = 15  # Sliding window size
+MIN_PCT_INCREASE = 0.02  # Practical threshold for change (2%)
 
 
 # ---------------------------
@@ -40,12 +39,14 @@ class ChangeEvent:
     Attributes:
         index (int): The index of the commit where the change occurred.
         severity (float): The severity of the change (e.g., 0.25 for a 25% change).
-        direction (str): The direction of the change ("increase" for regressions or "decrease" for improvements).
+        direction (str): The direction of the change ("increase" or "decrease").
+        cohen_d (float): The Cohen's d effect size.
     """
 
     index: int
-    severity: float  # Always positive (e.g., 0.25 for a 25% change)
-    direction: str  # "increase" for regressions (worse energy) or "decrease" for improvements
+    severity: float
+    direction: str
+    cohen_d: float
 
 
 @dataclass
@@ -76,93 +77,8 @@ class EnergyPlotData:
 
 
 # ---------------------------
-# Data Preparation Functions
+# Helper Functions
 # ---------------------------
-def prepare_commit_statistics(
-    df: pd.DataFrame,
-    energy_column: str,
-) -> tuple[list[str], list[str], np.ndarray[Any, np.dtype[np.int64]], list[float], list[float]]:
-    """Prepares commit statistics for energy data.
-
-    This function computes the median and standard deviation of energy values
-    associated with each commit, filtering out commits with insufficient measurements.
-    It also generates short commit hashes for plotting.
-
-    Args:
-        df (pd.DataFrame): The input DataFrame containing energy data.
-                           It must include columns 'commit' and the specified energy column.
-        energy_column (str): The name of the column in the DataFrame containing energy values.
-
-    Returns:
-        tuple[list[str], list[str], np.ndarray[Any, np.dtype[np.int64]], list[float], list[float]]:
-            - A list of valid commit identifiers.
-            - A list of short commit hashes.
-            - An array of x indices for plotting.
-            - A list of median energy values for each commit.
-            - A list of standard deviation values for each commit.
-    """
-    commit_counts = df.groupby("commit").size().reset_index(name="count")
-    df_median = df.groupby("commit", sort=False)[energy_column].median().reset_index()
-    df_std = df.groupby("commit", sort=False)[energy_column].std().reset_index()
-    df_median = df_median.merge(df_std, on="commit", suffixes=("", "_std"))
-    df_median = df_median.merge(commit_counts, on="commit")
-    df_median = df_median[df_median["count"] >= MIN_MEASUREMENTS]
-    df_median["commit_short"] = df_median["commit"].str[:7]
-
-    valid_commits = df_median["commit"].tolist()
-    short_hashes = df_median["commit_short"].tolist()
-    x_indices = np.arange(len(valid_commits))
-    y_medians = df_median[energy_column].tolist()
-    y_errors = df_median[f"{energy_column}_std"].tolist()
-
-    return valid_commits, short_hashes, x_indices, y_medians, y_errors
-
-
-def compute_distribution_and_normality(
-    df: pd.DataFrame,
-    valid_commits: list[str],
-    energy_column: str,
-) -> tuple[list[np.ndarray[Any, Any]], list[bool]]:
-    """Computes the distribution data and normality flags for energy values associated with a list of valid commits.
-
-    Args:
-        df (pd.DataFrame): The input DataFrame containing energy data.
-                           It must include columns 'commit' and the specified energy column.
-        valid_commits (list[str]): A list of commit identifiers to filter the data.
-        energy_column (str): The name of the column in the DataFrame containing energy values.
-
-    Returns:
-        tuple[list[np.ndarray[Any, Any]], list[bool]]:
-            - A list of numpy arrays, where each array contains the energy values
-              for a specific commit.
-            - A list of boolean flags indicating whether the energy values for each
-              commit passed the Shapiro-Wilk normality test (True if normal, False otherwise).
-              If the number of values is below the threshold for the test, the flag defaults to True.
-
-    Notes:
-        - The function uses a global constant `MIN_VALUES_FOR_NORMALITY_TEST` to determine
-          the minimum number of values required to perform the Shapiro-Wilk test.
-        - The global constant `NORMALITY_P_THRESHOLD` is used as the p-value threshold
-          for determining normality.
-    """
-    distribution_data: list[np.ndarray[Any, Any]] = []
-    normality_flags = []
-    for commit in valid_commits:
-        values = df[df["commit"] == commit][energy_column].values
-        distribution_data.append(np.asarray(values))
-        if len(values) >= MIN_VALUES_FOR_NORMALITY_TEST:
-            _, p_shapiro = shapiro(values)
-            normality_flags.append(p_shapiro >= NORMALITY_P_THRESHOLD)
-        else:
-            normality_flags.append(True)
-    return distribution_data, normality_flags
-
-
-# ---------------------------
-# Energy Change Detection Function
-# ---------------------------
-
-
 def get_change_direction(baseline_median: float, test_median: float, min_pct_change: float) -> str | None:
     """Determine the direction of change given baseline and test medians.
 
@@ -183,90 +99,49 @@ def get_change_direction(baseline_median: float, test_median: float, min_pct_cha
     return None
 
 
-def find_first_change(
-    y_medians: list[float],
-    window_range: tuple[int, int],
-    baseline_median: float,
-    min_pct_change: float,
-    direction: str,
-) -> tuple[int, float] | None:
-    """Search within indices [start, end) for the first commit meeting the change threshold.
-
-    Parameters:
-      y_medians      : List of median energy values.
-      window_range   : Tuple (start, end) defining the range to search.
-      baseline_median: The median energy of the baseline window.
-      min_pct_change : The minimum percentage change threshold.
-      direction      : 'increase' for regressions, 'decrease' for improvements.
-
-    Returns:
-      A tuple (commit_index, severity) if a change is found; otherwise, None.
-    """
-    for j in range(window_range[0], window_range[1] - 1):
-        if direction == "increase" and y_medians[j + 1] >= y_medians[j] * (1 + min_pct_change):
-            severity = (y_medians[j + 1] - baseline_median) / baseline_median
-            return j + 1, severity
-        if direction == "decrease" and y_medians[j + 1] <= y_medians[j] * (1 - min_pct_change):
-            severity = (baseline_median - y_medians[j + 1]) / baseline_median
-            return j + 1, severity
-    return None
-
-
 def detect_energy_changes(
     distribution_data: list[np.ndarray[Any, Any]],
     y_medians: list[float],
     min_pct_change: float = MIN_PCT_INCREASE,
     p_threshold: float = WELCH_P_THRESHOLD,
 ) -> list[ChangeEvent]:
-    """Detect energy changes by comparing each commit to its immediate predecessor.
-
-    Returns a list of ChangeEvent (with commit index, severity, and change direction),
-    where changes could be energy increases ("increase") or improvements ("decrease").
-
-    Args:
-        distribution_data (list[np.ndarray[Any, Any]]): Distribution data for each commit.
-        y_medians (list[float]): Median energy values for each commit.
-        min_pct_change (float): Minimum percentage change to consider significant.
-        p_threshold (float): P-value threshold for Welch's t-test.
-
-    Returns:
-        list[ChangeEvent]: List of detected energy change events.
-    """
+    """Detect energy changes by comparing each commit to its immediate predecessor, computing Cohen's d."""
     changes = []
     # Start from the second commit, comparing to the previous one.
     for i in range(1, len(distribution_data)):
         baseline = distribution_data[i - 1]
         test = distribution_data[i]
 
-        # Ensure there is a minimum number of values in both commits to run the test.
+        # Skip if either commit lacks sufficient data.
         if len(baseline) < MIN_VALUES_FOR_NORMALITY_TEST or len(test) < MIN_VALUES_FOR_NORMALITY_TEST:
             continue
 
         baseline_median = np.median(baseline)
         test_median = np.median(test)
         _, p_value = ttest_ind(baseline, test, equal_var=False)
-        # Only proceed if the difference is statistically significant.
-        if p_value >= p_threshold:
-            continue
 
-        direction = get_change_direction(baseline_median, test_median, min_pct_change)
-        if direction is None:
-            continue
+        if p_value < p_threshold:
+            # Compute Cohen's d.
+            mean_baseline = np.mean(baseline)
+            mean_test = np.mean(test)
+            var_baseline = np.var(baseline, ddof=1)
+            var_test = np.var(test, ddof=1)
+            pooled_std = np.sqrt((var_baseline + var_test) / 2.0)
+            cohen_d = (mean_test - mean_baseline) / pooled_std if pooled_std != 0 else 0.0
 
-        # Compute severity as the relative percentage difference from the baseline.
-        if direction == "increase":
-            severity = (test_median - baseline_median) / baseline_median
-        else:  # direction == "decrease"
-            severity = (baseline_median - test_median) / baseline_median
+            direction = get_change_direction(baseline_median, test_median, min_pct_change)
+            if direction is not None:
+                if direction == "increase":
+                    severity = (test_median - baseline_median) / baseline_median
+                else:
+                    severity = (baseline_median - test_median) / baseline_median
 
-        # Record the change event at commit index i.
-        changes.append(ChangeEvent(index=i, severity=severity, direction=direction))
-
+                changes.append(ChangeEvent(index=i, severity=severity, direction=direction, cohen_d=cohen_d))
     return changes
 
 
 # ---------------------------
-# Plotting Functions
+# Plotting with Overlap Avoidance
 # ---------------------------
 def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
     """Plot energy data with violin plots and error bars.
@@ -316,7 +191,12 @@ def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
         zorder=2,
     )
 
-    # Draw vertical shaded areas for each detected energy change
+    # We'll store bounding boxes of the text objects here to avoid collisions
+    placed_bboxes = []
+
+    max_y = max(y_medians) if y_medians else 0.0
+
+    # Draw vertical spans and annotate events
     for event in change_events:
         cp = event.index
         # Cap severity (e.g., maximum of a 50% change) for color mapping
@@ -333,11 +213,18 @@ def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
             text_color = "darkgreen"
             sign = "-"
 
+        # Vertical shading
         ax.axvspan(cp - 0.5, cp + 0.5, color=color, zorder=0)
-        ax.text(
+
+        # Position text slightly above the top to start
+        base_y = max_y * 1.05
+        annotation_str = f"{sign}{int(event.severity * 100)}% (d={event.cohen_d:.2f})"
+
+        # Place text
+        txt = ax.text(
             cp,
-            max(y_medians) * 1.05,
-            f"{sign}{int(event.severity * 100)}%",
+            base_y,
+            annotation_str,
             fontsize=8,
             ha="center",
             color=text_color,
@@ -345,7 +232,22 @@ def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
             zorder=7,
         )
 
-    # Format the X-axis with commit short hashes
+        # Force a draw so that get_window_extent works properly
+        ax.figure.canvas.draw()
+        text_bbox = txt.get_window_extent(renderer=ax.figure.canvas.get_renderer())
+
+        # Attempt collision resolution by shifting upward until there's no overlap
+        shift_increment = 0.05 * max_y
+        while any(text_bbox.overlaps(b) for b in placed_bboxes):
+            # Shift the text a bit higher
+            current_x, current_y = txt.get_position()
+            txt.set_position((current_x, current_y + shift_increment))
+            ax.figure.canvas.draw()
+            text_bbox = txt.get_window_extent(renderer=ax.figure.canvas.get_renderer())
+
+        placed_bboxes.append(text_bbox)
+
+    # X-axis commit labels
     ax.set_xticks(x_indices)
     ax.set_xticklabels(short_hashes, rotation=45, ha="right")
     ax.set_xlabel("Commit Hash (sorted by date, oldest to newest)")
@@ -353,15 +255,66 @@ def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
     ax.set_title(f"Energy Consumption Trend (Median per Commit) - {energy_column}")
     ax.grid(True)
 
-    # Custom legend handles
+    # Legend, including explanation for Cohen's d annotation
     custom_handles = [
         Line2D([0], [0], marker="o", color="blue", label=f"Median {energy_column}", linestyle="-"),
         Patch(facecolor="lightgrey", edgecolor="black", label="Normal Distribution"),
         Patch(facecolor="lightcoral", edgecolor="black", label="Non-Normal (Shapiro-Wilk p < 0.05)"),
         Patch(facecolor=to_rgba((1.0, 0.0, 0.0, 0.5)), edgecolor="none", label="Regression (↑ energy)"),
         Patch(facecolor=to_rgba((0.0, 0.8, 0.0, 0.5)), edgecolor="none", label="Improvement (↓ energy)"),
+        Line2D([0], [0], marker="", color="black", label="Label: ±X% (d=Cohen's d)"),
     ]
     ax.legend(handles=custom_handles)
+
+
+# ---------------------------
+# Data Preparation and Plot Entry
+# ---------------------------
+def prepare_commit_statistics(
+    df: pd.DataFrame,
+    energy_column: str,
+) -> tuple[list[str], list[str], np.ndarray[Any, np.dtype[np.int64]], list[float], list[float]]:
+    """
+    Prepares commit statistics for energy data. Returns lists of valid commits and stats.
+    """
+    commit_counts = df.groupby("commit").size().reset_index(name="count")
+    df_median = df.groupby("commit", sort=False)[energy_column].median().reset_index()
+    df_std = df.groupby("commit", sort=False)[energy_column].std().reset_index()
+    df_median = df_median.merge(df_std, on="commit", suffixes=("", "_std"))
+    df_median = df_median.merge(commit_counts, on="commit")
+    df_median = df_median[df_median["count"] >= MIN_MEASUREMENTS]
+    df_median["commit_short"] = df_median["commit"].str[:7]
+
+    valid_commits = df_median["commit"].tolist()
+    short_hashes = df_median["commit_short"].tolist()
+    x_indices = np.arange(len(valid_commits))
+    y_medians = df_median[energy_column].tolist()
+    y_errors = df_median[f"{energy_column}_std"].tolist()
+
+    return valid_commits, short_hashes, x_indices, y_medians, y_errors
+
+
+def compute_distribution_and_normality(
+    df: pd.DataFrame,
+    valid_commits: list[str],
+    energy_column: str,
+) -> tuple[list[np.ndarray[Any, Any]], list[bool]]:
+    """
+    Computes the distribution data and normality flags (Shapiro-Wilk) for each commit.
+    """
+    from scipy.stats import shapiro
+
+    distribution_data = []
+    normality_flags = []
+    for commit in valid_commits:
+        values = df[df["commit"] == commit][energy_column].values
+        distribution_data.append(values)
+        if len(values) >= MIN_VALUES_FOR_NORMALITY_TEST:
+            _, p_shapiro = shapiro(values)
+            normality_flags.append(p_shapiro >= NORMALITY_P_THRESHOLD)
+        else:
+            normality_flags.append(True)
+    return distribution_data, normality_flags
 
 
 def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: str) -> None:
@@ -416,8 +369,7 @@ def filter_outliers_iqr(df: pd.DataFrame, column: str, multiplier: float = 1.5) 
     # Optional: Log or print the bounds for debugging
     print(f"Filtering '{column}': Q1={q1}, Q3={q3}, IQR={iqr}, lower_bound={lower_bound}, upper_bound={upper_bound}")
 
-    filtered_df = df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
-    return filtered_df
+    return df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
 
 
 def create_energy_plots(input_path: str) -> None:
