@@ -68,8 +68,8 @@ class FilterAndRegressionStage(PipelineStage):
 
         config = Config.get_config()
         regression_config = config.regression_detection
-        min_before = regression_config.min_commits_before
-        min_after = regression_config.min_commits_after
+        min_parents = regression_config.min_commits_before
+        min_children = regression_config.min_commits_after
 
         logger.info("Number of commits before filtering: %d", original_count, context=context)
 
@@ -98,6 +98,7 @@ class FilterAndRegressionStage(PipelineStage):
         if not filtered_commits:
             logger.warning("No commits passed the filter criteria.", context=context)
             context["abort_pipeline"] = True
+            context["commits"].clear()
             return
         else:
             logger.info("%d commits passed the filter criteria.", len(filtered_commits), context=context)
@@ -109,8 +110,8 @@ class FilterAndRegressionStage(PipelineStage):
         # For each commit in the filtered list, check its original neighbors.
         for commit in filtered_commits:
             pos = commit_index.get(commit.hexsha)
-            # Add preceding commits if needed.
-            for i in range(1, min_before + 1):
+            # Add parent commits if needed.
+            for i in range(1, min_parents + 1):
                 neighbor_pos = pos - i
                 if neighbor_pos < 0:
                     break  # No more commits before.
@@ -118,7 +119,7 @@ class FilterAndRegressionStage(PipelineStage):
                 if neighbor.hexsha not in augmented:
                     augmented[neighbor.hexsha] = neighbor
             # Add succeeding commits if needed.
-            for i in range(1, min_after + 1):
+            for i in range(1, min_children + 1):
                 neighbor_pos = pos + i
                 if neighbor_pos >= original_count:
                     break  # No more commits after.

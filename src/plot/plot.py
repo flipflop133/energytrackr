@@ -59,7 +59,7 @@ class EnergyPlotData:
         x_indices (np.ndarray): X-axis indices for plotting.
         short_hashes (list[str]): Short commit hashes for labeling.
         y_medians (list[float]): Median energy values for each commit.
-        y_errors (list[float]): Standard deviation of energy values for error bars.
+        y_errors (list[float]): Standard deviation of energy values for each commit.
         distribution_data (list[np.ndarray]): Distribution data for each commit.
         normality_flags (list[bool]): Flags indicating normality of distributions.
         change_events (list[ChangeEvent]): Detected energy change events.
@@ -77,7 +77,99 @@ class EnergyPlotData:
 
 
 # ---------------------------
-# Helper Functions
+# Helper Functions for Git Information
+# ---------------------------
+def generate_commit_link(remote_url: str, commit_hash: str) -> str:
+    """
+    Generate a commit link from the remote URL and commit hash.
+
+    Supports basic parsing for GitHub URLs.
+    """
+    if remote_url.startswith("git@"):
+        # Convert git@github.com:user/repo.git to https://github.com/user/repo/commit/<hash>
+        try:
+            parts = remote_url.split(":")
+            domain = parts[0].split("@")[-1]  # e.g., github.com
+            repo_path = parts[1].replace(".git", "")
+            return f"https://{domain}/{repo_path}/commit/{commit_hash}"
+        except Exception:
+            return "N/A"
+    elif remote_url.startswith("https://"):
+        # Remove trailing .git if present.
+        repo_url = remote_url.replace(".git", "")
+        return f"{repo_url}/commit/{commit_hash}"
+    return "N/A"
+
+
+def get_commit_details_from_git(commit_hash: str, repo) -> dict:
+    """
+    Retrieve commit details using GitPython.
+
+    Returns a dictionary with keys:
+      - commit_summary: The commit message summary.
+      - commit_link: A link to the commit (if a remote URL can be parsed).
+    """
+    try:
+        commit_obj = repo.commit(commit_hash)
+        commit_summary = commit_obj.summary  # or commit_obj.message.strip() for full message
+        commit_link = "N/A"
+        if repo.remotes:
+            # Use the first remote's URL
+            remote_url = repo.remotes[0].url
+            commit_link = generate_commit_link(remote_url, commit_hash)
+        return {"commit_summary": commit_summary, "commit_link": commit_link}
+    except Exception as e:
+        logging.error(f"Error retrieving details for commit {commit_hash}: {e}")
+        return {"commit_summary": "N/A", "commit_link": "N/A"}
+
+
+# ---------------------------
+# Data Preparation Functions
+# ---------------------------
+
+
+def compute_distribution_and_normality(
+    df: pd.DataFrame,
+    valid_commits: list[str],
+    energy_column: str,
+) -> tuple[list[np.ndarray[Any, Any]], list[bool]]:
+    """Computes the distribution data and normality flags for energy values associated with a list of valid commits.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame containing energy data.
+                           It must include columns 'commit' and the specified energy column.
+        valid_commits (list[str]): A list of commit identifiers to filter the data.
+        energy_column (str): The name of the column in the DataFrame containing energy values.
+
+    Returns:
+        tuple[list[np.ndarray[Any, Any]], list[bool]]:
+            - A list of numpy arrays, where each array contains the energy values
+              for a specific commit.
+            - A list of boolean flags indicating whether the energy values for each
+              commit passed the Shapiro-Wilk normality test (True if normal, False otherwise).
+              If the number of values is below the threshold for the test, the flag defaults to True.
+
+    Notes:
+        - The function uses a global constant `MIN_VALUES_FOR_NORMALITY_TEST` to determine
+          the minimum number of values required to perform the Shapiro-Wilk test.
+        - The global constant `NORMALITY_P_THRESHOLD` is used as the p-value threshold
+          for determining normality.
+    """
+    distribution_data: list[np.ndarray[Any, Any]] = []
+    normality_flags = []
+    for commit in valid_commits:
+        values = df[df["commit"] == commit][energy_column].values
+        distribution_data.append(np.asarray(values))
+        if len(values) >= MIN_VALUES_FOR_NORMALITY_TEST:
+            _, p_shapiro = shapiro(values)
+            normality_flags.append(p_shapiro >= NORMALITY_P_THRESHOLD)
+        else:
+            normality_flags.append(True)
+    return distribution_data, normality_flags
+
+
+# ---------------------------
+# Energy Change Detection Functions
 # ---------------------------
 def get_change_direction(baseline_median: float, test_median: float, min_pct_change: float) -> str | None:
     """Determine the direction of change given baseline and test medians.
@@ -163,7 +255,7 @@ def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
     change_events = plot_data.change_events
     energy_column = plot_data.energy_column
 
-    # Plot violin plots for distribution data
+    # Plot violin plots for each commit's distribution.
     violin_parts = ax.violinplot(
         distribution_data,
         positions=x_indices,
@@ -179,7 +271,7 @@ def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
         pc.set_alpha(0.5)
         pc.set_zorder(1)
 
-    # Plot median energy values with error bars
+    # Plot the medians with error bars.
     ax.errorbar(
         x_indices,
         y_medians,
@@ -203,7 +295,6 @@ def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
         capped_severity = min(event.severity, 0.5)
         # Map severity to opacity: 0% → 0.2 opacity and 50% → 0.8 opacity
         opacity = (capped_severity / 0.5) * (0.8 - 0.2) + 0.2
-
         if event.direction == "increase":
             color = to_rgba((1.0, 0.0, 0.0, opacity))  # red for regressions
             text_color = "darkred"
@@ -348,6 +439,84 @@ def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: st
     plt.close()
 
 
+# ---------------------------
+# Export Summary Function
+# ---------------------------
+def export_change_events_summary(
+    valid_commits: list[str],
+    short_hashes: list[str],
+    change_events: list[ChangeEvent],
+    df: pd.DataFrame,
+    energy_column: str,
+    folder: str,
+    project_name: str,
+    timestamp_now: str,
+    git_repo_path: str | None = None,
+) -> None:
+    """
+    Exports a textual summary of detected energy change events.
+
+    For each flagged commit, the summary lists:
+      - Full commit hash and its short version.
+      - Change direction and severity.
+      - Commit summary message.
+      - Commit link.
+
+    If the CSV lacks commit details, and a git_repo_path is provided, GitPython is used to retrieve them.
+    """
+    commit_details = {}
+    # If CSV already contains extra columns, try to pick them up
+    if "commit_summary" in df.columns and "commit_link" in df.columns:
+        for commit in valid_commits:
+            row = df[df["commit"] == commit].iloc[0]
+            commit_details[commit] = {
+                "commit_summary": row.get("commit_summary", "N/A"),
+                "commit_link": row.get("commit_link", "N/A"),
+            }
+    else:
+        for commit in valid_commits:
+            commit_details[commit] = {"commit_summary": "N/A", "commit_link": "N/A"}
+
+    # If a git repository is provided, update missing details using GitPython.
+    if git_repo_path:
+        try:
+            from git import Repo
+
+            repo = Repo(git_repo_path)
+            for commit in valid_commits:
+                if commit_details[commit]["commit_summary"] == "N/A" or commit_details[commit]["commit_link"] == "N/A":
+                    details = get_commit_details_from_git(commit, repo)
+                    commit_details[commit] = details
+        except Exception as e:
+            logging.error(f"Error loading Git repository from {git_repo_path}: {e}")
+
+    summary_lines = []
+    summary_lines.append(f"Energy Consumption Change Summary for '{energy_column}'")
+    summary_lines.append(f"Project: {project_name}")
+    summary_lines.append(f"Date: {timestamp_now}")
+    summary_lines.append("=" * 80)
+
+    if not change_events:
+        summary_lines.append("No significant energy changes detected.")
+    else:
+        for event in change_events:
+            commit_hash = valid_commits[event.index]
+            short_hash = short_hashes[event.index]
+            details = commit_details.get(commit_hash, {"commit_summary": "N/A", "commit_link": "N/A"})
+            direction_str = "Regression (Increase)" if event.direction == "increase" else "Improvement (Decrease)"
+            summary_lines.append(f"Commit: {commit_hash} (Short: {short_hash})")
+            summary_lines.append(f"Direction: {direction_str}")
+            summary_lines.append(f"Severity: {int(event.severity * 100)}%")
+            summary_lines.append(f"Commit Message: {details['commit_summary']}")
+            summary_lines.append(f"Commit Link: {details['commit_link']}")
+            summary_lines.append("-" * 80)
+
+    summary_filename = os.path.join(folder, f"{project_name}_{energy_column}_{timestamp_now}_summary.txt")
+    with open(summary_filename, "w") as f:
+        f.write("\n".join(summary_lines))
+    logging.info(f"Exported energy change summary to {summary_filename}")
+
+
 def filter_outliers_iqr(df: pd.DataFrame, column: str, multiplier: float = 1.5) -> pd.DataFrame:
     """
     Filter out outliers from the given DataFrame column using the IQR method.
@@ -372,13 +541,17 @@ def filter_outliers_iqr(df: pd.DataFrame, column: str, multiplier: float = 1.5) 
     return df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
 
 
-def create_energy_plots(input_path: str) -> None:
-    """Load the CSV data, filter out outliers, generate plots for each energy metric, and save the images.
+# ---------------------------
+# Main Function for Plot Creation
+# ---------------------------
+def create_energy_plots(input_path: str, git_repo_path: str | None = None) -> None:
+    """
+    Loads the CSV data, filters out outliers, generates plots for each energy metric,
+    and exports a textual summary of energy change events.
 
-    This function skips processing columns that are empty and filters out extreme outliers using the IQR method.
-
-    Args:
-        input_path (str): Path to the CSV file containing energy data.
+    Parameters:
+      - input_path: Path to the CSV file containing energy data.
+      - git_repo_path (optional): Path to the local Git repository. If provided, commit messages and links are retrieved.
     """
     if not os.path.isfile(input_path):
         logging.info(f"Error: File not found: {input_path}")
@@ -388,11 +561,8 @@ def create_energy_plots(input_path: str) -> None:
     project_name = os.path.basename(folder)
     timestamp_now = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    df = pd.read_csv(
-        input_path,
-        header=None,
-        names=["commit", "energy-pkg", "energy-core", "energy-gpu"],
-    )
+    # In this version, the CSV is expected to have only commit hash and energy values.
+    df = pd.read_csv(input_path, header=None, names=["commit", "energy-pkg", "energy-core", "energy-gpu"])
 
     # Process only non-empty columns
     for column in ["energy-pkg", "energy-core", "energy-gpu"]:
@@ -410,3 +580,12 @@ def create_energy_plots(input_path: str) -> None:
 
         output_filename = os.path.join(folder, f"{project_name}_{column}_{timestamp_now}.png")
         create_energy_plot(df_filtered, column, output_filename)
+
+        # Prepare summary with change events and use git information if available.
+        valid_commits, short_hashes, _, _, _ = prepare_commit_statistics(df_filtered, column)
+        distribution_data, _ = compute_distribution_and_normality(df_filtered, valid_commits, column)
+        # Compute medians from distributions (needed for change detection)
+        change_events = detect_energy_changes(distribution_data, [np.median(d) for d in distribution_data])
+        export_change_events_summary(
+            valid_commits, short_hashes, change_events, df_filtered, column, folder, project_name, timestamp_now, git_repo_path
+        )
