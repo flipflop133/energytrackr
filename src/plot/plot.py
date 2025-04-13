@@ -103,25 +103,33 @@ def generate_commit_link(remote_url: str, commit_hash: str) -> str:
 
 def get_commit_details_from_git(commit_hash: str, repo) -> dict:
     """
-    Retrieve commit details using GitPython.
+    Retrieve commit details using GitPython and include commit date.
 
     Returns a dictionary with keys:
       - commit_summary: The commit message summary.
       - commit_link: A link to the commit (if a remote URL can be parsed).
+      - commit_date: The commit date in YYYY-MM-DD format.
+      - files_modified: A list of modified file names in the commit.
     """
     try:
         commit_obj = repo.commit(commit_hash)
-        commit_summary = commit_obj.summary  # or commit_obj.message.strip() for full message
+        commit_date = commit_obj.committed_datetime.strftime("%Y-%m-%d")
+        commit_summary = commit_obj.summary  # alternatively, commit_obj.message.strip()
         commit_files = list(commit_obj.stats.files.keys())
         commit_link = "N/A"
         if repo.remotes:
-            # Use the first remote's URL
+            # Use the first remote's URL for generating a commit link
             remote_url = repo.remotes[0].url
             commit_link = generate_commit_link(remote_url, commit_hash)
-        return {"commit_summary": commit_summary, "commit_link": commit_link, "files_modified": commit_files}
+        return {
+            "commit_summary": commit_summary,
+            "commit_link": commit_link,
+            "commit_date": commit_date,
+            "files_modified": commit_files,
+        }
     except Exception as e:
         logging.error(f"Error retrieving details for commit {commit_hash}: {e}")
-        return {"commit_summary": "N/A", "commit_link": "N/A"}
+        return {"commit_summary": "N/A", "commit_link": "N/A", "commit_date": "N/A", "files_modified": []}
 
 
 # ---------------------------
@@ -343,7 +351,7 @@ def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
     ax.set_xticks(x_indices)
     ax.set_xticklabels(short_hashes, rotation=45, ha="right")
     ax.set_xlabel("Commit Hash (sorted by date, oldest to newest)")
-    ax.set_ylabel(f"Median Energy ({energy_column})")
+    ax.set_ylabel(f"Median Energy Joules ({energy_column})")
     ax.set_title(f"Energy Consumption Trend (Median per Commit) - {energy_column}")
     ax.grid(True)
 
@@ -597,3 +605,225 @@ def create_energy_plots(input_path: str, git_repo_path: str | None = None) -> No
         export_change_events_summary(
             valid_commits, short_hashes, change_events, df_filtered, column, folder, project_name, timestamp_now, git_repo_path
         )
+
+        # Export the HTML summary using the plot image.
+        export_change_events_html_summary(
+            valid_commits,
+            short_hashes,
+            change_events,
+            df_filtered,
+            column,
+            folder,
+            project_name,
+            timestamp_now,
+            plot_img_path=output_filename,  # Use the plot image generated above
+            git_repo_path=git_repo_path,
+        )
+
+
+def export_change_events_html_summary(
+    valid_commits: list[str],
+    short_hashes: list[str],
+    change_events: list[ChangeEvent],
+    df: pd.DataFrame,
+    energy_column: str,
+    folder: str,
+    project_name: str,
+    timestamp_now: str,
+    plot_img_path: str,
+    git_repo_path: str | None = None,
+) -> None:
+    """
+    Exports an HTML summary of detected energy change events with improved
+    structure and styling. Includes the energy plot image at the top and a
+    table that summarizes each change event with colors indicating the type
+    of change.
+
+    Args:
+        valid_commits (list[str]): List of valid commit hashes.
+        short_hashes (list[str]): Corresponding short commit hashes.
+        change_events (list[ChangeEvent]): Detected energy change events.
+        df (pd.DataFrame): DataFrame containing the energy data.
+        energy_column (str): The energy column being analysed.
+        folder (str): Directory where the HTML file will be saved.
+        project_name (str): Name of the project.
+        timestamp_now (str): Timestamp string.
+        plot_img_path (str): Path to the saved energy plot image.
+        git_repo_path (str | None): Optional local Git repository path.
+    """
+    # Retrieve commit details either from the CSV (if available) or via GitPython.
+    commit_details = {}
+    if "commit_summary" in df.columns and "commit_link" in df.columns:
+        for commit in valid_commits:
+            row = df[df["commit"] == commit].iloc[0]
+            commit_details[commit] = {
+                "commit_summary": row.get("commit_summary", "N/A"),
+                "commit_link": row.get("commit_link", "N/A"),
+            }
+    else:
+        for commit in valid_commits:
+            commit_details[commit] = {"commit_summary": "N/A", "commit_link": "N/A"}
+
+    # Update missing commit details using GitPython if a repository is provided.
+    if git_repo_path:
+        try:
+            from git import Repo
+
+            repo = Repo(git_repo_path)
+            for commit in valid_commits:
+                if commit_details[commit]["commit_summary"] == "N/A" or commit_details[commit]["commit_link"] == "N/A":
+                    details = get_commit_details_from_git(commit, repo)
+                    commit_details[commit] = details
+        except Exception as e:
+            logging.error(f"Error loading Git repository from {git_repo_path}: {e}")
+
+    # Build table rows for change events.
+    table_rows = ""
+    if not change_events:
+        table_rows += "<tr><td colspan='8' style='text-align:center;'>No significant energy changes detected.</td></tr>"
+    else:
+        for event in change_events:
+            commit_hash = valid_commits[event.index]
+            short_hash = short_hashes[event.index]
+            details = commit_details.get(commit_hash, {"commit_summary": "N/A", "commit_link": "N/A"})
+
+            # Determine the change direction and its corresponding CSS class.
+            if event.direction == "increase":
+                direction_str = "Regression (Increase)"
+                css_class = "increase"
+                sign = "+"
+            else:
+                direction_str = "Improvement (Decrease)"
+                css_class = "decrease"
+                sign = "-"
+
+            median_value = np.median(df[df["commit"] == commit_hash][energy_column].values)
+            commit_link = details["commit_link"]
+
+            files_modified = details.get("files_modified", [])
+            files_modified_html = (
+                "<ul>" + "".join(f"<li>{file}</li>" for file in files_modified) + "</ul>" if files_modified else "N/A"
+            )
+
+            table_rows += f"""
+            <tr class="{css_class}">
+                <td><a href="{commit_link}" target="_blank">{short_hash}</a></td>
+                <td>{direction_str}</td>
+                <td>{sign}{int(event.severity * 100)}%</td>
+                <td>{details["commit_summary"]}</td>
+                <td>{event.cohen_d:.2f}</td>
+                <td>{median_value:.2f}</td>
+                <td>{files_modified_html}</td>
+            </tr>
+            """
+
+    # Get the oldest and newest commits with their dates
+    oldest_commit = short_hashes[0]
+    newest_commit = short_hashes[-1]
+    oldest_commit_date = get_commit_details_from_git(oldest_commit, repo)["commit_date"] if git_repo_path else "N/A"
+    newest_commit_date = get_commit_details_from_git(newest_commit, repo)["commit_date"] if git_repo_path else "N/A"
+
+    # Create the HTML content.
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Energy Consumption Change Summary - {energy_column}</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+        }}
+        header {{
+            text-align: center;
+            margin-bottom: 30px;
+        }}
+        header img {{
+            max-width: 100%;
+            height: auto;
+        }}
+        h1 {{
+            color: #333;
+        }}
+        h2, h3 {{
+            color: #555;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #fff;
+        }}
+        th, td {{
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }}
+        th {{
+            background-color: #4CAF50;
+            color: white;
+        }}
+        tr:nth-child(even) {{
+            background-color: #f2f2f2;
+        }}
+        tr:hover {{
+            background-color: #ddd;
+        }}
+        tr.increase {{
+            background-color: rgba(255, 0, 0, 0.1);
+        }}
+        tr.decrease {{
+            background-color: rgba(0, 255, 0, 0.1);
+        }}
+        .note {{
+            font-size: 0.9em;
+            color: #777;
+            text-align: center;
+            margin-top: 20px;
+        }}
+        td ul {{
+            margin: 0;
+            padding-left: 20px;
+            text-align: left;
+    }}
+    </style>
+</head>
+<body>
+    <header>
+        <img src="{os.path.basename(plot_img_path)}" alt="Energy Consumption Plot">
+        <h1>Energy Consumption Change Summary</h1>
+        <h2>Project: {project_name}</h2>
+        <h3>Energy Metric: {energy_column}</h3>
+        <h3>Commit Range: {oldest_commit} ({oldest_commit_date}) → {newest_commit} ({newest_commit_date})</h3>
+        <h3>Number of commits: {len(valid_commits)}</h3>
+    </header>
+    <main>
+        <table>
+            <thead>
+                <tr>
+                    <th>Commit</th>
+                    <th>Change Direction</th>
+                    <th>Severity</th>
+                    <th>Commit Message</th>
+                    <th>Cohen's d</th>
+                    <th>Median Energy (J)</th>
+                    <th>Files Modified</th>
+                </tr>
+            </thead>
+            <tbody>
+                {table_rows}
+            </tbody>
+        </table>
+        <p class="note">
+            Note: Rows are highlighted based on change direction – red for regressions (increase) and green for improvements (decrease).
+        </p>
+    </main>
+</body>
+</html>
+    """
+
+    # Define the output filename for the HTML report.
+    summary_filename = os.path.join(folder, f"{project_name}_{energy_column}_{timestamp_now}_summary.html")
+    with open(summary_filename, "w", encoding="utf-8") as f:
+        f.write(html_content)
+    logging.info(f"Exported energy change summary HTML to {summary_filename}")
