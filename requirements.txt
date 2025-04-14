@@ -9,3 +9,5 @@ scipy
 rich
 pydantic
 ruptures
+plotly
+plotly-stubs

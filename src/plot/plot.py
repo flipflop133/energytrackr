@@ -3,16 +3,14 @@ import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, cast
+from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.axes import Axes
-from matplotlib.collections import PathCollection
-from matplotlib.colors import to_rgba
-from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
+
+# Plotly imports
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from scipy.stats import shapiro, ttest_ind
 
 # ---------------------------
@@ -194,118 +192,6 @@ def detect_energy_changes(
 
 
 # ---------------------------
-# Plotting
-# ---------------------------
-def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
-    """
-    Plot distributions (violin), median + std dev lines, mark areas for changes,
-    and annotate changes with severity and Cohen's d.
-    """
-    x_indices = plot_data.x_indices
-    short_hashes = plot_data.short_hashes
-    y_medians = plot_data.y_medians
-    y_errors = plot_data.y_errors
-    distribution_data = plot_data.distribution_data
-    normality_flags = plot_data.normality_flags
-    change_events = plot_data.change_events
-    energy_column = plot_data.energy_column
-
-    # Violin plots
-    violin_parts = ax.violinplot(
-        distribution_data,
-        positions=x_indices,
-        widths=0.5,
-        showmeans=False,
-        showextrema=False,
-        showmedians=False,
-    )
-    bodies = cast(list[PathCollection], violin_parts["bodies"])
-
-    for pc, is_normal in zip(bodies, normality_flags, strict=False):
-        pc.set_facecolor("lightgrey" if is_normal else "lightcoral")
-        pc.set_edgecolor("black")
-        pc.set_alpha(0.5)
-        pc.set_zorder(1)
-
-    # Median + std error bars
-    ax.errorbar(
-        x_indices,
-        y_medians,
-        yerr=y_errors,
-        marker="o",
-        linestyle="-",
-        color="b",
-        label=f"Median {energy_column}",
-        zorder=2,
-    )
-
-    # Annotate significant changes
-    placed_bboxes = []
-    max_y = max(y_medians) if y_medians else 0.0
-    for event in change_events:
-        cp = event.index
-        # Limit severity to 50% for shading intensity
-        capped_severity = min(event.severity, 0.5)
-        opacity = (capped_severity / 0.5) * (0.8 - 0.2) + 0.2
-        if event.direction == "increase":
-            color = to_rgba((1.0, 0.0, 0.0, opacity))
-            text_color = "darkred"
-            sign = "+"
-        else:
-            color = to_rgba((0.0, 0.8, 0.0, opacity))
-            text_color = "darkgreen"
-            sign = "-"
-
-        ax.axvspan(cp - 0.5, cp + 0.5, color=color, zorder=0)
-
-        base_y = max_y * 1.05
-        annotation_str = f"{sign}{int(event.severity * 100)}% (d={event.cohen_d:.2f})"
-
-        txt = ax.text(
-            cp,
-            base_y,
-            annotation_str,
-            fontsize=8,
-            ha="center",
-            color=text_color,
-            bbox=dict(facecolor="white", edgecolor="none", alpha=0.8),
-            zorder=7,
-        )
-
-        # Try to resolve label collisions
-        ax.figure.canvas.draw()
-        text_bbox = txt.get_window_extent(renderer=ax.figure.canvas.get_renderer())
-        shift_increment = 0.05 * max_y
-
-        while any(text_bbox.overlaps(b) for b in placed_bboxes):
-            cx, cy = txt.get_position()
-            txt.set_position((cx, cy + shift_increment))
-            ax.figure.canvas.draw()
-            text_bbox = txt.get_window_extent(renderer=ax.figure.canvas.get_renderer())
-
-        placed_bboxes.append(text_bbox)
-
-    # X axis
-    ax.set_xticks(x_indices)
-    ax.set_xticklabels(short_hashes, rotation=45, ha="right")
-    ax.set_xlabel("Commit (oldest → newest)")
-    ax.set_ylabel(f"Median Energy (J)")
-    ax.set_title(f"Energy Consumption Trend - {energy_column}")
-    ax.grid(True)
-
-    # Legend
-    custom_handles = [
-        Line2D([0], [0], marker="o", color="blue", label=f"Median {energy_column}", linestyle="-"),
-        Patch(facecolor="lightgrey", edgecolor="black", label="Normal Dist."),
-        Patch(facecolor="lightcoral", edgecolor="black", label="Non-Normal Dist. (Shapiro-Wilk p < 0.05)"),
-        Patch(facecolor=to_rgba((1.0, 0.0, 0.0, 0.5)), edgecolor="none", label="Regression (↑ energy)"),
-        Patch(facecolor=to_rgba((0.0, 0.8, 0.0, 0.5)), edgecolor="none", label="Improvement (↓ energy)"),
-        Line2D([0], [0], marker="", color="black", label="Annotation: ±X% (Cohen's d)"),
-    ]
-    ax.legend(handles=custom_handles)
-
-
-# ---------------------------
 # Commit Statistics
 # ---------------------------
 def prepare_commit_statistics(
@@ -366,9 +252,7 @@ def compute_statistical_summary(
     energy_column: str,
 ) -> dict:
     """
-    Compute overall statistical metrics to display in the summary box:
-      - total_commits, significant_changes, regressions_count, improvements_count, ...
-      - mean, median, std, max inc/dec, average cohen's d, normal/non-normal counts, etc.
+    Compute overall statistical metrics to display in the summary box.
     """
     stats_summary = {}
     stats_summary["total_commits"] = len(distribution_data)  # # of valid commits
@@ -417,8 +301,7 @@ def export_change_events_summary(
     git_repo_path: str | None = None,
 ) -> None:
     """
-    Text-file summary of the change events. (Mostly the same as before,
-    but you can keep or trim as needed for a textual log.)
+    Text-file summary of the change events.
     """
     commit_details = {}
     # If CSV has these columns, try to use them
@@ -440,6 +323,7 @@ def export_change_events_summary(
 
             repo = Repo(git_repo_path)
             for commit in valid_commits:
+                # If still missing
                 if commit_details[commit]["commit_summary"] == "N/A" or commit_details[commit]["commit_link"] == "N/A":
                     details = get_commit_details_from_git(commit, repo)
                     commit_details[commit].update(details)
@@ -490,18 +374,17 @@ def export_change_events_html_summary(
     folder: str,
     project_name: str,
     timestamp_now: str,
-    plot_img_path: str,
+    fig_html: str,
     stats_summary: dict,
     git_repo_path: str | None = None,
 ) -> None:
     """
     Exports an HTML report with:
-      - Plot image
+      - Embedded Plotly interactive figure (via fig_html)
       - Statistical summary
-      - Table of ALL commits (not just changed ones) with columns:
-         Commit, Change, Severity, Median (J), Std Dev (J), Normality, n, Cohen's d, Files, Message
+      - Table of all commits
     """
-    # We need details from git or from the df columns if provided
+    # We need details from git or from df columns if provided
     commit_details = {}
     if "commit_summary" in df.columns and "commit_link" in df.columns:
         for commit in valid_commits:
@@ -625,6 +508,7 @@ def export_change_events_html_summary(
     max_inc_pct = f"{max_increase * 100:.1f}%" if max_increase != 0 else "0.0%"
     max_dec_pct = f"{max_decrease * 100:.1f}%" if max_decrease != 0 else "0.0%"
 
+    # Embed the Plotly figure HTML (passed in as fig_html)
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -639,10 +523,6 @@ def export_change_events_html_summary(
         header {{
             text-align: center;
             margin-bottom: 30px;
-        }}
-        header img {{
-            max-width: 100%;
-            height: auto;
         }}
         h1 {{
             color: #333;
@@ -698,8 +578,11 @@ def export_change_events_html_summary(
 <body>
     <header>
         <h1>Energy Consumption Report for {project_name}</h1>
-        <img src="{os.path.basename(plot_img_path)}" alt="Energy Consumption Plot">
-        <p>Note: Right click and open image in new tab for full resolution and to be able to zoom more easily.</p>
+        <!-- Interactive chart from Plotly -->
+        {fig_html}
+        <p class="note">
+            (Above is an interactive Plotly chart. Hover over points, zoom, and pan for detailed inspection.)
+        </p>
     </header>
 
     <div class="summary-box">
@@ -707,7 +590,7 @@ def export_change_events_html_summary(
       <ul>
         <li><strong>Project:</strong> {project_name}</li>
         <li><strong>Energy Metric:</strong> {energy_column}</li>
-        <li><strong>Commit Range:</strong>{short_hashes[0]} ({oldest_commit_date}) → {short_hashes[-1]} ({newest_commit_date})</li>
+        <li><strong>Commit Range:</strong> {short_hashes[0]} ({oldest_commit_date}) → {short_hashes[-1]} ({newest_commit_date})</li>
         <li><strong>Number of commits (after filtering):</strong> {total_commits}</li>
       </ul>
       <h2>Statistical Summary</h2>
@@ -752,7 +635,7 @@ def export_change_events_html_summary(
             </tbody>
         </table>
         <p class="note">
-            Rows are highlighted red or green when a significant change (Welch's t-test + 2% threshold) is detected.
+            Rows are highlighted red or green when a significant change (Welch's t-test + {int(MIN_PCT_INCREASE * 100)}% threshold) is detected.
         </p>
     </main>
 </body>
@@ -766,44 +649,221 @@ def export_change_events_html_summary(
 
 
 # ---------------------------
-# Single Plot Entry
+# Interactive Plot Creation
 # ---------------------------
-def create_energy_plot(
-    df: pd.DataFrame, energy_column: str, output_filename: str
-) -> tuple[list[str], list[str], list[np.ndarray[Any, Any]], list[bool], list[ChangeEvent]]:
+def create_energy_figure(
+    df: pd.DataFrame,
+    energy_column: str,
+    valid_commits: list[str],
+    short_hashes: list[str],
+    x_indices: np.ndarray[Any, np.dtype[np.int64]],
+    y_medians: list[float],
+    y_errors: list[float],
+    distribution_data: list[np.ndarray[Any, Any]],
+    normality_flags: list[bool],
+    change_events: list[ChangeEvent],
+) -> go.Figure:
     """
-    Create and save the plot for a single energy column.
-    Returns (valid_commits, short_hashes, distribution_data, normality_flags, change_events)
-    so they can be reused in the summaries.
+    Creates an interactive Plotly figure with:
+      - Descriptive legend entries that are togglable:
+         * Dummy traces for "Regression (↑ energy)" and "Improvement (↓ energy)"
+         * A dummy annotation label entry ("Label: ±X% (d=Cohen's d)")
+         * The median line (without error bars)
+         * A separate trace for error bars (Std Dev) overlaying the median values
+         * Toggable violin traces grouped into "Normal Distribution" and
+           "Non-Normal (Shapiro-Wilk p < 0.05)"
+      - A built-in range slider (minimap) on the x-axis.
+      - Custom x-axis ticks that use commit short hashes.
     """
-    df_median, valid_commits, short_hashes, x_indices, y_medians, y_errors = prepare_commit_statistics(df, energy_column)
-    if not valid_commits:
-        # Not enough data after outlier filtering or no commits meet MIN_MEASUREMENTS
-        logging.info(f"No valid commits for column '{energy_column}'. Skipping plot.")
-        return [], [], [], [], []
-
-    distribution_data, normality_flags = compute_distribution_and_normality(df, valid_commits, energy_column)
-    change_events = detect_energy_changes(distribution_data, y_medians)
-
-    # Build plot
-    plt.figure(figsize=(40, 10))
-    ax = plt.gca()
-    plot_data = EnergyPlotData(
-        x_indices=x_indices,
-        short_hashes=short_hashes,
-        y_medians=y_medians,
-        y_errors=y_errors,
-        distribution_data=distribution_data,
-        normality_flags=normality_flags,
-        change_events=change_events,
-        energy_column=energy_column,
+    fig = make_subplots(specs=[[{"secondary_y": False}]])
+    fig.update_layout(
+        width=1200,
+        height=600,
+        title=f"Energy Consumption Trend - {energy_column}",
+        showlegend=True,
+        margin=dict(l=50, r=50, t=80, b=250),  # increased bottom margin for rotated tick labels
     )
-    plot_energy_data(ax, plot_data)
-    plt.tight_layout()
-    plt.savefig(output_filename)
-    plt.close()
 
-    return valid_commits, short_hashes, distribution_data, normality_flags, change_events
+    # --- Dummy Legend Traces for Shapes ---
+    # 1. Dummy trace for Regression (↑ energy)
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(color="rgba(255,0,0,0.5)", size=10),
+            name="Regression (↑ energy)",
+            showlegend=True,
+        )
+    )
+
+    # 2. Dummy trace for Improvement (↓ energy)
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(color="rgba(0,255,0,0.5)", size=10),
+            name="Improvement (↓ energy)",
+            showlegend=True,
+        )
+    )
+
+    # 3. Dummy trace for annotation label (optional)
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="text",
+            text=["Label: ±X% (d=Cohen's d)"],
+            name="Label: ±X% (d=Cohen's d)",
+            showlegend=True,
+        )
+    )
+
+    # --- Add Median Line (without error bars) ---
+    fig.add_trace(
+        go.Scatter(
+            x=x_indices,
+            y=y_medians,
+            mode="lines+markers",
+            name=f"Median ({energy_column})",
+            line=dict(color="blue", width=1),
+            marker=dict(size=1),
+            showlegend=True,
+        )
+    )
+
+    # --- Add Separate Error Bars Trace ---
+    # We overlay the error bars on the same median values but keep the markers invisible.
+    fig.add_trace(
+        go.Scatter(
+            x=x_indices,
+            y=y_medians,
+            mode="markers",  # markers only (and set their opacity to 0 so they're not visible)
+            marker=dict(opacity=0),
+            error_y=dict(
+                type="data",
+                array=y_errors,
+                visible=True,
+                thickness=1.5,
+                width=3,
+            ),
+            name="Error Bars (Std Dev)",
+            showlegend=True,
+        )
+    )
+
+    # --- Add Violin Traces for Distributions (grouped by normality) ---
+    # Group into "normal-violins" and "nonnormal-violins" so toggling one legend entry hides all in that group.
+    num_normal = 0
+    num_nonnormal = 0
+    for i, (values, is_normal) in enumerate(zip(distribution_data, normality_flags)):
+        x_val = x_indices[i]
+        if is_normal:
+            group = "normal-violins"
+            show_leg = num_normal == 0
+            name_str = "Normal Distribution" if num_normal == 0 else ""
+            color = "lightgrey"
+            num_normal += 1
+        else:
+            group = "nonnormal-violins"
+            show_leg = num_nonnormal == 0
+            name_str = "Non-Normal (Shapiro-Wilk p < 0.05)" if num_nonnormal == 0 else ""
+            color = "lightcoral"
+            num_nonnormal += 1
+
+        fig.add_trace(
+            go.Violin(
+                y=values,
+                x=[x_val] * len(values),
+                legendgroup=group,
+                name=name_str,
+                showlegend=show_leg,
+                fillcolor=color,
+                line_color="black",
+                opacity=0.5,
+                box_visible=False,
+                meanline_visible=False,
+                line_width=0.5,  # Make the line thinner
+            )
+        )
+
+    # --- Add Shapes and Annotations for Significant Changes ---
+    max_y = max(y_medians) if y_medians else 0.0
+    max_error = max(y_errors) if y_errors else 0.0
+    for event in change_events:
+        cp = event.index
+        x_val = x_indices[cp]
+        x0 = x_val - 0.5
+        x1 = x_val + 0.5
+
+        capped_severity = min(event.severity, 0.5)
+        opacity_val = (capped_severity / 0.5) * (0.8 - 0.2) + 0.2
+
+        if event.direction == "increase":
+            fillcolor = f"rgba(255,0,0,{opacity_val})"
+            text_color = "red"
+            sign = "+"
+        else:
+            fillcolor = f"rgba(0,255,0,{opacity_val})"
+            text_color = "green"
+            sign = "-"
+
+        # Add a rectangle shape for this commit's change event
+        fig.add_shape(
+            type="rect",
+            xref="x",
+            yref="paper",
+            x0=x0,
+            x1=x1,
+            y0=0,
+            y1=1,
+            fillcolor=fillcolor,
+            opacity=opacity_val,
+            layer="below",
+            line_width=0,
+        )
+
+        # Add an annotation for the change event
+        annotation_y = max_y + max_error * 1.5
+        annotation_str = f"{sign}{int(event.severity * 100)}% (d={event.cohen_d:.2f})"
+        fig.add_annotation(
+            x=x_val,
+            y=annotation_y,
+            text=annotation_str,
+            showarrow=False,
+            font=dict(color=text_color, size=10),
+            bgcolor="white",
+            opacity=0.8,
+        )
+
+    # --- Configure the X-Axis with Range Slider (Minimap) ---
+    # Use a numeric x-axis but supply custom tick texts (commit short hashes).
+    fig.update_xaxes(
+        title_text="Commit (oldest → newest)",
+        type="linear",
+        tickmode="array",
+        tickvals=x_indices,
+        ticktext=short_hashes,
+        tickangle=45,
+        tickfont=dict(size=9),
+        range=[x_indices[0] - 0.5, x_indices[-1] + 0.5],
+        rangeslider=dict(visible=True),
+    )
+
+    # --- Configure the Y-Axis ---
+    fig.update_yaxes(title_text="Median Energy (J)")
+
+    # --- Final Layout Tweaks ---
+    fig.update_layout(
+        xaxis=dict(showgrid=True),
+        yaxis=dict(showgrid=True),
+        legend=dict(font=dict(size=10)),
+        hovermode="x unified",
+    )
+
+    return fig
 
 
 # ---------------------------
@@ -811,7 +871,7 @@ def create_energy_plot(
 # ---------------------------
 def create_energy_plots(input_path: str, git_repo_path: str | None = None) -> None:
     """
-    Loads the CSV data, filters outliers, generates plots and text/html summaries for each energy column.
+    Loads the CSV data, filters outliers, generates an interactive Plotly chart and text/HTML summaries for each energy column.
     """
     if not os.path.isfile(input_path):
         logging.error(f"Error: File not found: {input_path}")
@@ -821,10 +881,9 @@ def create_energy_plots(input_path: str, git_repo_path: str | None = None) -> No
     project_name = os.path.basename(folder)
     timestamp_now = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Suppose CSV has 4 columns: commit, energy-pkg, energy-core, energy-gpu
+    # Example: Suppose CSV has columns [commit, energy-pkg, energy-core, energy-gpu]
     df = pd.read_csv(input_path, header=None, names=["commit", "energy-pkg", "energy-core", "energy-gpu"])
 
-    # For each energy column
     for column in ["energy-pkg", "energy-core", "energy-gpu"]:
         if df[column].dropna().empty:
             logging.info(f"Skipping column '{column}' (empty data).")
@@ -839,14 +898,34 @@ def create_energy_plots(input_path: str, git_repo_path: str | None = None) -> No
             logging.info(f"After outlier removal, no data remains for '{column}'. Skipping.")
             continue
 
-        # Create and save plot
-        output_filename = os.path.join(folder, f"{project_name}_{column}_{timestamp_now}.png")
-        valid_commits, short_hashes, distribution_data, normality_flags, change_events = create_energy_plot(
-            df_filtered, column, output_filename
+        # Prepare basic statistics
+        df_median, valid_commits, short_hashes, x_indices, y_medians, y_errors = prepare_commit_statistics(df_filtered, column)
+        if not valid_commits:
+            # Not enough data after outlier filtering or no commits meet MIN_MEASUREMENTS
+            logging.info(f"No valid commits for column '{column}'. Skipping plot.")
+            continue
+
+        # Compute distribution + normality
+        distribution_data, normality_flags = compute_distribution_and_normality(df_filtered, valid_commits, column)
+        # Detect changes
+        change_events = detect_energy_changes(distribution_data, y_medians)
+
+        # Create interactive figure (Plotly)
+        fig = create_energy_figure(
+            df=df_filtered,
+            energy_column=column,
+            valid_commits=valid_commits,
+            short_hashes=short_hashes,
+            x_indices=x_indices,
+            y_medians=y_medians,
+            y_errors=y_errors,
+            distribution_data=distribution_data,
+            normality_flags=normality_flags,
+            change_events=change_events,
         )
 
-        if not valid_commits:
-            continue  # no valid commits for this column
+        # Convert figure to HTML for embedding
+        fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn")
 
         # Export plain-text summary
         export_change_events_summary(
@@ -862,9 +941,6 @@ def create_energy_plots(input_path: str, git_repo_path: str | None = None) -> No
         )
 
         # Compute stats for the HTML summary
-        # We'll re-use the same median/stdev info from prepare_commit_statistics
-        df_median, _, _, _, _, _ = prepare_commit_statistics(df_filtered, column)
-
         stats_summary = compute_statistical_summary(
             df_filtered,
             distribution_data,
@@ -874,7 +950,7 @@ def create_energy_plots(input_path: str, git_repo_path: str | None = None) -> No
             column,
         )
 
-        # Finally export the HTML summary
+        # Export the HTML summary with embedded interactive chart
         export_change_events_html_summary(
             df_median=df_median,
             valid_commits=valid_commits,
@@ -887,7 +963,7 @@ def create_energy_plots(input_path: str, git_repo_path: str | None = None) -> No
             folder=folder,
             project_name=project_name,
             timestamp_now=timestamp_now,
-            plot_img_path=output_filename,
+            fig_html=fig_html,
             stats_summary=stats_summary,
             git_repo_path=git_repo_path,
         )
