@@ -517,8 +517,13 @@ def export_change_events_html_summary(
     <style>
         body {{
             font-family: Arial, sans-serif;
-            margin: 20px;
             background-color: #f9f9f9;
+        }}
+        /* Container div for the Plotly chart */
+        #plotly-chart {{
+            width: 100%;
+            height: 100vh; /* 100% of the viewport height */
+            min-height: 100vh;
         }}
         header {{
             text-align: center;
@@ -576,10 +581,12 @@ def export_change_events_html_summary(
     </style>
 </head>
 <body>
+    <div id="plotly-chart">
+        {fig_html}
+    </div>
+  
     <header>
         <h1>Energy Consumption Report for {project_name}</h1>
-        <!-- Interactive chart from Plotly -->
-        {fig_html}
         <p class="note">
             (Above is an interactive Plotly chart. Hover over points, zoom, and pan for detailed inspection.)
         </p>
@@ -638,6 +645,11 @@ def export_change_events_html_summary(
             Rows are highlighted red or green when a significant change (Welch's t-test + {int(MIN_PCT_INCREASE * 100)}% threshold) is detected.
         </p>
     </main>
+    <script>
+    window.addEventListener('resize', function() {{
+      Plotly.Plots.resize(document.getElementById('plotly-chart'));
+    }});
+  </script>
 </body>
 </html>
 """
@@ -677,10 +689,11 @@ def create_energy_figure(
     """
     fig = make_subplots(specs=[[{"secondary_y": False}]])
     fig.update_layout(
-        width=1200,
-        height=600,
         title=f"Energy Consumption Trend - {energy_column}",
         showlegend=True,
+        autosize=True,
+        height=None,  # Let HTML/CSS control the height
+        width=None,  # Let HTML/CSS control the width
         margin=dict(l=50, r=50, t=80, b=250),  # increased bottom margin for rotated tick labels
     )
 
@@ -925,7 +938,8 @@ def create_energy_plots(input_path: str, git_repo_path: str | None = None) -> No
         )
 
         # Convert figure to HTML for embedding
-        fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn")
+        config = {"responsive": True}
+        fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn", config=config)
 
         # Export plain-text summary
         export_change_events_summary(
