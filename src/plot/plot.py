@@ -522,12 +522,12 @@ def export_change_events_html_summary(
         /* Container div for the Plotly chart */
         #plotly-chart {{
             width: 100%;
-            height: 100vh; /* 100% of the viewport height */
-            min-height: 100vh;
+            height: 100vh;
+            margin: auto;
         }}
+
         header {{
             text-align: center;
-            margin-bottom: 30px;
         }}
         h1 {{
             color: #333;
@@ -645,11 +645,6 @@ def export_change_events_html_summary(
             Rows are highlighted red or green when a significant change (Welch's t-test + {int(MIN_PCT_INCREASE * 100)}% threshold) is detected.
         </p>
     </main>
-    <script>
-    window.addEventListener('resize', function() {{
-      Plotly.Plots.resize(document.getElementById('plotly-chart'));
-    }});
-  </script>
 </body>
 </html>
 """
@@ -692,9 +687,6 @@ def create_energy_figure(
         title=f"Energy Consumption Trend - {energy_column}",
         showlegend=True,
         autosize=True,
-        height=None,  # Let HTML/CSS control the height
-        width=None,  # Let HTML/CSS control the width
-        margin=dict(l=50, r=50, t=80, b=250),  # increased bottom margin for rotated tick labels
     )
 
     # --- Dummy Legend Traces for Shapes ---
@@ -874,7 +866,10 @@ def create_energy_figure(
         yaxis=dict(showgrid=True),
         legend=dict(font=dict(size=10)),
         hovermode="x unified",
+        autosize=True,
     )
+
+    fig.update_yaxes(fixedrange=False)
 
     return fig
 
@@ -938,8 +933,8 @@ def create_energy_plots(input_path: str, git_repo_path: str | None = None) -> No
         )
 
         # Convert figure to HTML for embedding
-        config = {"responsive": True}
-        fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn", config=config)
+        config = {"responsive": True, "scrollZoom": True}
+        fig_html = fig.to_html(include_plotlyjs="cdn", config=config)
 
         # Export plain-text summary
         export_change_events_summary(
