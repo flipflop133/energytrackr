@@ -16,8 +16,8 @@
         "compile_commands": [
             "mvn clean test-compile"
         ],
-        "newest_commit": "5a570cf31e078c9b3865f93a37fbbde68c9799df",
-        "num_commits": 200
+        "newest_commit": "57dbebc884455205ea221f942723a496d399f86a",
+        "num_commits": 400
     },
     "results": {
         "file": "energy_usage.csv"
@@ -35,6 +35,6 @@
     ],
     "cpu_thermal_file": "/sys/class/hwmon/hwmon5/temp1_input",
     "regression_detection": {
-        "min_commits_before": 1
+        "min_commits_before": 0
     }
 }
