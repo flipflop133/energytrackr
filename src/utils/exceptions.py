@@ -65,3 +65,14 @@ class MissingContextKeyError(Exception):
             key (str): The missing key that caused the exception.
         """
         super().__init__(f"Missing required key: {key}")
+
+
+class CantFindFileError(FileNotFoundError):
+    """Exception raised when a file cannot be found.
+
+    Inherits from FileNotFoundError to provide a more specific error message.
+    """
+
+    def __init__(self, path: str) -> None:
+        """Initialize the exception with a custom message."""
+        super().__init__(f"File not found: {path}")

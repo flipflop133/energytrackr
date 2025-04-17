@@ -1,599 +1,324 @@
-"""Plotting script for energy consumption data."""
+"""Plotting module for energy consumption data analysis."""
 
-import logging
-import os
-import sys
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, cast
+from math import pi
+from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from matplotlib.axes import Axes
-from matplotlib.collections import PathCollection
-from matplotlib.colors import to_rgba
-from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
-from scipy.stats import shapiro, ttest_ind
+from bokeh.layouts import column
+from bokeh.models import BoxAnnotation, ColumnDataSource, CustomJS, FixedTicker, HoverTool, Toggle
+from bokeh.models.layouts import Column
+from bokeh.plotting import figure
 
-# ---------------------------
-# Parameters and Constants
-# ---------------------------
-MIN_MEASUREMENTS = 2
-NORMALITY_P_THRESHOLD = 0.05
-MIN_VALUES_FOR_NORMALITY_TEST = 3
-WELCH_P_THRESHOLD = 0.05  # Significance threshold for Welch's t-test
-MIN_PCT_INCREASE = 0.02  # Practical threshold for change (2%)
+from .data import ChangeEvent, EnergyStats, nice_number
+
+DEFAULT_MAX_TICKS = 30
 
 
-# ---------------------------
-# Dataclasses
-# ---------------------------
-@dataclass
-class ChangeEvent:
-    """Data structure to hold energy change events.
+class EnergyPlot:
+    """EnergyPlot is a class for visualizing energy consumption trends over a series of commits.
 
-    This structure is used to represent significant changes in energy consumption.
+    It provides functionality to create interactive plots, including line charts, candlestick charts,
+    and annotations for significant change events.
 
     Attributes:
-        index (int): The index of the commit where the change occurred.
-        severity (float): The severity of the change (e.g., 0.25 for a 25% change).
-        direction (str): The direction of the change ("increase" or "decrease").
-        cohen_d (float): The Cohen's d effect size.
+        energy_column (str): The name of the energy column being analyzed.
+        stats (EnergyStats): An object containing statistical data such as medians, errors, and commit hashes.
+        distribution (list[np.ndarray]): A list of distributions for each commit.
+        normality_flags (list[bool]): Flags indicating whether the distribution for each commit is normal.
+        change_events (list[ChangeEvent]): A list of significant change events (e.g., regressions or improvements).
+        figure (bokeh.plotting.figure.Figure): The Bokeh figure object for the plot.
+
+    Methods:
+        _make_change_event_sources():
+            Creates data sources for regression and improvement events to be plotted on the chart.
+
+        create_figure():
+            Creates and returns a Bokeh layout containing the energy consumption trend plot.
+            Includes line charts, candlestick charts, and interactive widgets.
+
+        _add_change_event_annotations(fig):
+            Adds shaded box annotations to the plot to highlight significant change events.
+
+        _setup_ticks(fig, x_min, x_max):
+            Configures the x-axis ticks for the plot, ensuring they adapt dynamically to the visible range.
     """
 
-    index: int
-    severity: float
-    direction: str
-    cohen_d: float
+    def __init__(
+        self,
+        energy_column: str,
+        stats: EnergyStats,
+        distribution: list[np.ndarray],
+        normality_flags: list[bool],
+        change_events: list[ChangeEvent],
+    ) -> None:
+        """Initializes the EnergyPlot instance."""
+        self.energy_column = energy_column
+        self.stats = stats
+        self.distribution = distribution
+        self.normality_flags = normality_flags
+        self.change_events = change_events
+        self.figure = None
 
+    def _make_change_event_sources(self) -> tuple[dict[str, list[Any]], dict[str, list[Any]]]:
+        regression = {"x": [], "y": [], "commit": [], "severity": [], "cohen_d": []}
+        improvement = {"x": [], "y": [], "commit": [], "severity": [], "cohen_d": []}
+        for event in self.change_events:
+            idx = event.index
+            if event.direction == "increase":
+                regression["x"].append(idx)
+                regression["y"].append(self.stats.y_medians[idx])
+                regression["commit"].append(self.stats.short_hashes[idx])
+                regression["severity"].append(f"{int(event.severity * 100)}%")
+                regression["cohen_d"].append(f"{event.cohen_d:.2f}")
+            else:
+                improvement["x"].append(idx)
+                improvement["y"].append(self.stats.y_medians[idx])
+                improvement["commit"].append(self.stats.short_hashes[idx])
+                improvement["severity"].append(f"{int(event.severity * 100)}%")
+                improvement["cohen_d"].append(f"{event.cohen_d:.2f}")
+        return regression, improvement
 
-@dataclass
-class EnergyPlotData:
-    """Data structure to hold energy plot data.
+    def create_figure(self) -> Column:
+        """Creates a Bokeh figure visualizing energy consumption trends with multiple chart types.
 
-    This structure is used to pass all the necessary data for plotting energy consumption trends.
+        The figure includes:
+        - A line chart showing median energy consumption with error bars.
+        - Scatter plots for normal and non-normal data distributions.
+        - Markers for regression and improvement events in energy consumption.
+        - A candlestick chart representing open-high-low-close (OHLC) data for energy consumption.
 
-    Attributes:
-        x_indices (np.ndarray): X-axis indices for plotting.
-        short_hashes (list[str]): Short commit hashes for labeling.
-        y_medians (list[float]): Median energy values for each commit.
-        y_errors (list[float]): Standard deviation of energy values for each commit.
-        distribution_data (list[np.ndarray]): Distribution data for each commit.
-        normality_flags (list[bool]): Flags indicating normality of distributions.
-        change_events (list[ChangeEvent]): Detected energy change events.
-        energy_column (str): The name of the energy column being plotted.
-    """
+        Additionally, a toggle widget is provided to switch between the line chart and candlestick chart views.
 
-    x_indices: np.ndarray[Any, np.dtype[np.int64]]
-    short_hashes: list[str]
-    y_medians: list[float]
-    y_errors: list[float]
-    distribution_data: list[Any]
-    normality_flags: list[bool]
-    change_events: list[ChangeEvent]
-    energy_column: str
+        Returns:
+            Column: A Bokeh layout containing the toggle widget and the figure.
+        """
+        x_min, x_max = 0, len(self.stats.short_hashes) - 1
+        fig = figure(
+            title=f"Energy Consumption Trend - {self.energy_column}",
+            x_range=(x_min, x_max),
+            tools="pan,box_zoom,reset,save,wheel_zoom",
+            toolbar_location="above",
+            sizing_mode="stretch_width",
+            height=400,
+        )
+        fig.xaxis.axis_label = "Commit (oldest → newest)"
+        fig.yaxis.axis_label = f"Median {self.energy_column} (J)"
+        fig.xaxis.major_label_orientation = pi / 4
+        fig.xaxis.major_label_overrides = {i: short for i, short in enumerate(self.stats.short_hashes)}
 
+        # -- LINE CHART: plot median points and error bars --
+        median_source = ColumnDataSource(
+            data={
+                "x": list(range(len(self.stats.short_hashes))),
+                "y": self.stats.y_medians,
+                "commit": self.stats.short_hashes,
+            },
+        )
+        median_renderer = fig.circle(
+            "x",
+            "y",
+            source=median_source,
+            radius=0.1,
+            color="blue",
+            legend_label=f"Median ({self.energy_column})",
+        )
+        lower = np.array(self.stats.y_medians) - np.array(self.stats.y_errors)
+        upper = np.array(self.stats.y_medians) + np.array(self.stats.y_errors)
+        error_source = ColumnDataSource(
+            data={"x": list(range(len(self.stats.short_hashes))), "y_lower": lower, "y_upper": upper},
+        )
+        error_renderer = fig.segment(
+            "x",
+            "y_lower",
+            "x",
+            "y_upper",
+            source=error_source,
+            line_width=2,
+            color="black",
+            legend_label="Error Bars",
+            visible=True,  # Adjust visibility as desired
+        )
 
-# ---------------------------
-# Helper Functions for Git Information
-# ---------------------------
-def generate_commit_link(remote_url: str, commit_hash: str) -> str:
-    """
-    Generate a commit link from the remote URL and commit hash.
-
-    Supports basic parsing for GitHub URLs.
-    """
-    if remote_url.startswith("git@"):
-        # Convert git@github.com:user/repo.git to https://github.com/user/repo/commit/<hash>
-        try:
-            parts = remote_url.split(":")
-            domain = parts[0].split("@")[-1]  # e.g., github.com
-            repo_path = parts[1].replace(".git", "")
-            return f"https://{domain}/{repo_path}/commit/{commit_hash}"
-        except Exception:
-            return "N/A"
-    elif remote_url.startswith("https://"):
-        # Remove trailing .git if present.
-        repo_url = remote_url.replace(".git", "")
-        return f"{repo_url}/commit/{commit_hash}"
-    return "N/A"
-
-
-def get_commit_details_from_git(commit_hash: str, repo) -> dict:
-    """
-    Retrieve commit details using GitPython.
-
-    Returns a dictionary with keys:
-      - commit_summary: The commit message summary.
-      - commit_link: A link to the commit (if a remote URL can be parsed).
-    """
-    try:
-        commit_obj = repo.commit(commit_hash)
-        commit_summary = commit_obj.summary  # or commit_obj.message.strip() for full message
-        commit_files = list(commit_obj.stats.files.keys())
-        commit_link = "N/A"
-        if repo.remotes:
-            # Use the first remote's URL
-            remote_url = repo.remotes[0].url
-            commit_link = generate_commit_link(remote_url, commit_hash)
-        return {"commit_summary": commit_summary, "commit_link": commit_link, "files_modified": commit_files}
-    except Exception as e:
-        logging.error(f"Error retrieving details for commit {commit_hash}: {e}")
-        return {"commit_summary": "N/A", "commit_link": "N/A"}
-
-
-# ---------------------------
-# Data Preparation Functions
-# ---------------------------
-
-
-def compute_distribution_and_normality(
-    df: pd.DataFrame,
-    valid_commits: list[str],
-    energy_column: str,
-) -> tuple[list[np.ndarray[Any, Any]], list[bool]]:
-    """Computes the distribution data and normality flags for energy values associated with a list of valid commits.
-
-    Args:
-        df (pd.DataFrame): The input DataFrame containing energy data.
-                           It must include columns 'commit' and the specified energy column.
-        valid_commits (list[str]): A list of commit identifiers to filter the data.
-        energy_column (str): The name of the column in the DataFrame containing energy values.
-
-    Returns:
-        tuple[list[np.ndarray[Any, Any]], list[bool]]:
-            - A list of numpy arrays, where each array contains the energy values
-              for a specific commit.
-            - A list of boolean flags indicating whether the energy values for each
-              commit passed the Shapiro-Wilk normality test (True if normal, False otherwise).
-              If the number of values is below the threshold for the test, the flag defaults to True.
-
-    Notes:
-        - The function uses a global constant `MIN_VALUES_FOR_NORMALITY_TEST` to determine
-          the minimum number of values required to perform the Shapiro-Wilk test.
-        - The global constant `NORMALITY_P_THRESHOLD` is used as the p-value threshold
-          for determining normality.
-    """
-    distribution_data: list[np.ndarray[Any, Any]] = []
-    normality_flags = []
-    for commit in valid_commits:
-        values = df[df["commit"] == commit][energy_column].values
-        distribution_data.append(np.asarray(values))
-        if len(values) >= MIN_VALUES_FOR_NORMALITY_TEST:
-            _, p_shapiro = shapiro(values)
-            normality_flags.append(p_shapiro >= NORMALITY_P_THRESHOLD)
-        else:
-            normality_flags.append(True)
-    return distribution_data, normality_flags
-
-
-# ---------------------------
-# Energy Change Detection Functions
-# ---------------------------
-def get_change_direction(baseline_median: float, test_median: float, min_pct_change: float) -> str | None:
-    """Determine the direction of change given baseline and test medians.
-
-    Args:
-        baseline_median (float): The median energy of the baseline window.
-        test_median (float): The median energy of the test window.
-        min_pct_change (float): The minimum percentage change threshold.
-
-    Returns:
-      "increase" if test_median is at least (1 + min_pct_change)*baseline_median,
-      "decrease" if test_median is at most (1 - min_pct_change)*baseline_median,
-      Otherwise, None.
-    """
-    if test_median >= baseline_median * (1 + min_pct_change):
-        return "increase"
-    if test_median <= baseline_median * (1 - min_pct_change):
-        return "decrease"
-    return None
-
-
-def detect_energy_changes(
-    distribution_data: list[np.ndarray[Any, Any]],
-    y_medians: list[float],
-    min_pct_change: float = MIN_PCT_INCREASE,
-    p_threshold: float = WELCH_P_THRESHOLD,
-) -> list[ChangeEvent]:
-    """Detect energy changes by comparing each commit to its immediate predecessor, computing Cohen's d."""
-    changes = []
-    # Start from the second commit, comparing to the previous one.
-    for i in range(1, len(distribution_data)):
-        baseline = distribution_data[i - 1]
-        test = distribution_data[i]
-
-        # Skip if either commit lacks sufficient data.
-        if len(baseline) < MIN_VALUES_FOR_NORMALITY_TEST or len(test) < MIN_VALUES_FOR_NORMALITY_TEST:
-            continue
-
-        baseline_median = np.median(baseline)
-        test_median = np.median(test)
-        _, p_value = ttest_ind(baseline, test, equal_var=False)
-
-        if p_value < p_threshold:
-            # Compute Cohen's d.
-            mean_baseline = np.mean(baseline)
-            mean_test = np.mean(test)
-            var_baseline = np.var(baseline, ddof=1)
-            var_test = np.var(test, ddof=1)
-            pooled_std = np.sqrt((var_baseline + var_test) / 2.0)
-            cohen_d = (mean_test - mean_baseline) / pooled_std if pooled_std != 0 else 0.0
-
-            direction = get_change_direction(baseline_median, test_median, min_pct_change)
-            if direction is not None:
-                if direction == "increase":
-                    severity = (test_median - baseline_median) / baseline_median
+        # -- LINE CHART: plot distributions --
+        normal_x, normal_y, nonnormal_x, nonnormal_y = [], [], [], []
+        for i, values in enumerate(self.distribution):
+            for val in values:
+                if self.normality_flags[i]:
+                    normal_x.append(i)
+                    normal_y.append(val)
                 else:
-                    severity = (baseline_median - test_median) / baseline_median
-
-                changes.append(ChangeEvent(index=i, severity=severity, direction=direction, cohen_d=cohen_d))
-    return changes
-
-
-# ---------------------------
-# Plotting with Overlap Avoidance
-# ---------------------------
-def plot_energy_data(ax: Axes, plot_data: EnergyPlotData) -> None:
-    """Plot energy data with violin plots and error bars.
-
-    Plot energy data with violin plots for the distributions, errorbars for the medians,
-    and vertical shaded areas indicating energy changes with colors and opacity representing the severity.
-
-    Args:
-        ax (Axes): The matplotlib Axes object to plot on.
-        plot_data (EnergyPlotData): The data to be plotted, including commit indices, short hashes,
-            median values, error values, distribution data, normality flags, and change events.
-    """
-    x_indices = plot_data.x_indices
-    short_hashes = plot_data.short_hashes
-    y_medians = plot_data.y_medians
-    y_errors = plot_data.y_errors
-    distribution_data = plot_data.distribution_data
-    normality_flags = plot_data.normality_flags
-    change_events = plot_data.change_events
-    energy_column = plot_data.energy_column
-
-    # Plot violin plots for each commit's distribution.
-    violin_parts = ax.violinplot(
-        distribution_data,
-        positions=x_indices,
-        widths=0.5,
-        showmeans=False,
-        showextrema=False,
-        showmedians=False,
-    )
-    bodies = cast(list[PathCollection], violin_parts["bodies"])
-    for pc, is_normal in zip(bodies, normality_flags, strict=False):
-        pc.set_facecolor("lightgrey" if is_normal else "lightcoral")
-        pc.set_edgecolor("black")
-        pc.set_alpha(0.5)
-        pc.set_zorder(1)
-
-    # Plot the medians with error bars.
-    ax.errorbar(
-        x_indices,
-        y_medians,
-        yerr=y_errors,
-        marker="o",
-        linestyle="-",
-        color="b",
-        label=f"Median {energy_column}",
-        zorder=2,
-    )
-
-    # We'll store bounding boxes of the text objects here to avoid collisions
-    placed_bboxes = []
-
-    max_y = max(y_medians) if y_medians else 0.0
-
-    # Draw vertical spans and annotate events
-    for event in change_events:
-        cp = event.index
-        # Cap severity (e.g., maximum of a 50% change) for color mapping
-        capped_severity = min(event.severity, 0.5)
-        # Map severity to opacity: 0% → 0.2 opacity and 50% → 0.8 opacity
-        opacity = (capped_severity / 0.5) * (0.8 - 0.2) + 0.2
-        if event.direction == "increase":
-            color = to_rgba((1.0, 0.0, 0.0, opacity))  # red for regressions
-            text_color = "darkred"
-            sign = "+"
-        else:
-            color = to_rgba((0.0, 0.8, 0.0, opacity))  # green for improvements
-            text_color = "darkgreen"
-            sign = "-"
-
-        # Vertical shading
-        ax.axvspan(cp - 0.5, cp + 0.5, color=color, zorder=0)
-
-        # Position text slightly above the top to start
-        base_y = max_y * 1.05
-        annotation_str = f"{sign}{int(event.severity * 100)}% (d={event.cohen_d:.2f})"
-
-        # Place text
-        txt = ax.text(
-            cp,
-            base_y,
-            annotation_str,
-            fontsize=8,
-            ha="center",
-            color=text_color,
-            bbox=dict(facecolor="white", edgecolor="none", alpha=0.8),
-            zorder=7,
+                    nonnormal_x.append(i)
+                    nonnormal_y.append(val)
+        norm_renderer = fig.circle(
+            x=normal_x,
+            y=normal_y,
+            radius=0.3,
+            color="lightgray",
+            alpha=0.5,
+            legend_label="Normal",
+            visible=False,
+        )
+        nonnorm_renderer = fig.circle(
+            x=nonnormal_x,
+            y=nonnormal_y,
+            radius=0.3,
+            color="lightcoral",
+            alpha=0.5,
+            legend_label="Non-Normal",
         )
 
-        # Force a draw so that get_window_extent works properly
-        ax.figure.canvas.draw()
-        text_bbox = txt.get_window_extent(renderer=ax.figure.canvas.get_renderer())
+        # -- LINE CHART: plot change events --
+        regression, improvement = self._make_change_event_sources()
+        if regression["x"]:
+            reg_source = ColumnDataSource(regression)
+            fig.circle("x", "y", source=reg_source, color="red", radius=1, alpha=0.6, legend_label="Regression (↑ energy)")
+        if improvement["x"]:
+            imp_source = ColumnDataSource(improvement)
+            fig.circle("x", "y", source=imp_source, color="green", radius=1, alpha=0.6, legend_label="Improvement (↓ energy)")
 
-        # Attempt collision resolution by shifting upward until there's no overlap
-        shift_increment = 0.05 * max_y
-        while any(text_bbox.overlaps(b) for b in placed_bboxes):
-            # Shift the text a bit higher
-            current_x, current_y = txt.get_position()
-            txt.set_position((current_x, current_y + shift_increment))
-            ax.figure.canvas.draw()
-            text_bbox = txt.get_window_extent(renderer=ax.figure.canvas.get_renderer())
+        # -- Add change event annotations --
+        self._add_change_event_annotations(fig)
+        self._setup_ticks(fig, x_min, x_max)
 
-        placed_bboxes.append(text_bbox)
+        # -- Add hover for medians --
+        hover = HoverTool(renderers=[median_renderer], tooltips=[("Commit", "@commit"), ("Median", "@y")])
+        fig.add_tools(hover)
 
-    # X-axis commit labels
-    ax.set_xticks(x_indices)
-    ax.set_xticklabels(short_hashes, rotation=45, ha="right")
-    ax.set_xlabel("Commit Hash (sorted by date, oldest to newest)")
-    ax.set_ylabel(f"Median Energy ({energy_column})")
-    ax.set_title(f"Energy Consumption Trend (Median per Commit) - {energy_column}")
-    ax.grid(True)
+        # -- CANDLESTICK CHART: compute OHLC from the distributions --
+        # -- CANDLESTICK CHART: compute OHLC from medians and distributions --
+        xs = list(range(len(self.stats.short_hashes)))
+        medians = self.stats.y_medians
 
-    # Legend, including explanation for Cohen's d annotation
-    custom_handles = [
-        Line2D([0], [0], marker="o", color="blue", label=f"Median {energy_column}", linestyle="-"),
-        Patch(facecolor="lightgrey", edgecolor="black", label="Normal Distribution"),
-        Patch(facecolor="lightcoral", edgecolor="black", label="Non-Normal (Shapiro-Wilk p < 0.05)"),
-        Patch(facecolor=to_rgba((1.0, 0.0, 0.0, 0.5)), edgecolor="none", label="Regression (↑ energy)"),
-        Patch(facecolor=to_rgba((0.0, 0.8, 0.0, 0.5)), edgecolor="none", label="Improvement (↓ energy)"),
-        Line2D([0], [0], marker="", color="black", label="Label: ±X% (d=Cohen's d)"),
-    ]
-    ax.legend(handles=custom_handles)
+        # Compute open: for commit 0 use its own median; for later commits, use the previous commit's median.
+        opens = [medians[0]] + medians[:-1]
+        closes = medians
 
+        # Low and high from the distribution of each commit.
+        lows = [np.min(dist) for dist in self.distribution]
+        highs = [np.max(dist) for dist in self.distribution]
+        candle_width = 0.6
 
-# ---------------------------
-# Data Preparation and Plot Entry
-# ---------------------------
-def prepare_commit_statistics(
-    df: pd.DataFrame,
-    energy_column: str,
-) -> tuple[list[str], list[str], np.ndarray[Any, np.dtype[np.int64]], list[float], list[float]]:
-    """
-    Prepares commit statistics for energy data. Returns lists of valid commits and stats.
-    """
-    commit_counts = df.groupby("commit").size().reset_index(name="count")
-    df_median = df.groupby("commit", sort=False)[energy_column].median().reset_index()
-    df_std = df.groupby("commit", sort=False)[energy_column].std().reset_index()
-    df_median = df_median.merge(df_std, on="commit", suffixes=("", "_std"))
-    df_median = df_median.merge(commit_counts, on="commit")
-    df_median = df_median[df_median["count"] >= MIN_MEASUREMENTS]
-    df_median["commit_short"] = df_median["commit"].str[:7]
+        # Determine candle colors based on whether energy consumption improved (lower energy) or regressed.
+        # (Assuming lower energy is better, so close < open means improvement → green)
+        candle_colors = ["green" if close < open else "red" for open, close in zip(opens, closes, strict=False)]
 
-    valid_commits = df_median["commit"].tolist()
-    short_hashes = df_median["commit_short"].tolist()
-    x_indices = np.arange(len(valid_commits))
-    y_medians = df_median[energy_column].tolist()
-    y_errors = df_median[f"{energy_column}_std"].tolist()
+        # The candle body: the quad is drawn from the open to the close, colored accordingly.
+        candle_body = fig.quad(
+            top=[max(o, c) for o, c in zip(opens, closes, strict=False)],
+            bottom=[min(o, c) for o, c in zip(opens, closes, strict=False)],
+            left=[x - candle_width / 2 for x in xs],
+            right=[x + candle_width / 2 for x in xs],
+            fill_color=candle_colors,
+            line_color="black",
+            legend_label="Candlestick (body)",
+            visible=False,
+        )
 
-    return valid_commits, short_hashes, x_indices, y_medians, y_errors
+        # The wick: drawn as a segment from the low to the high.
+        candle_wick = fig.segment(
+            x0=xs,
+            x1=xs,
+            y0=lows,
+            y1=highs,
+            color="black",
+            line_width=1,
+            legend_label="Candlestick (wick)",
+            visible=False,
+        )
 
+        # -- Add a Toggle widget to switch between line and candlestick views --
+        toggle = Toggle(label="Switch to Candlestick", button_type="success", active=False)
+        toggle_callback = CustomJS(
+            args=dict(
+                median_renderer=median_renderer,
+                error_renderer=error_renderer,
+                norm_renderer=norm_renderer,
+                nonnorm_renderer=nonnorm_renderer,
+                candle_body=candle_body,
+                candle_wick=candle_wick,
+                toggle_widget=toggle,
+            ),
+            code="""
+                // When active==true, we switch to candlestick view.
+                if(cb_obj.active) {
+                    median_renderer.visible = false;
+                    error_renderer.visible = false;
+                    norm_renderer.visible = false;
+                    nonnorm_renderer.visible = false;
+                    candle_body.visible = true;
+                    candle_wick.visible = true;
+                    toggle_widget.label = "Switch to Line Chart";
+                } else {
+                    median_renderer.visible = true;
+                    error_renderer.visible = true;
+                    norm_renderer.visible = true;
+                    nonnorm_renderer.visible = true;
+                    candle_body.visible = false;
+                    candle_wick.visible = false;
+                    toggle_widget.label = "Switch to Candlestick";
+                }
+            """,
+        )
+        toggle.js_on_change("active", toggle_callback)
 
-def compute_distribution_and_normality(
-    df: pd.DataFrame,
-    valid_commits: list[str],
-    energy_column: str,
-) -> tuple[list[np.ndarray[Any, Any]], list[bool]]:
-    """
-    Computes the distribution data and normality flags (Shapiro-Wilk) for each commit.
-    """
-    from scipy.stats import shapiro
+        self.figure = fig
 
-    distribution_data = []
-    normality_flags = []
-    for commit in valid_commits:
-        values = df[df["commit"] == commit][energy_column].values
-        distribution_data.append(values)
-        if len(values) >= MIN_VALUES_FOR_NORMALITY_TEST:
-            _, p_shapiro = shapiro(values)
-            normality_flags.append(p_shapiro >= NORMALITY_P_THRESHOLD)
-        else:
-            normality_flags.append(True)
-    return distribution_data, normality_flags
+        # Ensure toggle doesn't constrain the figure's full width
+        toggle.width_policy = "max"
+        layout = column(toggle, fig, sizing_mode="stretch_width")
+        return layout
 
-
-def create_energy_plot(df: pd.DataFrame, energy_column: str, output_filename: str) -> None:
-    """Create and save a plot for a given energy column from the CSV data.
-
-    Args:
-        df (pd.DataFrame): DataFrame containing the energy data.
-        energy_column (str): The name of the energy column to plot.
-        output_filename (str): The filename to save the plot.
-    """
-    valid_commits, short_hashes, x_indices, y_medians, y_errors = prepare_commit_statistics(df, energy_column)
-    distribution_data, normality_flags = compute_distribution_and_normality(df, valid_commits, energy_column)
-    change_events = detect_energy_changes(distribution_data, y_medians)
-
-    plot_data = EnergyPlotData(
-        x_indices=x_indices,
-        short_hashes=short_hashes,
-        y_medians=y_medians,
-        y_errors=y_errors,
-        distribution_data=distribution_data,
-        normality_flags=normality_flags,
-        change_events=change_events,
-        energy_column=energy_column,
-    )
-
-    plt.figure(figsize=(40, 10))
-    ax = plt.gca()
-    plot_energy_data(ax, plot_data)
-    plt.tight_layout()
-    plt.savefig(output_filename)
-    plt.close()
-
-
-# ---------------------------
-# Export Summary Function
-# ---------------------------
-def export_change_events_summary(
-    valid_commits: list[str],
-    short_hashes: list[str],
-    change_events: list[ChangeEvent],
-    df: pd.DataFrame,
-    energy_column: str,
-    folder: str,
-    project_name: str,
-    timestamp_now: str,
-    git_repo_path: str | None = None,
-) -> None:
-    """
-    Exports a textual summary of detected energy change events.
-
-    For each flagged commit, the summary lists:
-      - Full commit hash and its short version.
-      - Change direction and severity.
-      - Commit summary message.
-      - Commit link.
-
-    If the CSV lacks commit details, and a git_repo_path is provided, GitPython is used to retrieve them.
-    """
-    commit_details = {}
-    # If CSV already contains extra columns, try to pick them up
-    if "commit_summary" in df.columns and "commit_link" in df.columns:
-        for commit in valid_commits:
-            row = df[df["commit"] == commit].iloc[0]
-            commit_details[commit] = {
-                "commit_summary": row.get("commit_summary", "N/A"),
-                "commit_link": row.get("commit_link", "N/A"),
-            }
-    else:
-        for commit in valid_commits:
-            commit_details[commit] = {"commit_summary": "N/A", "commit_link": "N/A"}
-
-    # If a git repository is provided, update missing details using GitPython.
-    if git_repo_path:
-        try:
-            from git import Repo
-
-            repo = Repo(git_repo_path)
-            for commit in valid_commits:
-                if commit_details[commit]["commit_summary"] == "N/A" or commit_details[commit]["commit_link"] == "N/A":
-                    details = get_commit_details_from_git(commit, repo)
-                    commit_details[commit] = details
-        except Exception as e:
-            logging.error(f"Error loading Git repository from {git_repo_path}: {e}")
-
-    summary_lines = []
-    summary_lines.append(f"Energy Consumption Change Summary for '{energy_column}'")
-    summary_lines.append(f"Project: {project_name}")
-    summary_lines.append(f"Date: {timestamp_now}")
-    summary_lines.append("=" * 80)
-
-    if not change_events:
-        summary_lines.append("No significant energy changes detected.")
-    else:
-        for event in change_events:
-            commit_hash = valid_commits[event.index]
-            short_hash = short_hashes[event.index]
-            details = commit_details.get(commit_hash, {"commit_summary": "N/A", "commit_link": "N/A"})
-            direction_str = "Regression (Increase)" if event.direction == "increase" else "Improvement (Decrease)"
-            summary_lines.append(f"Commit: {commit_hash} (Short: {short_hash})")
-            summary_lines.append(f"Direction: {direction_str}")
-            summary_lines.append(f"Severity: {int(event.severity * 100)}%")
-            summary_lines.append(f"Commit Message: {details['commit_summary']}")
-            summary_lines.append(f"Commit Link: {details['commit_link']}")
-            summary_lines.append(f"Cohen's d: {event.cohen_d:.2f}")
-            summary_lines.append(f"Normality: {'Normal' if event.direction == 'normal' else 'Non-normal'}")
-            summary_lines.append(
-                f"Median {energy_column}: {np.median(df[df['commit'] == commit_hash][energy_column].values)} Joules",
+    def _add_change_event_annotations(self, fig: figure) -> None:
+        for event in self.change_events:
+            idx = event.index
+            box = BoxAnnotation(
+                left=idx - 0.4,
+                right=idx + 0.4,
+                fill_color="red" if event.direction == "increase" else "green",
+                fill_alpha=0.15 + min(event.severity, 0.5),
             )
-            summary_lines.append(f"Energy Values: {df[df['commit'] == commit_hash][energy_column].values}")
-            summary_lines.append(f"Files modified: {details.get('files_modified', 'N/A')}")
-            summary_lines.append("-" * 80)
+            fig.add_layout(box)
 
-    summary_filename = os.path.join(folder, f"{project_name}_{energy_column}_{timestamp_now}_summary.txt")
-    with open(summary_filename, "w") as f:
-        f.write("\n".join(summary_lines))
-    logging.info(f"Exported energy change summary to {summary_filename}")
+    def _setup_ticks(self, fig: figure, x_min: int, x_max: int) -> None:
+        full_ticks = list(range(len(self.stats.short_hashes)))
+        ticker = FixedTicker(ticks=full_ticks)
+        fig.xaxis.ticker = ticker
+        raw_step = (x_max - x_min) / DEFAULT_MAX_TICKS
+        step = max(1, int(nice_number(raw_step)))
+        new_ticks = list(range(x_min, x_max + 1, step))
+        ticker.ticks = new_ticks
 
-
-def filter_outliers_iqr(df: pd.DataFrame, column: str, multiplier: float = 1.5) -> pd.DataFrame:
-    """
-    Filter out outliers from the given DataFrame column using the IQR method.
-
-    Args:
-        df (pd.DataFrame): The input DataFrame.
-        column (str): The column name on which to apply the filtering.
-        multiplier (float): The multiplier for the IQR to set the bounds (default: 1.5).
-
-    Returns:
-        pd.DataFrame: A DataFrame with outliers removed for the specified column.
-    """
-    q1 = df[column].quantile(0.25)
-    q3 = df[column].quantile(0.75)
-    iqr = q3 - q1
-    lower_bound = q1 - multiplier * iqr
-    upper_bound = q3 + multiplier * iqr
-
-    # Optional: Log or print the bounds for debugging
-    print(f"Filtering '{column}': Q1={q1}, Q3={q3}, IQR={iqr}, lower_bound={lower_bound}, upper_bound={upper_bound}")
-
-    return df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
-
-
-# ---------------------------
-# Main Function for Plot Creation
-# ---------------------------
-def create_energy_plots(input_path: str, git_repo_path: str | None = None) -> None:
-    """
-    Loads the CSV data, filters out outliers, generates plots for each energy metric,
-    and exports a textual summary of energy change events.
-
-    Parameters:
-      - input_path: Path to the CSV file containing energy data.
-      - git_repo_path (optional): Path to the local Git repository. If provided, commit messages and links are retrieved.
-    """
-    if not os.path.isfile(input_path):
-        logging.info(f"Error: File not found: {input_path}")
-        sys.exit(1)
-
-    folder = os.path.dirname(input_path)
-    project_name = os.path.basename(folder)
-    timestamp_now = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    # In this version, the CSV is expected to have only commit hash and energy values.
-    df = pd.read_csv(input_path, header=None, names=["commit", "energy-pkg", "energy-core", "energy-gpu"])
-
-    # Process only non-empty columns
-    for column in ["energy-pkg", "energy-core", "energy-gpu"]:
-        if df[column].dropna().empty:
-            logging.info(f"Skipping processing for column '{column}' because it is empty.")
-            continue
-
-        # Filter outliers for the current energy column
-        df_filtered = filter_outliers_iqr(df, column, multiplier=1.5)
-
-        # Check if there's sufficient data after filtering
-        if df_filtered.empty:
-            logging.info(f"All data filtered out for column '{column}'. Skipping plot generation.")
-            continue
-
-        output_filename = os.path.join(folder, f"{project_name}_{column}_{timestamp_now}.png")
-        create_energy_plot(df_filtered, column, output_filename)
-
-        # Prepare summary with change events and use git information if available.
-        valid_commits, short_hashes, _, _, _ = prepare_commit_statistics(df_filtered, column)
-        distribution_data, _ = compute_distribution_and_normality(df_filtered, valid_commits, column)
-        # Compute medians from distributions (needed for change detection)
-        change_events = detect_energy_changes(distribution_data, [np.median(d) for d in distribution_data])
-        export_change_events_summary(
-            valid_commits, short_hashes, change_events, df_filtered, column, folder, project_name, timestamp_now, git_repo_path
+        callback = CustomJS(
+            args=dict(ticker=ticker, full_length=len(self.stats.short_hashes) - 1, max_ticks=DEFAULT_MAX_TICKS),
+            code="""
+                var start = cb_obj.start;
+                var end = cb_obj.end;
+                var range_visible = end - start;
+                function niceNumber(x) {
+                    var exponent = Math.floor(Math.log(x) / Math.LN10);
+                    var fraction = x / Math.pow(10, exponent);
+                    var niceFraction;
+                    if (fraction < 1.5) {
+                        niceFraction = 1;
+                    } else if (fraction < 3) {
+                        niceFraction = 2;
+                    } else if (fraction < 7) {
+                        niceFraction = 5;
+                    } else {
+                        niceFraction = 10;
+                    }
+                    return niceFraction * Math.pow(10, exponent);
+                }
+                var rawStep = range_visible / max_ticks;
+                var step = Math.max(1, niceNumber(rawStep));
+                var new_ticks = [];
+                for (var t = 0; t <= full_length; t += step) {
+                    if (t >= start && t <= end) {
+                        new_ticks.push(t);
+                    }
+                }
+                ticker.ticks = new_ticks;
+            """,
         )
+        fig.x_range.js_on_change("start", callback)
+        fig.x_range.js_on_change("end", callback)

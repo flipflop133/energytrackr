@@ -20,6 +20,7 @@ line-ending = "lf"
 [tool.ruff.lint]
 select = [
   "D",  # pydocstyle (Enforces docstrings)
+  "DOC", # pydoclint (Enforces docstrings)
   "E",  # pycodestyle (Style guide enforcement)
   "F",  # Pyflakes (Error detection)
   "UP",  # pyupgrade (Upgrades old Python syntax)
@@ -45,23 +46,51 @@ select = [
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[tool.mypy]
-mypy_path = ["src"]
-warn_no_return = true
-warn_return_any = true
-warn_unused_ignores = true
-warn_redundant_casts = true
-warn_unreachable = true
-strict = true
-disallow_untyped_calls = true
-disallow_untyped_defs = true
-disallow_any_unimported = true
-disallow_any_generics = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-no_implicit_optional = true
+[tool.pyright]
+pythonVersion = "3.13"
+venvPath = ".venv"
+typeCheckingMode = "strict"
+reportMissingImports = true
+reportUnusedVariable = true
+reportUnusedFunction = true
+reportUnnecessaryTypeIgnoreComment = true
+reportUnnecessaryCast = true
+reportUnreachableCode = true
+reportIncompatibleVariableOverride = true
 
 [tool.pytest.ini_options]
 addopts = "--tb=short --strict-markers"
 testpaths = "tests"
 pythonpath = "src"
+
+[tool.pylint.main]
+init-hook = "import sys; from pathlib import Path; sys.path.insert(0, str(Path().resolve() / 'src'))"
+jobs = 0 # multiprocessing pylint
+max-line-length = 127
+load-plugins = [
+    "pylint.extensions.check_elif",
+    "pylint.extensions.bad_builtin",
+    "pylint.extensions.docparams",
+    "pylint.extensions.for_any_all",
+    "pylint.extensions.set_membership",
+    "pylint.extensions.code_style",
+    "pylint.extensions.overlapping_exceptions",
+    "pylint.extensions.typing",
+    "pylint.extensions.redefined_variable_type",
+    "pylint.extensions.comparison_placement",
+    "pylint.extensions.broad_try_clause",
+    "pylint.extensions.dict_init_mutate",
+    "pylint.extensions.consider_refactoring_into_while_condition"
+]
+
+[tool.pylint.parameter_documentation]
+# we require docstrings of public methods to document everything
+accept-no-param-doc = false
+accept-no-raise-doc = false
+accept-no-return-doc = false
+accept-no-yields-doc = false
+default-docstring-type = "google"
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = []
+enable = ["all"]
