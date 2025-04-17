@@ -156,6 +156,137 @@ Expose it via `get_stage()` and list it in your config:
 
 ---
 
+Absolutely! Here’s a revised and **cleaned-up `README.md` section for developers** with your current tooling, workflow, and best practices in mind:
+
+---
+
+## 🛠️ Development Setup
+
+### 📦 Environment Setup
+
+- Create and initialize a virtual environment with all necessary dependencies:
+
+  ```bash
+  make install-dev
+  ```
+
+This will:
+- Create the virtual environment in `.venv/`
+- Install runtime, test, and documentation dependencies
+- Install developer tools like `pre-commit`, `coverage`, `pylint`, `pyright`, etc.
+
+> ℹ️ Requires `make` and `python>=3.13`.
+
+---
+
+### 🔄 Pre-Commit Hooks
+
+- Install Git hooks (done once):
+
+  ```bash
+  pre-commit install
+  ```
+
+- Run all hooks manually:
+
+  ```bash
+  make precommit
+  ```
+
+> Hooks include formatting (`ruff format`), linting (`ruff`, `pylint`), YAML and whitespace checks, and test+coverage validation.
+
+---
+
+### 🧪 Testing and Quality Checks
+
+Run tests:
+
+```bash
+make test
+```
+
+Run tests with coverage (fails if coverage < 80%):
+
+```bash
+make coverage
+```
+
+Run all linters (Ruff, Pylint, Pyright):
+
+```bash
+make lint
+```
+
+Run full quality gate (format + lint + tests + coverage):
+
+```bash
+make check
+```
+
+---
+
+### 📖 Documentation
+
+We use **Sphinx** for documentation, and it's hosted on [ReadTheDocs](https://energy-analyzer.readthedocs.io).
+
+To build the docs locally:
+
+```bash
+make docs
+```
+
+The HTML output will be in `docs/_build/html`.
+
+To clean generated files:
+
+```bash
+make clean-docs
+```
+
+---
+
+### 💡 Recommended VSCode Extensions
+
+To maximize developer experience:
+
+- **Python** (core support)
+- **Ruff** (lint + format)
+- **Pylance** (type checking)
+- **Pylint**
+- **Python Debugger**
+- **Docker**
+- **Git Extension Pack**
+
+> Configure VSCode to use `.venv/` as the Python interpreter.
+
+---
+
+### ⚠️ Project Standards
+
+- We require **at least 80% test coverage**.
+- All code must pass **`ruff` formatting and linting**.
+- All **tests must pass** before pushing.
+- All code must have **strict typing** (`pyright`).
+- Use `pre-commit` to catch issues before they reach CI.
+
+---
+
+### 🧰 Summary of `Makefile` Commands
+
+```bash
+make install-dev     # Full dev environment setup
+make format          # Auto-format code with Ruff
+make lint            # Run Ruff, Pylint, Pyright
+make test            # Run pytest
+make coverage        # Run tests + enforce coverage threshold
+make check           # Full pipeline: format + lint + tests
+make precommit       # Manually run pre-commit hooks
+make docs            # Build documentation with Sphinx
+make clean-docs      # Remove generated doc files
+```
+
+---
+
 ## 📚 Documentation
 
 - 📘 [Full Documentation (Sphinx)](https://energy-analyzer.readthedocs.io)
