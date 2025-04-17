@@ -1,6 +1,7 @@
 """Git utility functions for cloning repositories and gathering commits."""
 
 import os
+from typing import Any
 
 from git.objects.commit import Commit
 from git.repo import Repo
@@ -88,3 +89,46 @@ def gather_commits(repo: Repo) -> list[Commit]:
         logger.info("Gathered %d commits from branch %s", len(commits), conf.repo.branch)
 
         return commits
+
+
+def generate_commit_link(remote_url: str, commit_hash: str) -> str:
+    """Generate a commit link from the remote URL and commit hash.
+
+    Supports GitHub-style URLs.
+    """
+    if remote_url.startswith("git@"):
+        try:
+            parts = remote_url.split(":")
+            domain = parts[0].split("@")[-1]
+            repo_path = parts[1].replace(".git", "")
+        except Exception:
+            return "N/A"
+        else:
+            return f"https://{domain}/{repo_path}/commit/{commit_hash}"
+    elif remote_url.startswith("https://"):
+        repo_url = remote_url.replace(".git", "")
+        return f"{repo_url}/commit/{commit_hash}"
+    return "N/A"
+
+
+def get_commit_details_from_git(commit_hash: str, repo: Repo) -> dict[str, Any]:
+    """Retrieve commit details (summary, date, etc.) using GitPython."""
+    try:
+        commit_obj = repo.commit(commit_hash)
+        commit_date = commit_obj.committed_datetime.strftime("%Y-%m-%d")
+        commit_summary = commit_obj.summary
+        commit_files = list(commit_obj.stats.files.keys())
+        commit_link = "N/A"
+        if repo.remotes:
+            remote_url = repo.remotes[0].url
+            commit_link = generate_commit_link(remote_url, commit_hash)
+    except Exception:
+        logger.exception(f"Error retrieving details for commit {commit_hash}")
+        return {"commit_summary": "N/A", "commit_link": "N/A", "commit_date": "N/A", "files_modified": []}
+    else:
+        return {
+            "commit_summary": commit_summary,
+            "commit_link": commit_link,
+            "commit_date": commit_date,
+            "files_modified": commit_files,
+        }

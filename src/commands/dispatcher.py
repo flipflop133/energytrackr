@@ -3,7 +3,7 @@
 import argparse
 
 from pipeline.pipeline import measure
-from plot.plot import create_energy_plots
+from plot.main import plot
 from utils.exceptions import UnknownCommandError
 from utils.sort import reorder_commits
 
@@ -26,6 +26,6 @@ def handle_command(args: argparse.Namespace) -> None:
             reorder_commits(args.file, args.repo_path, args.output_file)
         case "plot":
             # Plot a result file
-            create_energy_plots(args.file, args.repo_path)
+            plot(args.file, args.repo_path)
         case _:
             raise UnknownCommandError(args.command)
