@@ -1,4 +1,4 @@
-name: Test Pipeline
+name: Check Pipeline
 
 on: [push, pull_request]
 
@@ -16,5 +16,5 @@ jobs:
             make venv
             make install-dev
             make update-venv
-      - name: Run tests
-        run: make coverage
+      - name: Run checks
+        run: make check
