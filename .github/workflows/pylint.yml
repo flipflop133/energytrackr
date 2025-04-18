@@ -14,10 +14,12 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
+    - name: Set up virtualenv and install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install pylint
+        python -m venv .venv
+        .venv/bin/pip install --upgrade pip
+        .venv/bin/pip install -r requirements.txt
+        .venv/bin/pip install pylint
     - name: Analysing the code with pylint
       run: |
         make pylint
