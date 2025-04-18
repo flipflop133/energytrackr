@@ -57,7 +57,7 @@ class StabilityCheckStage(PipelineStage):
         Returns:
             True if the system is stable, False otherwise
         """
-        samples = []
+        samples: list[int] = []
         prev = StabilityCheckStage._read_uj()
         for _ in range(warmup):
             time.sleep(1)

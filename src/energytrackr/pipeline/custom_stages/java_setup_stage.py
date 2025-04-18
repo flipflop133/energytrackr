@@ -189,12 +189,12 @@ class JavaSetupStage(PipelineStage):
             A dictionary mapping property names to their values.
         """
         properties = root.find("ns:properties", ns)
-        result = {}
+        result: dict[str, str] = {}
         if properties is not None:
             for child in properties:
                 if child.text:
                     # Remove namespace if exists
-                    tag = child.tag.split("}")[-1]
+                    tag: str = child.tag.split("}")[-1]
                     result[tag] = child.text.strip()
         return result
 

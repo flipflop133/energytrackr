@@ -6,6 +6,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from pandas import DataFrame
 from scipy.stats import shapiro, ttest_ind
 
 # Configuration constants can either be hard-coded or
@@ -57,7 +58,7 @@ class ChangeEvent:
     """
 
     index: int
-    severity: float
+    severity: np.floating[Any]
     direction: str
     cohen_d: float
 
@@ -77,7 +78,7 @@ class EnergyStats:
 
     valid_commits: list[str]
     short_hashes: list[str]
-    x_indices: np.ndarray
+    x_indices: np.ndarray[Any, Any]
     y_medians: list[float]
     y_errors: list[float]
     df_median: pd.DataFrame
@@ -88,13 +89,13 @@ class EnergyData:
 
     def __init__(self, csv_path: str, energy_columns: list[str]) -> None:
         """Initialize the EnergyData class."""
-        self.csv_path = csv_path
-        self.energy_columns = energy_columns
-        self.df = None
-        self.stats = {}  # Dictionary keyed by energy column
-        self.distributions = {}  # Raw distributions for each commit per column
-        self.normality_flags = {}
-        self.change_events = {}
+        self.csv_path: str = csv_path
+        self.energy_columns: list[str] = energy_columns
+        self.df: pd.DataFrame | None = None
+        self.stats: dict[str, Any] = {}  # Dictionary keyed by energy column
+        self.distributions: dict[str, list[np.ndarray[Any, Any]]] = {}  # Raw distributions for each commit per column
+        self.normality_flags: dict[str, list[bool]] = {}
+        self.change_events: dict[str, list[ChangeEvent]] = {}
 
     def load_data(self, column_names: list[str]) -> None:
         """Load data from a CSV file into a DataFrame.
@@ -117,11 +118,11 @@ class EnergyData:
         Returns:
             pd.DataFrame: A DataFrame with outliers removed from the specified column.
         """
-        q1 = df[column].quantile(0.25)
-        q3 = df[column].quantile(0.75)
-        iqr = q3 - q1
-        lower_bound = q1 - multiplier * iqr
-        upper_bound = q3 + multiplier * iqr
+        q1: float = df[column].quantile(0.25)
+        q3: float = df[column].quantile(0.75)
+        iqr: float = q3 - q1
+        lower_bound: float = q1 - multiplier * iqr
+        upper_bound: float = q3 + multiplier * iqr
         return df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
 
     @staticmethod
@@ -142,9 +143,9 @@ class EnergyData:
         Returns:
             EnergyStats: Data class containing the computed statistics.
         """
-        commit_counts = df.groupby("commit").size().reset_index(name="count")
-        df_median = df.groupby("commit", sort=False)[energy_column].median().reset_index()
-        df_std = df.groupby("commit", sort=False)[energy_column].std().reset_index()
+        commit_counts: DataFrame = df.groupby("commit").size().reset_index(name="count")
+        df_median: DataFrame = df.groupby("commit", sort=False)[energy_column].median().reset_index()
+        df_std: DataFrame = df.groupby("commit", sort=False)[energy_column].std().reset_index()
         df_median = df_median.merge(df_std, on="commit", suffixes=("", "_std"))
         df_median = df_median.merge(commit_counts, on="commit")
         df_median = df_median[df_median["count"] >= MIN_MEASUREMENTS].copy()
@@ -186,14 +187,15 @@ class EnergyData:
             values = df[df["commit"] == commit][energy_column].values
             distributions.append(values)
             if len(values) >= MIN_VALUES_FOR_NORMALITY_TEST:
-                _, p_shapiro = shapiro(values)
+                arr = np.asarray(values, dtype=float)
+                _, p_shapiro = shapiro(arr)
                 normality_flags.append(p_shapiro >= NORMALITY_P_THRESHOLD)
             else:
                 normality_flags.append(True)  # Assume normality with too few data points
         return distributions, normality_flags
 
     @staticmethod
-    def _get_change_direction(baseline_median: float, test_median: float) -> str | None:
+    def _get_change_direction(baseline_median: np.floating[Any], test_median: np.floating[Any]) -> str | None:
         """Determine the direction of change between a baseline median and a test median.
 
         Args:
@@ -246,20 +248,20 @@ class EnergyData:
             test = distributions[i]
             if len(baseline) < MIN_VALUES_FOR_NORMALITY_TEST or len(test) < MIN_VALUES_FOR_NORMALITY_TEST:
                 continue
-            baseline_median = np.median(baseline)
-            test_median = np.median(test)
+            baseline_median: np.floating[Any] = np.median(baseline)
+            test_median: np.floating[Any] = np.median(test)
             _, p_value = ttest_ind(baseline, test, equal_var=False)
             if (p_value < WELCH_P_THRESHOLD) and (direction := self._get_change_direction(baseline_median, test_median)):
                 var_baseline = np.var(baseline, ddof=1)
                 var_test = np.var(test, ddof=1)
                 pooled_std: int = np.sqrt((var_baseline + var_test) / 2.0)
-                cohen_d = (np.mean(test) - np.mean(baseline)) / pooled_std if pooled_std else 0.0
-                severity = (
+                cohen_d: np.floating[Any] | float = (np.mean(test) - np.mean(baseline)) / pooled_std if pooled_std else 0.0
+                severity: np.floating[Any] = (
                     (test_median - baseline_median) / baseline_median
                     if direction == "increase"
                     else (baseline_median - test_median) / baseline_median
                 )
-                changes.append(ChangeEvent(index=i, severity=severity, direction=direction, cohen_d=cohen_d))
+                changes.append(ChangeEvent(index=i, severity=severity, direction=direction, cohen_d=float(cohen_d)))
         return changes
 
     def process_column(self, energy_column: str) -> None:
@@ -282,8 +284,13 @@ class EnergyData:
                - `self.distributions`: Stores distribution data.
                - `self.normality_flags`: Stores normality test results.
                - `self.change_events`: Stores detected energy change events.
+
+        Raises:
+            ValueError: If the DataFrame is not loaded before processing.
         """
         # Assume self.df is already loaded
+        if self.df is None:
+            raise ValueError("DataFrame is not loaded. Please call load_data() before processing columns.")  # noqa: TRY003
         df_filtered = self._filter_outliers(self.df, energy_column)
         stats = self._compute_commit_statistics(df_filtered, energy_column)
         distribution, normality = self._compute_distribution_and_normality(df_filtered, stats.valid_commits, energy_column)
@@ -319,17 +326,27 @@ class EnergyData:
         distribution = self.distributions[energy_column]
         normality = self.normality_flags[energy_column]
         changes = self.change_events[energy_column]
-        outliers_removed_count = len(self.df) - len(self._filter_outliers(self.df, energy_column))
+        if self.df is not None:
+            outliers_removed_count = len(self.df) - len(self._filter_outliers(self.df, energy_column))
+            mean_energy = self.df[energy_column].mean()
+            median_energy = self.df[energy_column].median()
+            std_energy = self.df[energy_column].std()
+        else:
+            outliers_removed_count = 0
+            mean_energy = None
+            median_energy = None
+            std_energy = None
+
         summary = {
             "total_commits": len(distribution),
             "significant_changes": len(changes),
             "regressions": sum(1 for e in changes if e.direction == "increase"),
             "improvements": sum(1 for e in changes if e.direction == "decrease"),
-            "mean_energy": self.df[energy_column].mean(),
-            "median_energy": self.df[energy_column].median(),
-            "std_energy": self.df[energy_column].std(),
-            "max_increase": max((e.severity for e in changes if e.direction == "increase"), default=0.0),
-            "max_decrease": max((e.severity for e in changes if e.direction == "decrease"), default=0.0),
+            "mean_energy": mean_energy,
+            "median_energy": median_energy,
+            "std_energy": std_energy,
+            "max_increase": max((float(e.severity) for e in changes if e.direction == "increase"), default=0.0),
+            "max_decrease": max((float(e.severity) for e in changes if e.direction == "decrease"), default=0.0),
             "avg_cohens_d": np.mean([abs(e.cohen_d) for e in changes]) if changes else 0.0,
             "normal_count": sum(normality),
             "non_normal_count": len(normality) - sum(normality),

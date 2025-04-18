@@ -1,17 +1,19 @@
 """Plotting module for energy consumption data analysis (refactored, strongly typed)."""
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from math import pi
 from typing import Any
 
 import numpy as np
 from bokeh.layouts import column
-from bokeh.models import BoxAnnotation, Column, ColumnDataSource, CustomJS, FixedTicker, HoverTool, Toggle
+from bokeh.models import BoxAnnotation, Column, ColumnDataSource, CustomJS, FixedTicker, HoverTool, Range1d, Toggle
 from bokeh.models.renderers import GlyphRenderer
 from bokeh.plotting import figure
 
 from energytrackr.plot.data import ChangeEvent, EnergyData, EnergyStats, nice_number
 
+DataDictLike = Mapping[str, Sequence[int | float | str]]
 DEFAULT_MAX_TICKS: int = 30
 
 
@@ -47,8 +49,8 @@ class EnergyPlot:
         self.normality_flags = energy_data.normality_flags[self.energy_column]
 
     def _make_change_event_sources(self) -> tuple[dict[str, list[Any]], dict[str, list[Any]]]:
-        regression: dict[str, list[Any]] = {"x": [], "y": [], "commit": [], "severity": [], "cohen_d": []}
-        improvement: dict[str, list[Any]] = {"x": [], "y": [], "commit": [], "severity": [], "cohen_d": []}
+        regression: DataDictLike = {"x": [], "y": [], "commit": [], "severity": [], "cohen_d": []}
+        improvement: DataDictLike = {"x": [], "y": [], "commit": [], "severity": [], "cohen_d": []}
         for event in self.change_events:
             idx: int = event.index
             target: dict[str, list[Any]] = regression if event.direction == "increase" else improvement
@@ -102,16 +104,19 @@ class EnergyPlot:
         """
         fig: figure = figure(
             title=f"Energy Consumption Trend - {self.energy_column}",
-            x_range=(x_min, x_max),
+            x_range=Range1d(x_min, x_max),
             tools="pan,box_zoom,reset,save,wheel_zoom",
             toolbar_location="above",
             sizing_mode="stretch_width",
             height=400,
         )
-        fig.xaxis.axis_label = "Commit (oldest → newest)"
-        fig.yaxis.axis_label = f"Median {self.energy_column} (J)"
-        fig.xaxis.major_label_orientation = pi / 4
-        fig.xaxis.major_label_overrides = dict(enumerate(self.stats.short_hashes))
+        for ax in fig.xaxis:
+            ax.axis_label = "Commit (oldest → newest)"
+        for ax in fig.yaxis:
+            ax.axis_label = f"Median {self.energy_column} (J)"
+        for ax in fig.xaxis:
+            ax.major_label_orientation = pi / 4
+            ax.major_label_overrides = dict(enumerate(self.stats.short_hashes))
         return fig
 
     def _plot_median_line_and_errors(self, fig: figure) -> tuple[GlyphRenderer, GlyphRenderer]:
@@ -191,10 +196,10 @@ class EnergyPlot:
         """Adds circle markers for regression and improvement events."""
         regression, improvement = self._make_change_event_sources()
         if regression["x"]:
-            reg_source: ColumnDataSource = ColumnDataSource(regression)
+            reg_source: ColumnDataSource = ColumnDataSource(data=regression)
             fig.circle("x", "y", source=reg_source, radius=1, alpha=0.6, legend_label="Regression (↑ energy)")
         if improvement["x"]:
-            imp_source: ColumnDataSource = ColumnDataSource(improvement)
+            imp_source: ColumnDataSource = ColumnDataSource(data=improvement)
             fig.circle("x", "y", source=imp_source, radius=1, alpha=0.6, legend_label="Improvement (↓ energy)")
 
     def _plot_candlestick(self, fig: figure) -> tuple[GlyphRenderer, GlyphRenderer]:
@@ -243,7 +248,7 @@ class EnergyPlot:
                 left=idx - 0.4,
                 right=idx + 0.4,
                 fill_color="red" if e.direction == "increase" else "green",
-                fill_alpha=0.15 + min(e.severity, 0.5),
+                fill_alpha=0.15 + min(float(e.severity), 0.5),
             )
             fig.add_layout(box)
 
@@ -251,7 +256,8 @@ class EnergyPlot:
         """Configures dynamic x-axis ticks."""
         full_ticks: list[int] = list(range(len(self.stats.short_hashes)))
         ticker: FixedTicker = FixedTicker(ticks=full_ticks)
-        fig.xaxis.ticker = ticker
+        for ax in fig.xaxis:
+            ax.ticker = ticker
         raw_step: float = (x_max - x_min) / DEFAULT_MAX_TICKS
         step: int = max(1, int(nice_number(raw_step)))
         ticker.ticks = list(range(x_min, x_max + 1, step))

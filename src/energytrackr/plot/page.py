@@ -7,12 +7,13 @@ import os
 from datetime import datetime
 from typing import Any
 
+import pandas as pd
 from bokeh.embed import components
 from bokeh.resources import CDN
 from git import Repo
 from jinja2 import Environment, FileSystemLoader
 
-from energytrackr.plot.data import EnergyData
+from energytrackr.plot.data import ChangeEvent, EnergyData, EnergyStats
 from energytrackr.plot.plot import EnergyPlot
 from energytrackr.utils.exceptions import CantFindFileError
 from energytrackr.utils.git_utils import get_commit_details_from_git
@@ -120,7 +121,7 @@ class ReportPage:
             raise CantFindFileError(output_folder)
 
         stats = self.energy_data.stats[self.energy_column]
-        change_events = self.energy_data.change_events[self.energy_column]
+        change_events: list[ChangeEvent] = self.energy_data.change_events[self.energy_column]
         df_median = stats.df_median
 
         commit_details: dict[str, dict[str, str]] = self._get_commit_details(stats.valid_commits)
@@ -175,9 +176,9 @@ class ReportPage:
 
     def _build_table_rows(
         self,
-        stats: EnergyData.Stats,
-        df_median: EnergyData.DataFrame,
-        change_events: list[EnergyData.ChangeEvent],
+        stats: EnergyStats,
+        df_median: pd.DataFrame,
+        change_events: list[ChangeEvent],
         commit_details: dict[str, dict[str, Any]],
     ) -> list[dict[str, Any]]:
         change_lookup = {e.index: e for e in change_events}
@@ -240,7 +241,7 @@ class ReportPage:
 
     def _generate_bokeh_components(
         self,
-        stats: EnergyData.Stats,
+        stats: EnergyStats,
     ) -> tuple[str, str]:
         script: str
         div: str

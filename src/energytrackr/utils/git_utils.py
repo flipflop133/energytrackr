@@ -52,7 +52,7 @@ def gather_commits(repo: Repo) -> list[Commit]:
 
     if plan.granularity == "tags":
         tags = list(repo.tags)
-        commits = []
+        commits: list[Commit] = []
         for tag in tags:
             commits.extend(list(repo.iter_commits(tag, max_count=plan.num_commits)))
         return commits

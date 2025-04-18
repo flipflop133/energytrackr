@@ -43,7 +43,7 @@ def plot(input_path: str, git_repo_path: str | None = None) -> None:
     # Process each energy column independently.
     for col in energy_columns:
         # Check whether the column has non-empty data.
-        if energy_data.df[col].dropna().empty:
+        if energy_data.df is None or energy_data.df[col].dropna(inplace=False).empty:
             logger.info("Skipping column '%s' (empty data).", col)
             continue
 

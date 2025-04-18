@@ -41,7 +41,7 @@ def read_csv(file_path: str) -> list[tuple[str, str]]:
     Returns:
         list[tuple[str, str]]: A list of tuples, each containing a commit hash and its corresponding energy value.
     """
-    data = []
+    data: list[tuple[str, str]] = []
     with open(file_path, newline="", encoding="utf-8") as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:

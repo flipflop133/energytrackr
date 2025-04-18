@@ -136,9 +136,9 @@ def create_batches(
         list[list[Any]]: List of batches, where each batch is a list of commits.
     """
     commit_batches = [commits[i : i + batch_size] for i in range(0, len(commits), batch_size)]
-    batches = []
+    batches: list[list[git.Commit]] = []
     for commit_batch in commit_batches:
-        batch_tasks = []
+        batch_tasks: list[git.Commit] = []
         runs_per_commit = num_runs * num_repeats
         for commit in commit_batch:
             batch_tasks.extend([commit] * runs_per_commit)

@@ -97,10 +97,10 @@ class FilterAndRegressionStage(PipelineStage):
             remove_commit: bool = False
             has_tracked_file: bool = False
             for file in commit.stats.files:
-                if any(file.startswith(directory) for directory in config.ignored_directories):
+                if any(str(file).startswith(directory) for directory in config.ignored_directories):
                     remove_commit = True
                     break
-                if file.endswith(tuple(config.tracked_file_extensions)):
+                if str(file).endswith(tuple(config.tracked_file_extensions)):
                     has_tracked_file = True
             if not remove_commit and has_tracked_file:
                 filtered.append(commit)
@@ -117,7 +117,12 @@ class FilterAndRegressionStage(PipelineStage):
         original_count: int = len(original_commits)
         augmented: dict[str, Commit] = {commit.hexsha: commit for commit in filtered_commits}
         for commit in filtered_commits:
-            pos: int = commit_index.get(commit.hexsha)
+            if not (hexsha := commit.hexsha):
+                logger.warning("Commit %s has no hexsha.", commit, context={})
+                continue
+            if (pos := commit_index.get(hexsha)) is None:
+                logger.warning("Commit %s not found in commit_index.", hexsha, context={})
+                continue
             for i in range(1, min_parents + 1):
                 if (neighbor_pos := pos - i) < 0:
                     break

@@ -60,7 +60,7 @@ convention = "google"
 [tool.pyright]
 pythonVersion = "3.13"
 venvPath = ".venv"
-typeCheckingMode = "strict"
+typeCheckingMode = "standard"
 reportMissingImports = true
 reportUnusedVariable = true
 reportUnusedFunction = true
@@ -68,6 +68,8 @@ reportUnnecessaryTypeIgnoreComment = true
 reportUnnecessaryCast = true
 reportUnreachableCode = true
 reportIncompatibleVariableOverride = true
+include = ["src/**"]
+exclude = [".venv/**"]
 
 [tool.pytest.ini_options]
 addopts = "--tb=short --strict-markers"

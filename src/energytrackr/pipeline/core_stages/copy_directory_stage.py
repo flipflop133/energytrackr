@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from energytrackr.pipeline.stage_interface import PipelineStage
-from energytrackr.utils.exceptions import SourceDirectoryNotFoundError
+from energytrackr.utils.exceptions import MissingContextKeyError, SourceDirectoryNotFoundError
 from energytrackr.utils.logger import logger
 
 
@@ -22,9 +22,12 @@ class CopyDirectoryStage(PipelineStage):
                     - 'target_dir': str | Path — path to the destination directory
 
         Raises:
+            MissingContextKeyError: If the required keys are missing in the context.
             SourceDirectoryNotFoundError: If the source directory does not exist.
         """
-        source = Path(context.get("repo_path")).resolve()
+        if not (repo_path := context.get("repo_path")):
+            raise MissingContextKeyError("repo_path")
+        source = Path(repo_path).resolve()
         logger.info("Source directory: %s", source, context=context)
         target = Path(f"{context.get('repo_path')}_{context['commit']}").resolve()
 
