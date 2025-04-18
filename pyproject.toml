@@ -59,7 +59,8 @@ convention = "google"
 
 [tool.pyright]
 pythonVersion = "3.13"
-venvPath = ".venv"
+venvPath = "."
+venv = ".venv"
 typeCheckingMode = "standard"
 reportMissingImports = true
 reportUnusedVariable = true
