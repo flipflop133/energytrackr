@@ -10,3 +10,7 @@ __pycache__/
 
 # Sphinx docs
 /docs/build/
+
+# Ignore egg-info metadata
+*.egg-info/
+*.egg-info/*

@@ -3,97 +3,99 @@ VENV ?= .venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-# Directories
 SRC_DIR := src
 TEST_DIR := tests
 DOCS_DIR := docs
 DOCS_BUILD := $(DOCS_DIR)/_build/html
 
-# Ensure venv and install all dependencies
-.PHONY: venv update-venv clean-venv install install-docs install-tests install-dev
+# Files
+REQ := requirements.txt
+REQ_DEV := requirements-dev.txt
+REQ_DOCS := docs/requirements.txt
+REQ_TEST := tests/requirements.txt
+
+# ----------------------------------------------------------------------
+# Setup
+# ----------------------------------------------------------------------
+
+.PHONY: venv update-venv install install-dev clean-venv
 
 venv:
-	python -m venv $(VENV)
+	@test -d $(VENV) || python -m venv $(VENV)
 
 update-venv: venv
 	$(PIP) install --upgrade pip
-	$(PIP) install --upgrade -r requirements.txt
-	$(PIP) install --upgrade -r docs/requirements.txt
-	$(PIP) install --upgrade -r tests/requirements.txt
-	$(PIP) install --upgrade -r requirements-dev.txt
-	$(PIP) install --upgrade pre-commit coverage pylint pyright ruff pytest
+	$(PIP) install -r $(REQ)
+	$(PIP) install -r $(REQ_DEV)
+	$(PIP) install -r $(REQ_DOCS)
+	$(PIP) install -r $(REQ_TEST)
+	$(PIP) install -e .
 
 clean-venv:
 	rm -rf $(VENV)
-	$(MAKE) venv
-	$(MAKE) install-dev
 
 install: venv
-	$(PIP) install -r requirements.txt
+	@echo "Installing main app (editable)..."
+	$(PIP) install -e .
 
-install-docs: venv
-	$(PIP) install -r docs/requirements.txt
+install-dev: install
+	@echo "Installing dev/test/docs dependencies..."
+	$(PIP) install -r $(REQ_DEV)
+	$(PIP) install -r $(REQ_DOCS)
+	$(PIP) install -r $(REQ_TEST)
 
-install-tests: venv
-	$(PIP) install -r tests/requirements.txt
+# ----------------------------------------------------------------------
+# Lint / Check
+# ----------------------------------------------------------------------
 
-install-dev: venv
-	$(PIP) install -r requirements.txt
-	$(PIP) install -r docs/requirements.txt
-	$(PIP) install -r tests/requirements.txt
-	$(PIP) install -r requirements-dev.txt
-	$(PIP) install pre-commit coverage pylint pyright ruff pytest
+.PHONY: format ruff pylint typecheck lint
 
-# Format using Ruff
-.PHONY: format
 format:
 	$(PYTHON) -m ruff format --force-exclude
 
-# Lint using Ruff
-.PHONY: ruff
 ruff:
 	$(PYTHON) -m ruff check --force-exclude
 
-# Lint using Pylint
-.PHONY: pylint
 pylint:
 	$(PYTHON) -m pylint -v $(SRC_DIR)
 
-# Type checking using Pyright
-.PHONY: typecheck
 typecheck:
 	$(PYTHON) -m pyright
 
-# Run unit tests
-.PHONY: test
+lint: ruff pylint typecheck
+
+# ----------------------------------------------------------------------
+# Tests
+# ----------------------------------------------------------------------
+
+.PHONY: test coverage
+
 test:
 	$(PYTHON) -m pytest
 
-# Run test coverage with threshold
-.PHONY: coverage
 coverage:
 	$(PYTHON) -m coverage run -m pytest
 	$(PYTHON) -m coverage report --fail-under=80
 
-# Run all linters and type checks
-.PHONY: lint
-lint: ruff pylint typecheck
+# ----------------------------------------------------------------------
+# Meta
+# ----------------------------------------------------------------------
 
-# Run format, lint, tests, coverage
-.PHONY: check
+.PHONY: check precommit
+
 check: format lint coverage
 
-# Run all pre-commit hooks
-.PHONY: precommit
 precommit:
 	$(PYTHON) -m pre_commit run --all-files
 
-# Build documentation using Sphinx
-.PHONY: docs
+# ----------------------------------------------------------------------
+# Docs
+# ----------------------------------------------------------------------
+
+.PHONY: docs clean-docs
+
 docs:
 	$(MAKE) -C $(DOCS_DIR) html
 
-# Clean generated documentation
-.PHONY: clean-docs
 clean-docs:
 	rm -rf $(DOCS_BUILD)
