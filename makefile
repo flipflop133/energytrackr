@@ -10,10 +10,23 @@ DOCS_DIR := docs
 DOCS_BUILD := $(DOCS_DIR)/_build/html
 
 # Ensure venv and install all dependencies
-.PHONY: venv install install-docs install-tests install-dev
+.PHONY: venv update-venv clean-venv install install-docs install-tests install-dev
 
 venv:
 	python -m venv $(VENV)
+
+update-venv: venv
+	$(PIP) install --upgrade pip
+	$(PIP) install --upgrade -r requirements.txt
+	$(PIP) install --upgrade -r docs/requirements.txt
+	$(PIP) install --upgrade -r tests/requirements.txt
+	$(PIP) install --upgrade -r requirements-dev.txt
+	$(PIP) install --upgrade pre-commit coverage pylint pyright ruff pytest
+
+clean-venv:
+	rm -rf $(VENV)
+	$(MAKE) venv
+	$(MAKE) install-dev
 
 install: venv
 	$(PIP) install -r requirements.txt
@@ -46,7 +59,7 @@ ruff:
 # Lint using Pylint
 .PHONY: pylint
 pylint:
-	$(PYTHON) -m pylint $(SRC_DIR)
+	$(PYTHON) -m pylint -v $(SRC_DIR)
 
 # Type checking using Pyright
 .PHONY: typecheck

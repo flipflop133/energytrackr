@@ -11,8 +11,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: 3.13.2
-      - run: python -m pip install -r requirements.txt
-      - run: python -m pip install -r tests/requirements.txt
-      - run: coverage run -m pytest
-      - run: coverage report
-      - run: coverage report --fail-under=80
+      - name: Set up virtualenv and install dependencies
+        run: |
+            make venv
+            make install-dev
+            make update-venv
+      - name: Run tests
+        run: make coverage
