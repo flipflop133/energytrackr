@@ -25,7 +25,7 @@ class CopyDirectoryStage(PipelineStage):
             SourceDirectoryNotFoundError: If the source directory does not exist.
         """
         source = Path(context.get("repo_path")).resolve()
-        logger.info(f"Source directory: {source}", context=context)
+        logger.info("Source directory: %s", source, context=context)
         target = Path(f"{context.get('repo_path')}_{context['commit']}").resolve()
 
         if not source.is_dir():

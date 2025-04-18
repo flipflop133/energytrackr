@@ -31,7 +31,7 @@ def plot(input_path: str, git_repo_path: str | None = None) -> None:
     # Instantiate the data object and load the CSV data.
     energy_data = EnergyData(csv_path=input_path, energy_columns=energy_columns)
     if not os.path.isfile(input_path):
-        logger.error(f"File not found: {input_path}")
+        logger.error("File not found: %s", input_path)
         sys.exit(1)
 
     try:
