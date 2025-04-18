@@ -5,11 +5,19 @@ from pathlib import Path
 
 import pytest
 
-from pipeline.custom_stages.java_setup_stage import JavaSetupStage
+from energytrackr.pipeline.custom_stages.java_setup_stage import JavaSetupStage
 
 
 def write_pom(tmp_path: Path, content: str) -> Path:
-    """Write a POM file to the specified path."""
+    """Write a POM file to the specified path.
+
+    Args:
+        tmp_path (Path): The temporary path to create the POM file.
+        content (str): The content to write to the POM file.
+
+    Returns:
+        Path: The path to the created POM file.
+    """
     pom_path = tmp_path / "pom.xml"
     pom_path.write_text(content.strip())
     return pom_path

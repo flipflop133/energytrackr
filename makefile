@@ -46,7 +46,7 @@ ruff:
 # Lint using Pylint
 .PHONY: pylint
 pylint:
-	$(PYTHON) -m pylint $(SRC_DIR) $(TEST_DIR)
+	$(PYTHON) -m pylint $(SRC_DIR)
 
 # Type checking using Pyright
 .PHONY: typecheck

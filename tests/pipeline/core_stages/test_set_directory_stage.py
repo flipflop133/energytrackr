@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from pipeline.core_stages.set_directory_stage import SetDirectoryStage
-from utils.exceptions import MissingContextKeyError, TargetDirectoryNotFoundError
+from energytrackr.pipeline.core_stages.set_directory_stage import SetDirectoryStage
+from energytrackr.utils.exceptions import MissingContextKeyError, TargetDirectoryNotFoundError
 
 
 def test_set_directory_success(tmp_path: Path) -> None:

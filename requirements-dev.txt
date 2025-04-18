@@ -1,1 +1,5 @@
 pre-commit
+ruff
+pylint
+pyright
+pytest

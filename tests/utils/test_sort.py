@@ -7,7 +7,7 @@ from typing import Any, Never
 
 import pytest
 
-from utils.sort import (
+from energytrackr.utils.sort import (
     get_commit_history,
     read_csv,
     reorder_commits,
@@ -17,7 +17,14 @@ from utils.sort import (
 
 @pytest.fixture
 def dummy_repo_with_commits(tmp_path: Path) -> tuple[Path, list[str]]:
-    """Fixture to create a dummy git repository with 3 commits."""
+    """Fixture to create a dummy git repository with 3 commits.
+
+    Args:
+        tmp_path (Path): The temporary path to create the repository.
+
+    Returns:
+        tuple[Path, list[str]]: The path to the repository and a list of commit hashes.
+    """
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
     subprocess.run(["git", "init"], cwd=repo_dir, check=True)
@@ -44,10 +51,23 @@ def test_get_commit_history(dummy_repo_with_commits: tuple[Path, list[str]]) -> 
 
 
 def test_get_commit_history_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure get_commit_history exits cleanly when subprocess fails."""
+    """Ensure get_commit_history exits cleanly when subprocess fails.
+
+    Args:
+        tmp_path (Path): The temporary path to create the repository.
+        monkeypatch (pytest.MonkeyPatch): The pytest monkeypatch fixture.
+    """
 
     def mock_run(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> Never:  # noqa: ARG001
-        """Mock subprocess.run to simulate a failure."""
+        """Mock subprocess.run to simulate a failure.
+
+        Args:
+            *args (tuple[Any, ...]): Positional arguments.
+            **kwargs (dict[str, Any]): Keyword arguments.
+
+        Raises:
+            subprocess.CalledProcessError: Simulated error.
+        """
         raise subprocess.CalledProcessError(returncode=1, cmd=args[0], output="", stderr="Simulated error")
 
     monkeypatch.setattr("subprocess.run", mock_run)
@@ -65,7 +85,7 @@ def test_read_csv(tmp_path: Path) -> None:
         ("def456", "10.2"),
         ("badrow",),  # should be skipped
     ]
-    with open(file_path, "w", newline="") as f:
+    with open(file_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         for row in rows:
             writer.writerow(row)
@@ -75,12 +95,16 @@ def test_read_csv(tmp_path: Path) -> None:
 
 
 def test_write_csv(tmp_path: Path) -> None:
-    """Test write_csv function."""
+    """Test write_csv function.
+
+    Args:
+        tmp_path (Path): The temporary path to create the CSV file.
+    """
     file_path = tmp_path / "out.csv"
     sample_data = [("abc123", "12.5"), ("def456", "10.2")]
     write_csv(str(file_path), sample_data)
 
-    with open(file_path, newline="") as f:
+    with open(file_path, newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         rows = list(reader)
 
@@ -94,14 +118,14 @@ def test_reorder_commits(tmp_path: Path, dummy_repo_with_commits: tuple[Path, li
     # Input CSV has commits in reverse order, with a duplicate
     input_csv = tmp_path / "input.csv"
     rows = [(commits[2], "5.0"), (commits[1], "4.5"), (commits[0], "6.1"), (commits[1], "4.6")]
-    with open(input_csv, "w", newline="") as f:
+    with open(input_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerows(rows)
 
     output_csv = tmp_path / "sorted.csv"
     reorder_commits(str(input_csv), str(repo_dir), str(output_csv))
 
-    with open(output_csv, newline="") as f:
+    with open(output_csv, newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         sorted_rows = list(reader)
 

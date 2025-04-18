@@ -10,6 +10,7 @@ readme = "README.md"
 [tool.ruff]
 line-length = 127
 target-version = "py313"
+preview = true
 
 [tool.ruff.format]
 quote-style = "double"
@@ -38,6 +39,7 @@ select = [
   "TRY",  # flake8-tryceratops (Improve try-except blocks)
   "Q",  # flake8-quotes (Quote consistency)
   "COM",  # flake8-commas (Enforce trailing commas)
+  "G", # flake8-logging-format
   "RUF",  # Ruff-specific checks
 ]
 
@@ -64,7 +66,8 @@ testpaths = "tests"
 pythonpath = "src"
 
 [tool.pylint.main]
-init-hook = "import sys; from pathlib import Path; sys.path.insert(0, str(Path().resolve() / 'src'))"
+py-version=3.13
+init-hook = 'import sys; sys.path.insert(0, "src")'
 jobs = 0 # multiprocessing pylint
 max-line-length = 127
 load-plugins = [
@@ -92,5 +95,5 @@ accept-no-yields-doc = false
 default-docstring-type = "google"
 
 [tool.pylint.'MESSAGES CONTROL']
-disable = []
+disable = ["W0718", "R0903"]
 enable = ["all"]

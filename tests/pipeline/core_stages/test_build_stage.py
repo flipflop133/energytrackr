@@ -4,12 +4,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pipeline.core_stages.build_stage import BuildStage
+from energytrackr.pipeline.core_stages.build_stage import BuildStage
 
 
 @pytest.fixture
 def mock_config() -> MagicMock:
-    """Fixture to create a mock configuration object for testing."""
+    """Fixture to create a mock configuration object for testing.
+
+    Returns:
+        MagicMock: A mock configuration object with execution plan settings.
+    """
     config = MagicMock()
     config.execution_plan.compile_commands = ["make build", "make test"]
     config.execution_plan.ignore_failures = False
@@ -19,13 +23,13 @@ def mock_config() -> MagicMock:
 def test_build_stage_success() -> None:
     """Test the BuildStage when build succeeds."""
     mock_result = MagicMock()
-    mock_result.returncode = 0  # ✅ Simulate success
+    mock_result.returncode = 0
 
     context = {"build_failed": False, "abort_pipeline": False}
 
     with (
-        patch("pipeline.core_stages.build_stage.run_command", return_value=mock_result),
-        patch("config.config_store.Config.get_config") as mock_config,
+        patch("energytrackr.pipeline.core_stages.build_stage.run_command", return_value=mock_result),
+        patch("energytrackr.config.config_store.Config.get_config") as mock_config,
     ):
         mock_config.return_value.execution_plan.compile_commands = ["make"]
         mock_config.return_value.execution_plan.ignore_failures = False
@@ -38,8 +42,8 @@ def test_build_stage_success() -> None:
 
 def test_build_stage_fail_and_abort(monkeypatch: MagicMock, mock_config: MagicMock) -> None:
     """Test the BuildStage when build fails and abort is set to True."""
-    monkeypatch.setattr("config.config_store.Config.get_config", lambda: mock_config)
-    monkeypatch.setattr("utils.utils.run_command", lambda: MagicMock(returncode=1))
+    monkeypatch.setattr("energytrackr.config.config_store.Config.get_config", lambda: mock_config)
+    monkeypatch.setattr("energytrackr.utils.utils.run_command", lambda: MagicMock(returncode=1))
 
     context: dict[str, bool] = {}
     stage = BuildStage()
@@ -52,8 +56,8 @@ def test_build_stage_fail_and_abort(monkeypatch: MagicMock, mock_config: MagicMo
 def test_build_stage_fail_ignore(monkeypatch: MagicMock, mock_config: MagicMock) -> None:
     """Test the BuildStage when build fails and ignore_failures is set to True."""
     mock_config.execution_plan.ignore_failures = True
-    monkeypatch.setattr("config.config_store.Config.get_config", lambda: mock_config)
-    monkeypatch.setattr("utils.utils.run_command", lambda: MagicMock(returncode=1))
+    monkeypatch.setattr("energytrackr.config.config_store.Config.get_config", lambda: mock_config)
+    monkeypatch.setattr("energytrackr.utils.utils.run_command", lambda: MagicMock(returncode=1))
 
     context: dict[str, bool] = {}
     stage = BuildStage()

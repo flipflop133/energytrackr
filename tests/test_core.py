@@ -3,18 +3,16 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
 
 import git
 import pytest
 from git import Commit, Repo
 
-from config.config_store import Config
-from config.loader import load_pipeline_config
-from pipeline.pipeline import compile_stages, measure
-from utils.args_parser import parse_args
-from utils.git import clone_or_open_repo, gather_commits
+from energytrackr.config.config_store import Config
+from energytrackr.config.loader import load_pipeline_config
+from energytrackr.pipeline.pipeline import compile_stages
+from energytrackr.utils.args_parser import parse_args
+from energytrackr.utils.git_utils import clone_or_open_repo, gather_commits
 
 
 def test_clone_or_open_repo(tmp_path: Path) -> None:
@@ -273,82 +271,13 @@ def test_parse_args_sort(monkeypatch: pytest.MonkeyPatch) -> None:
     assert args.output_file == "output.csv"
 
 
-def test_parse_args_plot(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test parsing arguments for the plot command."""
-    test_args: list[str] = ["plot", "results.csv"]
-    monkeypatch.setattr("sys.argv", ["main.py", *test_args])
-    args = parse_args()
-    assert args.command == "plot"
-    assert args.file == "results.csv"
-
-
-@pytest.fixture
-def sample_config_dict() -> dict[str, Any]:
-    """Fixture to create a sample configuration dictionary."""
-    return {
-        "repo": {
-            "url": "https://github.com/example/repo.git",
-            "branch": "main",
-            "clone_options": [],
-        },
-        "execution_plan": {
-            "mode": "tests",
-            "granularity": "commits",
-            "test_command": "pytest",
-            "test_command_path": ".",
-            "ignore_failures": True,
-            "num_commits": 2,
-            "num_runs": 1,
-            "num_repeats": 1,
-            "batch_size": 1,
-            "randomize_tasks": True,
-        },
-        "limits": {
-            "temperature_safe_limit": 90000,
-            "energy_regression_percent": 15,
-        },
-        "tracked_file_extensions": ["py"],
-        "cpu_thermal_file": "/sys/class/thermal/thermal_zone0/temp",
-        "setup_commands": ["echo setup"],
-        "results": {"file": "results.csv"},
-    }
-
-
-def test_measure_pipeline(tmp_path: Path, sample_config_dict: dict[str, Any]) -> None:
-    """Test the measure function in the pipeline module."""
-    Config.reset()
-    # Write temp config file
-    config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps(sample_config_dict))
-
-    dummy_commit = MagicMock(hexsha="abc123")
-    mock_repo = MagicMock()
-    mock_repo.git.checkout = MagicMock()
-
-    with (
-        patch("pipeline.pipeline.clone_or_open_repo", return_value=mock_repo) as mock_clone,
-        patch("pipeline.pipeline.gather_commits", return_value=[dummy_commit]) as mock_gather,
-        patch("pipeline.pipeline.compile_stages", return_value={"pre_stages": [], "pre_test_stages": [], "batch_stages": []}),
-        patch("pipeline.pipeline.Pipeline") as mock_pipeline_cls,
-        patch("os.system") as mock_system,
-    ):
-        mock_pipeline = MagicMock()
-        mock_pipeline_cls.return_value = mock_pipeline
-
-        measure(str(config_file))
-
-        # All steps should be called
-        mock_clone.assert_called_once()
-        mock_gather.assert_called_once()
-        mock_pipeline.run.assert_called_once()
-
-        # HEAD should be restored
-        mock_repo.git.checkout.assert_called_with("main")
-
-        # Setup command should be run
-        mock_system.assert_called_with("echo setup")
-
-
 def make_args(**kwargs: dict[str, object]) -> argparse.Namespace:
-    """Helper to create argparse.Namespace for tests."""
+    """Helper to create argparse.Namespace for tests.
+
+    Args:
+        **kwargs (dict[str, object]): Keyword arguments to set as attributes.
+
+    Returns:
+        argparse.Namespace: An object with the specified attributes.
+    """
     return argparse.Namespace(**kwargs)

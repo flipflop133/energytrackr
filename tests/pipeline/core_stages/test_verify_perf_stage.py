@@ -6,10 +6,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from config.config_model import PipelineConfig
-from config.config_store import Config
-from config.loader import load_pipeline_config
-from pipeline.core_stages.verify_perf_stage import VerifyPerfStage
+from energytrackr.config.config_model import PipelineConfig
+from energytrackr.config.config_store import Config
+from energytrackr.config.loader import load_pipeline_config
+from energytrackr.pipeline.core_stages.verify_perf_stage import VerifyPerfStage
 
 
 @pytest.fixture(autouse=True)
@@ -20,7 +20,14 @@ def reset_config_singleton() -> None:
 
 # Sample minimal config for testing
 def make_config(ignore_failures: bool = False) -> PipelineConfig:
-    """Create a minimal config for testing."""
+    """Create a minimal config for testing.
+
+    Args:
+        ignore_failures (bool): Whether to ignore failures in the config.
+
+    Returns:
+        PipelineConfig: The created pipeline configuration.
+    """
     config_dict = {
         "config_version": "1.0.0",
         "repo": {
@@ -54,7 +61,10 @@ def make_config(ignore_failures: bool = False) -> PipelineConfig:
 def test_perf_paranoid_is_minus_one(monkeypatch: pytest.MonkeyPatch) -> None:
     """Should not abort when paranoid is -1."""
     Config.reset()
-    monkeypatch.setattr("pipeline.core_stages.verify_perf_stage.run_command", lambda *_args, **_kw: MagicMock(stdout="-1\n"))
+    monkeypatch.setattr(
+        "energytrackr.pipeline.core_stages.verify_perf_stage.run_command",
+        lambda *_args, **_kw: MagicMock(stdout="-1\n"),
+    )
 
     make_config(ignore_failures=False)
 
@@ -67,7 +77,10 @@ def test_perf_paranoid_is_minus_one(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_perf_paranoid_non_minus_one_abort(monkeypatch: pytest.MonkeyPatch) -> None:
     """Should abort pipeline when paranoid != -1 and ignore_failures = False."""
-    monkeypatch.setattr("pipeline.core_stages.verify_perf_stage.run_command", lambda *_args, **_kw: MagicMock(stdout="2\n"))
+    monkeypatch.setattr(
+        "energytrackr.pipeline.core_stages.verify_perf_stage.run_command",
+        lambda *_args, **_kw: MagicMock(stdout="2\n"),
+    )
     make_config(ignore_failures=False)
 
     context = {}
@@ -79,7 +92,7 @@ def test_perf_paranoid_non_minus_one_abort(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_perf_paranoid_non_minus_one_ignore(monkeypatch: pytest.MonkeyPatch) -> None:
     """Should NOT abort when paranoid != -1 but ignore_failures = True."""
-    monkeypatch.setattr("utils.utils.run_command", lambda *_args, **_kw: MagicMock(stdout="1\n"))
+    monkeypatch.setattr("energytrackr.utils.utils.run_command", lambda *_args, **_kw: MagicMock(stdout="1\n"))
     make_config(ignore_failures=True)
 
     context = {}

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from utils.utils import run_command
+from energytrackr.utils.utils import run_command
 
 
 def test_run_command_success(tmp_path: Path) -> None:

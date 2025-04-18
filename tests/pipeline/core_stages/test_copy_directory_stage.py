@@ -5,8 +5,8 @@ from typing import Any
 
 import pytest
 
-from pipeline.core_stages.copy_directory_stage import CopyDirectoryStage
-from utils.exceptions import SourceDirectoryNotFoundError
+from energytrackr.pipeline.core_stages.copy_directory_stage import CopyDirectoryStage
+from energytrackr.utils.exceptions import SourceDirectoryNotFoundError
 
 
 def test_copy_directory_success(tmp_path: Path) -> None:

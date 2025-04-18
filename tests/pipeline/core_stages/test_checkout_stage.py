@@ -7,12 +7,19 @@ from typing import Any
 import git
 import pytest
 
-from pipeline.core_stages.checkout_stage import CheckoutStage
+from energytrackr.pipeline.core_stages.checkout_stage import CheckoutStage
 
 
 @pytest.fixture
 def dummy_git_repo(tmp_path: Path) -> tuple[git.Repo, list[str]]:
-    """Create a temporary Git repo with 2 commits and return it."""
+    """Create a temporary Git repo with 2 commits and return it.
+
+    Args:
+        tmp_path (Path): The temporary path to create the repository.
+
+    Returns:
+        tuple[git.Repo, list[str]]: A tuple containing the Git repository and a list of commit hashes.
+    """
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
     repo = git.Repo.init(str(repo_path))

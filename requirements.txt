@@ -12,3 +12,4 @@ pydantic
 ruptures
 plotly
 plotly-stubs
+bokeh
