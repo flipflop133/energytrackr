@@ -30,16 +30,14 @@ clean-venv:
 
 install: venv
 	$(PIP) install -r requirements.txt
-	$(PIP) install -r docs/requirements.txt
-	$(PIP) install -r tests/requirements.txt
 
-install-docs:
+install-docs: venv
 	$(PIP) install -r docs/requirements.txt
 
-install-tests:
+install-tests: venv
 	$(PIP) install -r tests/requirements.txt
 
-install-dev:
+install-dev: venv
 	$(PIP) install -r requirements.txt
 	$(PIP) install -r docs/requirements.txt
 	$(PIP) install -r tests/requirements.txt

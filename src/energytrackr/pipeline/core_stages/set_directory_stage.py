@@ -32,5 +32,5 @@ class SetDirectoryStage(PipelineStage):
         if not target_dir.is_dir():
             raise TargetDirectoryNotFoundError(target_dir)
 
-        logger.info(f"Changing directory to {target_dir}", context=context)
+        logger.info("Changing directory to %s", target_dir, context=context)
         os.chdir(target_dir)

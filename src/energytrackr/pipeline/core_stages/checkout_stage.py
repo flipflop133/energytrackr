@@ -28,7 +28,7 @@ class CheckoutStage(PipelineStage):
         logger.info("Repo path: %s_%s", context.get("repo_path"), commit, context=context)
         cwd = os.getcwd()
         repo = git.Repo(cwd)
-        logger.info(f"Checking out commit {commit}", context=context)
+        logger.info("Checking out commit %s", commit, context=context)
         try:
             repo.git.checkout(commit)
         except Exception:

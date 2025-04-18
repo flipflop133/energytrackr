@@ -44,7 +44,7 @@ def plot(input_path: str, git_repo_path: str | None = None) -> None:
     for col in energy_columns:
         # Check whether the column has non-empty data.
         if energy_data.df[col].dropna().empty:
-            logger.info(f"Skipping column '{col}' (empty data).")
+            logger.info("Skipping column '%s' (empty data).", col)
             continue
 
         # Process the column: outlier filtering, commit-wise stats, distribution analysis, and change detection.

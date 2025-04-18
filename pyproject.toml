@@ -68,7 +68,7 @@ pythonpath = "src"
 [tool.pylint.main]
 py-version=3.13
 init-hook = 'import sys; sys.path.insert(0, "src")'
-jobs = 0 # multiprocessing pylint
+jobs = 1 # no multiprocessing pylint -> WARNING : causes inconsistent results so multiprocessing should be disabled
 max-line-length = 127
 load-plugins = [
     "pylint.extensions.check_elif",

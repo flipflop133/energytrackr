@@ -21,7 +21,7 @@ def clone_or_open_repo(repo_path: str, repo_url: str, clone_options: list[str] |
         git.Repo: An instance of the Git repository at the specified path.
     """
     if not os.path.exists(repo_path):
-        logger.info(f"Cloning {repo_url} into {repo_path}")
+        logger.info("Cloning %s into %s", repo_url, repo_path)
         clone_opts = clone_options or []
         return Repo.clone_from(repo_url, repo_path, multi_options=clone_opts)
     logger.info("Using existing repo at %s", repo_path)

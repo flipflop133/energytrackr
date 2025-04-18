@@ -43,7 +43,7 @@ class BuildStage(PipelineStage):
             logger.info("Running build command: %s", cmd, context=context)
             result = run_command(cmd, context=context)
             if result.returncode:
-                logger.error(f"Build command failed: {cmd} (code {result.returncode})", context=context)
+                logger.error("Build command failed: %s (code %s)", cmd, result.returncode, context=context)
                 context["build_failed"] = True
                 if not config.execution_plan.ignore_failures:
                     context["abort_pipeline"] = True

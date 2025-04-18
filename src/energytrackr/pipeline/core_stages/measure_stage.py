@@ -47,7 +47,7 @@ class MeasureEnergyStage(PipelineStage):
 
         # If `perf` fails:
         if result.returncode:
-            logger.error(f"Perf command failed: (code {result.returncode}).", context=context)
+            logger.error("Perf command failed: (code %s).", result.returncode, context=context)
             if not config.execution_plan.ignore_failures:
                 context["abort_pipeline"] = True
                 return
@@ -72,7 +72,7 @@ class MeasureEnergyStage(PipelineStage):
         with output_file.open("a") as fh:
             fh.write(f"{commit_hash},{energy_pkg}\n")
 
-        logger.info(f"Appended energy data to {output_file}", context=context)
+        logger.info("Appended energy data to %s", output_file, context=context)
 
     @staticmethod
     def extract_energy_value(perf_output: str, event_name: str) -> str | None:
