@@ -99,3 +99,6 @@ docs:
 
 clean-docs:
 	rm -rf $(DOCS_BUILD)
+
+apidoc:
+	$(VENV)/bin/sphinx-apidoc -o $(DOCS_DIR)/source/api src/energytrackr

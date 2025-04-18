@@ -1,9 +1,7 @@
-src
-===
+energytrackr
+============
 
 .. toctree::
    :maxdepth: 4
 
-   config
-   main
-   pipeline
+   energytrackr
