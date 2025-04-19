@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath("../../src"))
 
-project = "energy_analyzer"
+project = "energytrackr"
 copyright = "2025, François Bechet"
 author = "François Bechet"
 release = "0.1.0"

@@ -1,5 +1,5 @@
 [project]
-name = "energy_analyzer"
+name = "energytrackr"
 version = "0.1.0"
 description = "Pipeline for analyzing energy data"
 
