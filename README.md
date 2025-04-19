@@ -1,6 +1,37 @@
+
 # ⚡ energytrackr - Energy Measurement Pipeline
 
+[![build-deploy workflow status badge](https://github.com/flipflop133/energytrackr/actions/workflows/check.yml/badge.svg)](https://github.com/flipflop133/energytrackr/actions/workflows/check.yml/badge.svg)
+
+![Logo](logo.png)
+
 A modular, pluggable pipeline to **detect energy regressions** across Git commits, branches, or tags. Ideal for research and diagnostics in performance-aware software engineering.
+
+---
+
+## 📑 Index
+
+- [⚡ energytrackr - Energy Measurement Pipeline](#-energytrackr---energy-measurement-pipeline)
+  - [📑 Index](#-index)
+  - [🚀 Features](#-features)
+  - [🏗️ Pipeline Overview](#️-pipeline-overview)
+  - [📄 Example Configuration](#-example-configuration)
+  - [📦 Installation](#-installation)
+  - [🧪 Usage](#-usage)
+  - [🧩 Write Your Own Stage](#-write-your-own-stage)
+  - [📊 Output](#-output)
+  - [🛠️ Development Setup](#️-development-setup)
+    - [📦 Environment Setup](#-environment-setup)
+    - [🔄 Pre-Commit Hooks](#-pre-commit-hooks)
+    - [🧪 Testing and Quality Checks](#-testing-and-quality-checks)
+    - [📖 Documentation](#-documentation)
+    - [💡 Recommended VSCode Extensions](#-recommended-vscode-extensions)
+    - [⚠️ Project Standards](#️-project-standards)
+    - [🧰 Summary of `Makefile` Commands](#-summary-of-makefile-commands)
+  - [📚 Documentation](#-documentation-1)
+  - [✅ TODO - sorted by priority](#-todo---sorted-by-priority)
+  - [🧠 Acknowledgements](#-acknowledgements)
+  - [📄 License](#-license)
 
 ---
 
@@ -273,7 +304,7 @@ make clean-docs      # Remove generated doc files
 
 ---
 
-## TODO - sorted by priority
+## ✅ TODO - sorted by priority
 
 - [x] Don't erase produced CSV files, use a timestamp with project name
 - [x] Automatically detect java version in pom and use export this one, so tests don't fail
