@@ -92,7 +92,7 @@ Your pipeline is controlled by a `config.json` file:
 
 ```bash
 git clone https://github.com/yourusername/energy-pipeline.git
-make install
+./setup.sh
 ```
 
 Prepare your system for accurate measurements:

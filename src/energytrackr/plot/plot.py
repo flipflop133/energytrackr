@@ -77,6 +77,9 @@ class EnergyPlot:
         self._add_change_event_annotations(fig)
         candle_body, candle_wick = self._plot_candlestick(fig)
 
+        for legend in fig.legend:
+            legend.click_policy = "hide"
+
         self._setup_ticks(fig, x_min, x_max)
         self._add_hover_tool(fig, median_renderer)
 
@@ -131,6 +134,14 @@ class EnergyPlot:
         xs: list[int] = list(range(len(self.stats.short_hashes)))
         median_source: ColumnDataSource = ColumnDataSource(
             data={"x": xs, "y": self.stats.y_medians, "commit": self.stats.short_hashes},
+        )
+        fig.line(
+            "x",
+            "y",
+            source=median_source,
+            color="blue",
+            line_width=1,
+            legend_label=f"Median Line ({self.energy_column})",
         )
         median_renderer: GlyphRenderer = fig.circle(
             "x",
@@ -188,6 +199,7 @@ class EnergyPlot:
             y=nonnorm_y,
             radius=0.3,
             alpha=0.5,
+            color="orange",
             legend_label="Non-Normal",
         )
         return norm_renderer, nonnorm_renderer
@@ -197,10 +209,10 @@ class EnergyPlot:
         regression, improvement = self._make_change_event_sources()
         if regression["x"]:
             reg_source: ColumnDataSource = ColumnDataSource(data=regression)
-            fig.circle("x", "y", source=reg_source, radius=1, alpha=0.6, legend_label="Regression (↑ energy)")
+            fig.circle("x", "y", source=reg_source, radius=1, alpha=0.6, color="red", legend_label="Regression (↑ energy)")
         if improvement["x"]:
             imp_source: ColumnDataSource = ColumnDataSource(data=improvement)
-            fig.circle("x", "y", source=imp_source, radius=1, alpha=0.6, legend_label="Improvement (↓ energy)")
+            fig.circle("x", "y", source=imp_source, radius=1, alpha=0.6, color="green", legend_label="Improvement (↓ energy)")
 
     def _plot_candlestick(self, fig: figure) -> tuple[GlyphRenderer, GlyphRenderer]:
         """Plots a candlestick chart, returns body and wick renderers.
