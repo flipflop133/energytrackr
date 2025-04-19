@@ -23,3 +23,4 @@ templates_path = ["_templates"]
 exclude_patterns = []
 autosummary_generate = True
 html_theme = "furo"
+autodoc_mock_imports = []
