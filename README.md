@@ -3,7 +3,7 @@
 
 [![build-deploy workflow status badge](https://github.com/flipflop133/energytrackr/actions/workflows/check.yml/badge.svg)](https://github.com/flipflop133/energytrackr/actions/workflows/check.yml/badge.svg)
 
-![Logo](logo.png)
+![Logo](logo.svg)
 
 A modular, pluggable pipeline to **detect energy regressions** across Git commits, branches, or tags. Ideal for research and diagnostics in performance-aware software engineering.
 
