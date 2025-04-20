@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import os
 from datetime import datetime
 from typing import Any
@@ -13,10 +12,20 @@ from bokeh.resources import CDN
 from git import Repo
 from jinja2 import Environment, FileSystemLoader
 
-from energytrackr.plot.data import ChangeEvent, EnergyData, EnergyStats
+from energytrackr.plot.data import (
+    COHEN_D_THRESHOLDS,
+    MIN_PCT_INCREASE,
+    PCT_CHANGE_THRESHOLDS,
+    PRACTICAL_THRESHOLDS,
+    WELCH_P_THRESHOLD,
+    ChangeEvent,
+    EnergyData,
+    EnergyStats,
+)
 from energytrackr.plot.plot import EnergyPlot
 from energytrackr.utils.exceptions import CantFindFileError
 from energytrackr.utils.git_utils import get_commit_details_from_git
+from energytrackr.utils.logger import logger
 
 
 def _default_template_dir() -> str:
@@ -62,52 +71,6 @@ class ReportPage:
         # Compute overall summary for reporting purposes
         self.summary = self.energy_data.compute_overall_summary(self.energy_column)
 
-    def generate_text_summary(self, output_folder: str) -> None:
-        """Generates a text summary of energy consumption changes and saves it to a file.
-
-        Args:
-            output_folder (str): The folder where the text summary will be saved.
-
-        Raises:
-            CantFindFileError: If the specified output folder does not exist.
-        """
-        if not os.path.isdir(output_folder):
-            raise CantFindFileError(output_folder)
-
-        stats = self.energy_data.stats[self.energy_column]
-        change_events = self.energy_data.change_events[self.energy_column]
-        lines: list[str] = [
-            f"Energy Consumption Change Summary for '{self.energy_column}'",
-            f"Project: {self.project_name}",
-            f"Date: {self.timestamp}",
-            "=" * 80,
-        ]
-
-        if not change_events:
-            lines.append("No significant energy changes detected.")
-        else:
-            for event in change_events:
-                commit_hash: str = stats.valid_commits[event.index]
-                short_hash: str = stats.short_hashes[event.index]
-                direction_str: str = "Regression (Increase)" if event.direction == "increase" else "Improvement (Decrease)"
-                lines.extend(
-                    [
-                        f"Commit: {commit_hash} (Short: {short_hash})",
-                        f"Direction: {direction_str}",
-                        f"Severity: {int(event.severity * 100)}%",
-                        f"Cohen's d: {event.cohen_d:.2f}",
-                        "-" * 80,
-                    ],
-                )
-
-        filename = os.path.join(
-            output_folder,
-            f"{self.project_name}_{self.energy_column}_{self.timestamp}_summary.txt",
-        )
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
-        logging.info("Exported text summary to %s", filename)
-
     def generate_html_summary(self, output_folder: str) -> None:
         """Generates an HTML summary report for energy data analysis and saves it to the specified output folder.
 
@@ -148,7 +111,7 @@ class ReportPage:
         )
         with open(filename, "w", encoding="utf-8") as f:
             f.write(html)
-        logging.info("Exported HTML summary to %s", filename)
+        logger.info("Exported HTML summary to %s", filename)
 
     def _get_commit_details(self, valid_commits: list[str]) -> dict[str, dict[str, str]]:
         """Fetches commit details for a list of valid commits using a Git repository.
@@ -165,13 +128,13 @@ class ReportPage:
             try:
                 repo = Repo(self.git_repo_path)
             except Exception:
-                logging.exception("Failed to open Git repository at %s", self.git_repo_path)
+                logger.exception("Failed to open Git repository at %s", self.git_repo_path)
                 return commit_details
             for commit in valid_commits:
                 try:
                     commit_details[commit] = get_commit_details_from_git(commit, repo)
                 except Exception:
-                    logging.exception("Failed to get details for commit %s", commit)
+                    logger.exception("Failed to get details for commit %s", commit)
         return commit_details
 
     def _build_table_rows(
@@ -183,20 +146,36 @@ class ReportPage:
     ) -> list[dict[str, Any]]:
         change_lookup = {e.index: e for e in change_events}
 
-        def _build_row(i: int, commit: str) -> dict[str, Any]:
+        def _build_row(i: int, commit: str) -> dict[str, Any]:  # pylint: disable=R0914  # noqa: PLR0914
             row_stats = df_median[df_median["commit"] == commit].iloc[0]
             details = commit_details.get(commit, {})
 
             if event := change_lookup.get(i):
                 row_class = "increase" if event.direction == "increase" else "decrease"
                 change_str = "Regression (Increase)" if event.direction == "increase" else "Improvement (Decrease)"
-                severity_str = f"{int(event.severity * 100)}%"
-                cohen_str = f"{event.cohen_d:.2f}"
+                cohen_str = f"{event.effect_size.cohen_d:.2f}"
+                p_value = f"{event.p_value:.3g}"
+                effect_size = f"{event.effect_size:.2f}"
+                effect_cat = event.effect_size.category
+                pct_change = f"{event.change_magnitude.pct_change * 100:.1f}%"
+                pct_cat = event.change_magnitude.pct_change_level
+                abs_diff = f"{event.change_magnitude.abs_diff:.1f}"
+                practical = event.change_magnitude.practical_level
+                context = ", ".join(event.context_tags) if event.context_tags else "N/A"
+                level = event.level
             else:
                 row_class = ""
                 change_str = "None"
-                severity_str = "0%"
                 cohen_str = "0.00"
+                p_value = "N/A"
+                effect_size = "N/A"
+                effect_cat = "N/A"
+                pct_change = "0.0%"
+                pct_cat = "N/A"
+                abs_diff = "0.0"
+                practical = "N/A"
+                context = "N/A"
+                level = "N/A"
 
             files = details.get("files_modified", [])
             files_html = f"<ul>{''.join(f'<li>{f}</li>' for f in files)}</ul>" if files else "N/A"
@@ -206,7 +185,6 @@ class ReportPage:
                 "short_hash": stats.short_hashes[i],
                 "link": details.get("commit_link", "N/A"),
                 "change_str": change_str,
-                "severity_str": severity_str,
                 "median_val": f"{row_stats[self.energy_column]:.2f}",
                 "std_val": f"{row_stats[f'{self.energy_column}_std']:.2f}",
                 "normality": "Normal" if self.energy_data.normality_flags[self.energy_column][i] else "Non-normal",
@@ -214,6 +192,17 @@ class ReportPage:
                 "cohen_str": cohen_str,
                 "files": files_html,
                 "message": details.get("commit_summary", "N/A"),
+                "p_value": p_value,
+                "effect_size": effect_size,
+                "effect_cat": effect_cat,
+                "pct_change": pct_change,
+                "pct_cat": pct_cat,
+                "abs_diff": abs_diff,
+                "practical": practical,
+                "context": context,
+                "level": level,
+                "WELCH_P_THRESHOLD": WELCH_P_THRESHOLD,
+                "MIN_PCT_INCREASE": MIN_PCT_INCREASE,
             }
 
         return [_build_row(i, commit) for i, commit in enumerate(stats.valid_commits)]
@@ -227,16 +216,16 @@ class ReportPage:
             try:
                 repo = Repo(self.git_repo_path)
             except Exception:
-                logging.exception("Failed to open Git repository at %s", self.git_repo_path)
+                logger.exception("Failed to open Git repository at %s", self.git_repo_path)
                 return oldest_date, newest_date
             try:
                 oldest_date = get_commit_details_from_git(valid_commits[0], repo).get("commit_date", "N/A")
             except Exception:
-                logging.exception("Failed to get oldest commit date from Git.")
+                logger.exception("Failed to get oldest commit date from Git.")
             try:
                 newest_date = get_commit_details_from_git(valid_commits[-1], repo).get("commit_date", "N/A")
             except Exception:
-                logging.exception("Failed to get newest commit date from Git.")
+                logger.exception("Failed to get newest commit date from Git.")
         return oldest_date, newest_date
 
     def _generate_bokeh_components(
@@ -273,5 +262,10 @@ class ReportPage:
             max_inc_pct=f"{self.summary.get('max_increase', 0) * 100:.1f}%",
             max_dec_pct=f"{self.summary.get('max_decrease', 0) * 100:.1f}%",
             **self.summary,
+            WELCH_P_THRESHOLD=WELCH_P_THRESHOLD,
+            MIN_PCT_INCREASE=MIN_PCT_INCREASE,
+            COHEN_D_THRESHOLDS=COHEN_D_THRESHOLDS,
+            PCT_CHANGE_THRESHOLDS=PCT_CHANGE_THRESHOLDS,
+            PRACTICAL_THRESHOLDS=PRACTICAL_THRESHOLDS,
         )
         return html

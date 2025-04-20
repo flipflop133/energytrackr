@@ -1,5 +1,6 @@
 """Utility functions."""
 
+import math
 import subprocess
 from typing import Any
 
@@ -45,3 +46,31 @@ def run_command(
         stdout=stdout,
         stderr=stderr,
     )
+
+
+def nice_number(x: float) -> float:
+    """Rounds a given number to a "nice" number, which is a value that is easy to interpret.
+
+    The function determines the order of magnitude of the input number and
+    selects a "nice" fraction based on predefined thresholds.
+
+    Args:
+        x (float): The input number to be rounded.
+
+    Returns:
+        float: A "nice" number that is close to the input value.
+    """
+    if not x:
+        return 0
+    thresholds = [1.5, 3, 7]
+    exponent = math.floor(math.log10(x))
+    fraction = x / (10**exponent)
+    if fraction < thresholds[0]:
+        nice_fraction = 1
+    elif fraction < thresholds[1]:
+        nice_fraction = 2
+    elif fraction < thresholds[2]:
+        nice_fraction = 5
+    else:
+        nice_fraction = 10
+    return nice_fraction * (10**exponent)

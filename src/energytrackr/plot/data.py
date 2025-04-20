@@ -1,6 +1,5 @@
 """Data processing and statistical analysis for energy measurements."""
 
-import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,41 +8,61 @@ import pandas as pd
 from pandas import DataFrame
 from scipy.stats import shapiro, ttest_ind
 
-# Configuration constants can either be hard-coded or
-# passed to the constructor for better flexibility.
 MIN_MEASUREMENTS = 2
 NORMALITY_P_THRESHOLD = 0.05
 MIN_VALUES_FOR_NORMALITY_TEST = 3
 WELCH_P_THRESHOLD = 0.05
 MIN_PCT_INCREASE = 0.02
+COHEN_D_THRESHOLDS: dict[str, float] = {
+    "negligible": 0.2,
+    "small": 0.5,
+    "medium": 0.8,
+    "large": 1.2,
+}
+PCT_CHANGE_THRESHOLDS: dict[str, float] = {
+    "minor": 0.05,
+    "moderate": 0.10,
+    "major": float("inf"),
+}
+
+PRACTICAL_THRESHOLDS = {
+    "info": 0.05,
+    "warning": 0.1,
+    "critical": 0.2,
+}
+PRACTICAL_LEVEL_4_TRIGGERS = [
+    level for level, threshold in PRACTICAL_THRESHOLDS.items() if threshold > PRACTICAL_THRESHOLDS["info"]
+]
 
 
-def nice_number(x: float) -> float:
-    """Rounds a given number to a "nice" number, which is a value that is easy to interpret.
+@dataclass
+class EffectSize:
+    """Represents the effect size of a statistical comparison.
 
-    The function determines the order of magnitude of the input number and
-    selects a "nice" fraction based on predefined thresholds.
-
-    Args:
-        x (float): The input number to be rounded.
-
-    Returns:
-        float: A "nice" number that is close to the input value.
+    Attributes:
+        cohen_d (float): The calculated Cohen's d value indicating the standardized difference between two means.
+        category (str): A qualitative description of the effect size (e.g., 'small', 'medium', 'large').
     """
-    if not x:
-        return 0
-    thresholds = [1.5, 3, 7]
-    exponent = math.floor(math.log10(x))
-    fraction = x / (10**exponent)
-    if fraction < thresholds[0]:
-        nice_fraction = 1
-    elif fraction < thresholds[1]:
-        nice_fraction = 2
-    elif fraction < thresholds[2]:
-        nice_fraction = 5
-    else:
-        nice_fraction = 10
-    return nice_fraction * (10**exponent)
+
+    cohen_d: float
+    category: str
+
+
+@dataclass
+class ChangeMagnitude:
+    """Represents the magnitude of change between two values, including both percentage and absolute differences.
+
+    Attributes:
+        pct_change (float): The percentage change between two values.
+        pct_change_level (str): A qualitative description of the percentage change (e.g., 'low', 'moderate', 'high').
+        abs_diff (float): The absolute difference between two values.
+        practical_level (str): A qualitative assessment of the practical significance of the change.
+    """
+
+    pct_change: float
+    pct_change_level: str
+    abs_diff: float
+    practical_level: str
 
 
 @dataclass
@@ -58,9 +77,12 @@ class ChangeEvent:
     """
 
     index: int
-    severity: np.floating[Any]
     direction: str
-    cohen_d: float
+    p_value: float
+    effect_size: EffectSize
+    change_magnitude: ChangeMagnitude
+    context_tags: list[str] | None  # e.g. [“cpu”, “module:io”]
+    level: int
 
 
 @dataclass
@@ -96,14 +118,6 @@ class EnergyData:
         self.distributions: dict[str, list[np.ndarray[Any, Any]]] = {}  # Raw distributions for each commit per column
         self.normality_flags: dict[str, list[bool]] = {}
         self.change_events: dict[str, list[ChangeEvent]] = {}
-
-    def load_data(self, column_names: list[str]) -> None:
-        """Load data from a CSV file into a DataFrame.
-
-        Args:
-            column_names (list[str]): A list of column names for the DataFrame.
-        """
-        self.df = pd.read_csv(self.csv_path, header=None, names=column_names)
 
     @staticmethod
     def _filter_outliers(df: pd.DataFrame, column: str, multiplier: float = 1.5) -> pd.DataFrame:
@@ -216,53 +230,112 @@ class EnergyData:
             return "decrease"
         return None
 
-    def detect_energy_changes(self, distributions: list[np.ndarray]) -> list[ChangeEvent]:
-        """Detects significant energy changes between consecutive distributions.
+    @staticmethod
+    def _get_raw_direction(baseline_median: float, test_median: float) -> str:
+        """Return 'increase' if test > baseline, else 'decrease'."""
+        return "increase" if test_median > baseline_median else "decrease"
 
-        This method analyzes a list of numerical distributions and identifies
-        significant changes in energy levels between consecutive distributions
-        using statistical tests and effect size calculations.
+    def _detect_energy_changes(self, distributions: list[np.ndarray]) -> list[ChangeEvent]:  # pylint: disable=R0914  # noqa: PLR0914
+        """Detects significant changes in energy distributions across sequential samples.
+
+        This method compares each pair of consecutive distributions using statistical tests
+        (Welch's t-test), effect size (Cohen's d), percentage change, and practical thresholds
+        to identify and categorize meaningful changes in energy usage.
 
         Args:
-            distributions (list[np.ndarray]): A list of numerical distributions
-                (as numpy arrays) to analyze for energy changes.
+            distributions (list[np.ndarray]): A list of numpy arrays, each representing a sample
+                of energy measurements for a given interval.
 
         Returns:
-            list[ChangeEvent]: A list of `ChangeEvent` objects representing
-                detected changes. Each `ChangeEvent` includes the index of the
-                change, severity of the change, direction ("increase" or "decrease"),
-                and Cohen's d effect size.
-
-        Notes:
-            - Distributions with fewer than `MIN_VALUES_FOR_NORMALITY_TEST` values
-              are skipped.
-            - The Welch's t-test is used to determine if the change is statistically
-              significant, with a threshold defined by `WELCH_P_THRESHOLD`.
-            - The severity of the change is calculated as the relative difference
-              in medians between the two distributions.
-            - Cohen's d is used to quantify the effect size of the change.
+            list[ChangeEvent]: A list of ChangeEvent objects, each describing a detected change
+                between two consecutive distributions, including statistical significance,
+                effect size, percentage and absolute change, practical relevance, context tags,
+                and a severity level.
         """
-        changes = []
+        changes: list[ChangeEvent] = []
+
         for i in range(1, len(distributions)):
             baseline = distributions[i - 1]
             test = distributions[i]
+            # skip tiny samples
             if len(baseline) < MIN_VALUES_FOR_NORMALITY_TEST or len(test) < MIN_VALUES_FOR_NORMALITY_TEST:
                 continue
-            baseline_median: np.floating[Any] = np.median(baseline)
-            test_median: np.floating[Any] = np.median(test)
+
+            # medians & p-value
+            baseline_med = np.median(baseline)
+            test_med = np.median(test)
             _, p_value = ttest_ind(baseline, test, equal_var=False)
-            if (p_value < WELCH_P_THRESHOLD) and (direction := self._get_change_direction(baseline_median, test_median)):
-                var_baseline = np.var(baseline, ddof=1)
-                var_test = np.var(test, ddof=1)
-                pooled_std: int = np.sqrt((var_baseline + var_test) / 2.0)
-                cohen_d: np.floating[Any] | float = (np.mean(test) - np.mean(baseline)) / pooled_std if pooled_std else 0.0
-                severity: np.floating[Any] = (
-                    (test_median - baseline_median) / baseline_median
-                    if direction == "increase"
-                    else (baseline_median - test_median) / baseline_median
+
+            # Level-1: we now only filter by p_value
+            if p_value < WELCH_P_THRESHOLD:
+                # pooled std for effect size
+                var_b = np.var(baseline, ddof=1)
+                var_t = np.var(test, ddof=1)
+                pooled = np.sqrt((var_b + var_t) / 2.0) or 1.0
+                cohen_d = float((np.mean(test) - np.mean(baseline)) / pooled)
+
+                # Level-2: effect-size bucket
+                effect_cat = self.classify_effect_size(float(cohen_d))
+                effect_size = EffectSize(cohen_d=cohen_d, category=effect_cat)
+
+                # Level-3: % change & bucket
+                pct = abs((test_med - baseline_med) / baseline_med)
+                pct_cat = self.classify_pct_change(float(pct))
+
+                # Level-4: absolute joules & bucket (example thresholds)
+                abs_diff = float(test_med - baseline_med)
+                practical = self.classify_practical(abs_diff, float(baseline_med))
+                change_magnitude = ChangeMagnitude(
+                    pct_change=float(pct),
+                    pct_change_level=pct_cat,
+                    abs_diff=abs_diff,
+                    practical_level=practical,
                 )
-                changes.append(ChangeEvent(index=i, severity=severity, direction=direction, cohen_d=float(cohen_d)))
+
+                # Level-5: context tags
+                ctx = None  # Placeholder for context tags
+                # Direction: may be None if pct < MIN_PCT_INCREASE
+                direction = self._get_raw_direction(float(baseline_med), float(test_med))
+
+                # after you compute p_value, effect_cat, pct_cat, practical, ctx...
+                lvl = 1
+
+                # Level 2: statistical + small effect size
+                if abs(cohen_d) >= COHEN_D_THRESHOLDS["negligible"]:  # i.e., ≥ 0.2
+                    lvl = max(lvl, 2)
+
+                # Level 3: relative change in % is meaningful (e.g. ≥ 2%)
+                if pct >= MIN_PCT_INCREASE:
+                    lvl = max(lvl, 3)
+
+                # Level 4: practical absolute change (warning or critical)
+                if practical in PRACTICAL_LEVEL_4_TRIGGERS:
+                    lvl = max(lvl, 4)
+
+                # Level 5: context tags exist (e.g., touching important modules)
+                if ctx:
+                    lvl = max(lvl, 5)
+
+                changes.append(
+                    ChangeEvent(
+                        index=i,
+                        direction=direction,
+                        p_value=float(p_value),
+                        effect_size=effect_size,
+                        change_magnitude=change_magnitude,
+                        context_tags=ctx,
+                        level=lvl,
+                    ),
+                )
         return changes
+
+    def load_data(self, column_names: list[str]) -> None:
+        """Load data from a CSV file into a DataFrame.
+
+        Args:
+            column_names (list[str]): A list of column names for the DataFrame.
+        """
+        self.df = pd.read_csv(self.csv_path, header=None, names=column_names)
 
     def process_column(self, energy_column: str) -> None:
         """Processes a specified energy column.
@@ -294,7 +367,7 @@ class EnergyData:
         df_filtered = self._filter_outliers(self.df, energy_column)
         stats = self._compute_commit_statistics(df_filtered, energy_column)
         distribution, normality = self._compute_distribution_and_normality(df_filtered, stats.valid_commits, energy_column)
-        changes = self.detect_energy_changes(distribution)
+        changes = self._detect_energy_changes(distribution)
         # Store the results in a dict keyed by energy column
         self.stats[energy_column] = stats
         self.distributions[energy_column] = distribution
@@ -345,11 +418,71 @@ class EnergyData:
             "mean_energy": mean_energy,
             "median_energy": median_energy,
             "std_energy": std_energy,
-            "max_increase": max((float(e.severity) for e in changes if e.direction == "increase"), default=0.0),
-            "max_decrease": max((float(e.severity) for e in changes if e.direction == "decrease"), default=0.0),
-            "avg_cohens_d": np.mean([abs(e.cohen_d) for e in changes]) if changes else 0.0,
+            "avg_cohens_d": np.mean([abs(e.effect_size.cohen_d) for e in changes]) if changes else 0.0,
             "normal_count": sum(normality),
             "non_normal_count": len(normality) - sum(normality),
             "outliers_removed": outliers_removed_count,
         }
         return summary
+
+    @staticmethod
+    def classify_effect_size(d: float) -> str:
+        """Classifies the magnitude of an effect size (Cohen's d) into categorical labels.
+
+        Args:
+            d (float): The effect size value (Cohen's d) to classify.
+
+        Returns:
+            str: The category label corresponding to the magnitude of the effect size,
+                based on predefined thresholds in COHEN_D_THRESHOLDS.
+
+        Notes:
+            - The function uses the absolute value of d for classification.
+            - If d exceeds all defined thresholds, the last category in COHEN_D_THRESHOLDS is returned.
+        """
+        abs_d = abs(d)
+        for category, thresh in COHEN_D_THRESHOLDS.items():
+            if abs_d <= thresh:
+                return category
+        # fallback if > max threshold
+        return list(COHEN_D_THRESHOLDS.keys())[-1]
+
+    @staticmethod
+    def classify_pct_change(pct: float) -> str:
+        """Classifies a percentage change value into a category label based on predefined thresholds.
+
+        Args:
+            pct (float): The percentage change value to classify.
+
+        Returns:
+            str: The label corresponding to the range in which the percentage change falls.
+                 If the value exceeds all thresholds, returns the last label as a fallback.
+
+        Note:
+            The classification thresholds are defined in the global dictionary `PCT_CHANGE_THRESHOLDS`,
+            where keys are labels and values are threshold values.
+        """
+        for label, threshold in PCT_CHANGE_THRESHOLDS.items():
+            if pct < threshold:
+                return label
+        return list(PCT_CHANGE_THRESHOLDS.keys())[-1]  # fallback
+
+    @staticmethod
+    def classify_practical(abs_diff: float, baseline_median: float) -> str:
+        """Classifies the practical significance of an absolute difference relative to a baseline median.
+
+        Parameters:
+            abs_diff (float): The absolute difference to classify.
+            baseline_median (float): The baseline median value used to scale thresholds.
+
+        Returns:
+            str: The classification level as a string, determined by comparing abs_diff to scaled thresholds.
+                 Returns the corresponding level if abs_diff is below a threshold, or "critical" if above all.
+        """
+        # Build concrete thresholds from relative ones
+        thresholds = {level: factor * baseline_median for level, factor in PRACTICAL_THRESHOLDS.items()}
+        # Sort levels by ascending threshold value
+        for level, limit in sorted(thresholds.items(), key=lambda x: x[1]):
+            if abs_diff < limit:
+                return level
+        return "critical"  # fallback if above all thresholds

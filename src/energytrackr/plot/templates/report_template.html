@@ -142,35 +142,130 @@
     </div>
 
     <main>
+        <div class="level-legend" style="background:#fff; border:1px solid #ddd; padding:15px; margin-bottom:20px;">
+            <h2>Change‑Event Level Legend</h2>
+            <ul style="list-style:none; padding:0;">
+                <li style="margin:6px 0;">
+                    <span style="display:inline-block;width:12px;height:12px;background:gray;margin-right:8px;"></span>
+                    <strong>Level 1</strong>:
+                    Welch’s t‑test<br />
+                    <small>– two‑sample unequal‑variance t‑test, p &lt; {{ WELCH_P_THRESHOLD }}</small>
+                </li>
+                <li style="margin:6px 0;">
+                    <span style="display:inline-block;width:12px;height:12px;background:blue;margin-right:8px;"></span>
+                    <strong>Level 2</strong>:
+                    Cohen’s d effect‑size<br />
+                    <small>– thresholds:
+                        {% set items = COHEN_D_THRESHOLDS.items()|list %}
+                        {% for i in range(items|length) %}
+                        {%- set label = items[i][0] -%}
+                        {%- set thr = items[i][1] -%}
+
+                        {%- if i == 0 -%}
+                        |d| ≤ {{ "%.1f"|format(thr) }} ({{ label }})
+                        {%- elif i < items|length - 1 -%} {{ "%.1f" |format(items[i-1][1]) }} < |d| ≤ {{ "%.1f"
+                            |format(thr) }} ({{ label }}) {%- else -%}> {{ "%.1f"|format(items[i-1][1]) }} ({{ label }})
+                            {%- endif -%}
+
+                            {%- if not loop.last -%}, {% endif -%}
+                            {% endfor %}
+                    </small>
+
+
+                </li>
+
+                <li style="margin:6px 0;">
+                    <span
+                        style="display:inline-block;width:12px;height:12px;background:orange;margin-right:8px;"></span>
+                    <strong>Level 3</strong>:
+                    Relative change threshold<br />
+                    <small>– thresholds:
+                        {% set items = PCT_CHANGE_THRESHOLDS.items() | list %}
+                        {% for i in range(items | length) %}
+                        {%- set label = items[i][0] -%}
+                        {%- set thr = items[i][1] -%}
+
+                        {%- if i == 0 -%}
+                        Δ% < {{ "%.1f" |format(thr * 100) }}% ({{ label }}) {%- elif i < items|length - 1 -%} {{ "%.1f"
+                            |format(items[i-1][1] * 100) }}% ≤ Δ% < {{ "%.1f" |format(thr * 100) }}% ({{ label }}) {%-
+                            else -%} ≥ {{ "%.1f" |format(items[i-1][1] * 100) }}% ({{ label }}) {%- endif -%} {%- if not
+                            loop.last -%}, {% endif -%} {% endfor %} </small>
+
+                </li>
+                <li style="margin:6px 0;">
+                    <span
+                        style="display:inline-block;width:12px;height:12px;background:purple;margin-right:8px;"></span>
+                    <strong>Level 4</strong>:
+                    Practical significance<br />
+                    <small>– thresholds:
+                        {% set items = PRACTICAL_THRESHOLDS.items() | list %}
+                        {% for i in range(items | length) %}
+                        {%- set label = items[i][0] -%}
+                        {%- set rel = items[i][1] -%}
+                        {%- if i == 0 -%}
+                        ΔJ < {{ "%.1f" |format(rel * 100) }}% of median ({{ label }}) {%- elif i < items|length - 1 -%}
+                            ≥ {{ "%.1f" |format(items[i-1][1] * 100) }}% and < {{ "%.1f" |format(rel * 100) }}% ({{
+                            label }}) {%- else -%} ≥ {{ "%.1f" |format(rel * 100) }}% ({{ label }}) {%- endif -%} {%- if
+                            not loop.last -%}, {% endif -%} {% endfor %} </small>
+
+                </li>
+                <li style="margin:6px 0;">
+                    <span style="display:inline-block;width:12px;height:12px;background:red;margin-right:8px;"></span>
+                    <strong>Level 5</strong>:
+                    Context tags present<br />
+                    <small>– file/module/resource annotations for root‑cause</small>
+                </li>
+            </ul>
+        </div>
+
         <button id="toggle-change-events">Show Only Change Events</button>
         <table>
             <thead>
                 <tr>
+                    <!-- 1. Commit metadata -->
                     <th>Commit</th>
-                    <th>Change</th>
-                    <th>Severity</th>
+                    <th>Message</th>
+                    <th>Context</th>
+                    <th>Files</th>
+
+                    <!-- 2. Raw distribution stats -->
+                    <th>n</th>
+                    <th>Normality</th>
                     <th>Median (J)</th>
                     <th>Std Dev (J)</th>
-                    <th>Normality</th>
-                    <th>n</th>
-                    <th>Cohen's d</th>
-                    <th>Files</th>
-                    <th>Message</th>
+
+                    <!-- 3. Statistical test results -->
+                    <th>p‑value</th>
+                    <th>Cohen’s d</th>
+
+                    <!-- 4. Magnitude & practical buckets -->
+                    <th>Δ % (abs)</th>
+                    <th>Δ J</th>
+                    <th>Practical</th>
+                    <th>Level</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in table_rows %}
                 <tr class="{{ row.row_class }}">
                     <td><a href="{{ row.link }}" target="_blank">{{ row.short_hash }}</a></td>
-                    <td>{{ row.change_str }}</td>
-                    <td>{{ row.severity_str }}</td>
+                    <td>{{ row.message }}</td>
+                    <td>{{ row.context }}</td>
+                    <td>{{ row.files }}</td>
+
+                    <td>{{ row.n_val }}</td>
+                    <td>{{ row.normality }}</td>
                     <td>{{ row.median_val }}</td>
                     <td>{{ row.std_val }}</td>
-                    <td>{{ row.normality }}</td>
-                    <td>{{ row.n_val }}</td>
-                    <td>{{ row.cohen_str }}</td>
-                    <td>{{ row.files }}</td>
-                    <td>{{ row.message }}</td>
+
+                    <td>{{ row.p_value }}</td>
+                    <td>{{ row.effect_size }} ({{ row.effect_cat }})</td>
+
+                    <td>{{ row.pct_change }} ({{ row.pct_cat }})</td>
+                    <td>{{ row.abs_diff }}</td>
+                    <td>{{ row.practical }}</td>
+                    <td>{{ row.level }}</td>
+
                 </tr>
                 {% endfor %}
             </tbody>

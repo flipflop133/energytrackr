@@ -66,6 +66,5 @@ def plot(input_path: str, git_repo_path: str | None = None) -> None:
         report.project_name = project_name  # Optionally update the project name.
         report.timestamp = timestamp_now
 
-        # Export text and HTML reports to the same folder as the CSV file.
-        report.generate_text_summary(output_folder=folder)
+        # Export HTML report to the same folder as the CSV file.
         report.generate_html_summary(output_folder=folder)

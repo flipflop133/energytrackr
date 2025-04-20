@@ -11,7 +11,8 @@ from bokeh.models import BoxAnnotation, Column, ColumnDataSource, CustomJS, Fixe
 from bokeh.models.renderers import GlyphRenderer
 from bokeh.plotting import figure
 
-from energytrackr.plot.data import ChangeEvent, EnergyData, EnergyStats, nice_number
+from energytrackr.plot.data import ChangeEvent, EnergyData, EnergyStats
+from energytrackr.utils.utils import nice_number
 
 DataDictLike = Mapping[str, Sequence[int | float | str]]
 DEFAULT_MAX_TICKS: int = 30
@@ -30,7 +31,7 @@ class ChartRenderers:
 
 
 class EnergyPlot:
-    """EnergyPlot is a class for visualizing energy consumption trends over commits (refactored, strongly typed)."""
+    """EnergyPlot is a class for visualizing energy consumption trends over commits."""
 
     energy_column: str
     stats: EnergyStats
@@ -57,8 +58,7 @@ class EnergyPlot:
             target["x"].append(idx)
             target["y"].append(self.stats.y_medians[idx])
             target["commit"].append(self.stats.short_hashes[idx])
-            target["severity"].append(f"{int(event.severity * 100)}%")
-            target["cohen_d"].append(f"{event.cohen_d:.2f}")
+            target["cohen_d"].append(f"{event.effect_size.cohen_d:.2f}")
         return regression, improvement
 
     def create_figure(self) -> Column:
@@ -213,6 +213,25 @@ class EnergyPlot:
         if improvement["x"]:
             imp_source: ColumnDataSource = ColumnDataSource(data=improvement)
             fig.circle("x", "y", source=imp_source, radius=1, alpha=0.6, color="green", legend_label="Improvement (↓ energy)")
+        # prepare a dict of lists, keyed by level
+        level_src: dict[int, dict[str, list[Any]]] = {lvl: {"x": [], "y": []} for lvl in range(1, 6)}
+        for e in self.change_events:
+            level_src[e.level]["x"].append(e.index)
+            level_src[e.level]["y"].append(self.stats.y_medians[e.index])
+
+        # choose colors for each level
+        color_map = {1: "gray", 2: "blue", 3: "orange", 4: "purple", 5: "red"}
+        for lvl, src in level_src.items():
+            if not src["x"]:
+                continue
+            fig.circle(
+                x=src["x"],
+                y=src["y"],
+                radius=8 + 2 * lvl,  # bigger marker for higher levels
+                color=color_map[lvl],
+                alpha=0.6,
+                legend_label=f"Level {lvl}",
+            )
 
     def _plot_candlestick(self, fig: figure) -> tuple[GlyphRenderer, GlyphRenderer]:
         """Plots a candlestick chart, returns body and wick renderers.
@@ -260,7 +279,6 @@ class EnergyPlot:
                 left=idx - 0.4,
                 right=idx + 0.4,
                 fill_color="red" if e.direction == "increase" else "green",
-                fill_alpha=0.15 + min(float(e.severity), 0.5),
             )
             fig.add_layout(box)
 
