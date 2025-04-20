@@ -155,7 +155,7 @@ class ReportPage:
                 change_str = "Regression (Increase)" if event.direction == "increase" else "Improvement (Decrease)"
                 cohen_str = f"{event.effect_size.cohen_d:.2f}"
                 p_value = f"{event.p_value:.3g}"
-                effect_size = f"{event.effect_size:.2f}"
+                effect_size = f"{event.effect_size.cohen_d:.2f}"
                 effect_cat = event.effect_size.category
                 pct_change = f"{event.change_magnitude.pct_change * 100:.1f}%"
                 pct_cat = event.change_magnitude.pct_change_level

@@ -227,7 +227,7 @@ class EnergyPlot:
             fig.circle(
                 x=src["x"],
                 y=src["y"],
-                radius=8 + 2 * lvl,  # bigger marker for higher levels
+                radius=lvl * 0.3,  # bigger marker for higher levels
                 color=color_map[lvl],
                 alpha=0.6,
                 legend_label=f"Level {lvl}",
