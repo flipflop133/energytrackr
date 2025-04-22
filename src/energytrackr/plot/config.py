@@ -71,9 +71,29 @@ class Thresholds(BaseModel):
     normality_p: float = 0.05
     welch_p: float = 0.05
     min_pct_increase: float = 0.02
-    cohen_d: dict[str, float] = Field(default_factory=dict)
-    pct_change: dict[str, float] = Field(default_factory=dict)
-    practical: dict[str, float] = Field(default_factory=dict)
+    min_values_for_normality_test: int = 3
+    cohen_d: dict[str, float] = Field(
+        default_factory=lambda: {
+            "negligible": 0.2,
+            "small": 0.5,
+            "medium": 0.8,
+            "large": 1.2,
+        },
+    )
+    pct_change: dict[str, float] = Field(
+        default_factory=lambda: {
+            "minor": 0.05,
+            "moderate": 0.10,
+            "major": float("inf"),
+        },
+    )
+    practical: dict[str, float] = Field(
+        default_factory=lambda: {
+            "info": 0.05,
+            "warning": 0.1,
+            "critical": 0.2,
+        },
+    )
 
 
 class AnalysisCfg(BaseModel):

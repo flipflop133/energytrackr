@@ -1,22 +1,63 @@
 """Detect changes in distributions of energy data over time."""
 
+from dataclasses import dataclass
+
 import numpy as np
 from scipy.stats import ttest_ind
 
-from energytrackr.plot.builtin_models import (
-    COHEN_D_THRESHOLDS,
-    MIN_PCT_INCREASE,
-    MIN_VALUES_FOR_NORMALITY_TEST,
-    PCT_CHANGE_THRESHOLDS,
-    PRACTICAL_LEVEL_4_TRIGGERS,
-    PRACTICAL_THRESHOLDS,
-    ChangeEvent,
-    ChangeMagnitude,
-    EffectSize,
-)
 from energytrackr.plot.config import get_settings
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import Transform
+
+
+@dataclass
+class EffectSize:
+    """Represents the effect size of a statistical comparison.
+
+    Attributes:
+        cohen_d (float): The calculated Cohen's d value indicating the standardized difference between two means.
+        category (str): A qualitative description of the effect size (e.g., 'small', 'medium', 'large').
+    """
+
+    cohen_d: float
+    category: str
+
+
+@dataclass
+class ChangeMagnitude:
+    """Represents the magnitude of change between two values, including both percentage and absolute differences.
+
+    Attributes:
+        pct_change (float): The percentage change between two values.
+        pct_change_level (str): A qualitative description of the percentage change (e.g., 'low', 'moderate', 'high').
+        abs_diff (float): The absolute difference between two values.
+        practical_level (str): A qualitative assessment of the practical significance of the change.
+    """
+
+    pct_change: float
+    pct_change_level: str
+    abs_diff: float
+    practical_level: str
+
+
+@dataclass
+class ChangeEvent:
+    """Represents a change event with associated metadata.
+
+    Attributes:
+        index (int): The index of the change event.
+        severity (float): The severity level of the change event.
+        direction (str): The direction of the change event (e.g., "up", "down").
+        cohen_d (float): The Cohen's d effect size associated with the change event.
+    """
+
+    index: int
+    direction: str
+    p_value: float
+    effect_size: EffectSize
+    change_magnitude: ChangeMagnitude
+    context_tags: list[str] | None  # e.g. [“cpu”, “module:io”]
+    level: int
 
 
 class DetectChanges(Transform):
@@ -39,6 +80,10 @@ class DetectChanges(Transform):
             "cohen_d": incoming.get("cohen_d", cfg.cohen_d),
             "pct_change": incoming.get("pct_change", cfg.pct_change),
             "practical": incoming.get("practical", cfg.practical),
+            "min_values_for_normality_test": incoming.get(
+                "min_values_for_normality_test",
+                cfg.min_values_for_normality_test,
+            ),
         }
 
     def apply(self, ctx: Context) -> None:
@@ -84,7 +129,7 @@ class DetectChanges(Transform):
             - Returns a ChangeEvent encapsulating all relevant change information.
         """
         # Skip small samples
-        if len(baseline) < MIN_VALUES_FOR_NORMALITY_TEST or len(test) < MIN_VALUES_FOR_NORMALITY_TEST:
+        if len(baseline) < self.thr["min_values_for_normality_test"] or len(test) < self.thr["min_values_for_normality_test"]:
             return None
 
         if (p_value := self._compute_p_value(baseline, test)) >= self.thr["welch_p"]:
@@ -161,18 +206,20 @@ class DetectChanges(Transform):
         Returns:
             int: The change level (1-5).
         """
+        practical_level_4_thresholds = [
+            level for level, threshold in self.thr["practical"].items() if threshold > self.thr["practical"]["info"]
+        ]
         level = 1
-        if abs(cohen_d) >= COHEN_D_THRESHOLDS.get("negligible", 0.2):
+        if abs(cohen_d) >= self.thr["cohen_d"]["negligible"]:
             level = max(level, 2)
-        if pct >= self.thr.get("min_pct_increase", MIN_PCT_INCREASE):
+        if pct >= self.thr["min_pct_increase"]:
             level = max(level, 3)
-        if practical in PRACTICAL_LEVEL_4_TRIGGERS:
+        if practical in practical_level_4_thresholds:
             level = max(level, 4)
         # Context tags (future) would bump to 5
         return level
 
-    @staticmethod
-    def classify_effect_size(d: float) -> str:
+    def classify_effect_size(self, d: float) -> str:
         """Classify the effect size based on Cohen's d value.
 
         Args:
@@ -182,13 +229,12 @@ class DetectChanges(Transform):
             str: The category of the effect size.
         """
         abs_d = abs(d)
-        for category, thresh in COHEN_D_THRESHOLDS.items():
+        for category, thresh in self.thr["cohen_d"].items():
             if abs_d <= thresh:
                 return category
-        return list(COHEN_D_THRESHOLDS.keys())[-1]
+        return list(self.thr["cohen_d"].keys())[-1]
 
-    @staticmethod
-    def classify_pct_change(pct: float) -> str:
+    def classify_pct_change(self, pct: float) -> str:
         """Classify the percent change based on predefined thresholds.
 
         Args:
@@ -197,13 +243,12 @@ class DetectChanges(Transform):
         Returns:
             str: The category of the percent change.
         """
-        for label, threshold in PCT_CHANGE_THRESHOLDS.items():
+        for label, threshold in self.thr["pct_change"].items():
             if pct < threshold:
                 return label
-        return list(PCT_CHANGE_THRESHOLDS.keys())[-1]
+        return list(self.thr["pct_change"].keys())[-1]
 
-    @staticmethod
-    def classify_practical(abs_diff: float, baseline_median: float) -> str:
+    def classify_practical(self, abs_diff: float, baseline_median: float) -> str:
         """Classify the practical significance based on absolute difference and baseline median.
 
         Args:
@@ -213,7 +258,7 @@ class DetectChanges(Transform):
         Returns:
             str: The category of practical significance.
         """
-        thresholds = {level: factor * baseline_median for level, factor in PRACTICAL_THRESHOLDS.items()}
+        thresholds = {level: factor * baseline_median for level, factor in self.thr["practical"].items()}
         for level, limit in sorted(thresholds.items(), key=lambda x: x[1]):
             if abs_diff < limit:
                 return level
