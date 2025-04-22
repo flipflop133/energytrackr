@@ -1,16 +1,11 @@
-# ───────‑‑‑ EnergyTrackR – plotting configuration ‑‑‑────────
-
 energytrackr:
-
-  # ❶ ─ Data ingestion & cleansing ─────────────────────────
   data:
-    csv_columns:      ["commit", "energy-pkg", "energy-core", "energy-gpu"]
-    energy_fields:    ["energy-pkg", "energy-core"]     # analyse 2 metrics only
-    min_measurements: 3                                 # ≥3 samples / commit
-    drop_outliers:    true
-    outlier_iqr:      1.5                               # Tukey IQR rule
+    csv_columns: ["commit", "energy-pkg", "energy-core", "energy-gpu"]
+    energy_fields: ["energy-pkg", "energy-core"] # analyse 2 metrics only
+    min_measurements: 3 # ≥3 samples / commit
+    drop_outliers: true
+    outlier_iqr: 1.5 # Tukey IQR rule
 
-  # ❷ ─ Analysis pipeline (sequential transforms) ─────────
   analysis:
     steps:
       - shapiro_normality
@@ -20,21 +15,18 @@ energytrackr:
       - pct_change
       - practical_threshold
     thresholds:
-      normality_p:      0.05
-      welch_p:          0.01        # project‑specific strictness
-      min_pct_increase: 0.03        # 3 %
-      cohen_d:          {negligible: 0.2, small: 0.5, medium: 0.8, large: 1.2}
-      pct_change:       {minor: 0.05, moderate: 0.10, major: 0.25}
-      practical:        {info: 0.05, warning: 0.10, critical: 0.20}
+      normality_p: 0.05
+      welch_p: 0.01
+      min_pct_increase: 0.03
+      cohen_d: { negligible: 0.2, small: 0.5, medium: 0.8, large: 1.2 }
+      pct_change: { minor: 0.05, moderate: 0.10, major: 0.25 }
+      practical: { info: 0.05, warning: 0.10, critical: 0.20 }
 
-  # ❸ ─ Plotting module (this repo) ───────────────────────
   plot:
-
-    # a) data‑transform plug‑ins, order matters
     transforms:
       - module: energytrackr.plot.builtin_data_transforms.load_csv:LoadCSV
         params:
-        csv_columns: ["commit","energy-pkg","energy-core"]
+          csv_columns: ["commit", "energy-pkg", "energy-core"]
       - module: energytrackr.plot.builtin_data_transforms.filter_outliers:FilterOutliers
         params:
           column: energy-pkg
@@ -51,66 +43,59 @@ energytrackr:
       - module: energytrackr.plot.builtin_data_transforms.detect_changes:DetectChanges
         params:
           column: energy-pkg
-          thresholds: 
+          thresholds:
             welch_p: 0.05
       - module: energytrackr.plot.builtin_data_transforms.commit_details:CommitDetails
-      # user‑defined plug‑in that injects CPU temp metric
-      #- {module: plot_hooks.add_cpu_temp:CpuTemp}         # in plugins path
 
-    # b) graphical objects added to the Bokeh figure
     objects:
-      - {module: energytrackr.plot.builtin_plot_objects.plot:Plot}
-      - {module: energytrackr.plot.builtin_plot_objects.median_line:MedianLine,
-         params: {color: blue}}
-      - {module: energytrackr.plot.builtin_plot_objects.error_bars:ErrorBars}
-      - {module: energytrackr.plot.builtin_plot_objects.candlestick:Candlestick,
-         params: {default_visible: false}}
+      - module: energytrackr.plot.builtin_plot_objects.plot:Plot
+      - module: energytrackr.plot.builtin_plot_objects.median_line:MedianLine
+        params:
+          color: blue
+      - module: energytrackr.plot.builtin_plot_objects.error_bars:ErrorBars
+      - module: energytrackr.plot.builtin_plot_objects.candlestick:Candlestick
+        params:
+          default_visible: false
       - module: energytrackr.plot.builtin_plot_objects.dynamic_ticks:DynamicTicks
-        max_ticks: 20  # adjust as desired
-      - {module: energytrackr.plot.builtin_plot_objects.change_events:ChangeEventMarkers}
+        params:
+          max_ticks: 20
+      - module: energytrackr.plot.builtin_plot_objects.change_events:ChangeEventMarkers
       - module: energytrackr.plot.builtin_plot_objects.distribution_scatter:DistributionScatter
-        normal_color: "blue"
-        nonnormal_color: "orange"
-        radius: 0.3
-        alpha: 0.5
-        normal_visible: false
+        params:
+          style:
+            normal_color: "blue"
+            nonnormal_color: "orange"
+            radius: 0.3
+            alpha: 0.5
+            normal_visible: false
       - module: energytrackr.plot.builtin_plot_objects.legend_policy:LegendPolicy
-        policy: hide    # alternatives: "mute", "disable"
-      # custom violin‑plot object
-      # - {module: plot_hooks.violin:ViolinPlot,
-      #    params: {fill_alpha: 0.4}}
+        params:
+          policy: hide
 
-    # c) HTML page sections (rendered sequentially)
     page:
-      - {module: energytrackr.plot.builtin_page_sections.base:Base}
-      - {module: energytrackr.plot.builtin_page_sections.plot_embed:PlotEmbed}
-      - {module: energytrackr.plot.builtin_page_sections.level_legend:LevelLegend}
-      - {module: energytrackr.plot.builtin_page_sections.summary_box:SummaryBox}
-      - {module: energytrackr.plot.builtin_page_sections.change_table:ChangeTable,
-         params: {columns_conf: columns.yml}}
-      # user‑written section that embeds flamegraphs
-      # - {module: plot_hooks.flame_summary:FlameSection}
+      - module: energytrackr.plot.builtin_page_sections.base:Base
+      - module: energytrackr.plot.builtin_page_sections.plot_embed:PlotEmbed
+      - module: energytrackr.plot.builtin_page_sections.level_legend:LevelLegend
+      - module: energytrackr.plot.builtin_page_sections.summary_box:SummaryBox
+      - module: energytrackr.plot.builtin_page_sections.change_table:ChangeTable
+        params:
+          columns_conf: columns.yml
 
-  # ❹ ─ Report‑wide look & feel ───────────────────────────
   report:
-    theme:  "dark"                 # picks themes/dark.css
+    theme: "dark"
     chart:
-      default: "line"              # initial chart style
+      default: "line"
       candlestick_toggle: true
       show_change_events: true
     table:
-      # you can omit this to accept defaults; here’s an example override
       columns:
-        - {key: short_hash,   label: Commit}
-        - {key: message,      label: Message,  width: 30%}
-        - {group: stats,      include: [n_val, normality]}
-        - {key: median_val,   label: "Median (J)"}
-        - {group: tests,      exclude: [effect_cat]}  # hide category column
-        - {key: level,        label: Level, align: center}
+        - { key: short_hash, label: Commit }
+        - { key: message, label: Message, width: 30% }
+        - { group: stats, include: [n_val, normality] }
+        - { key: median_val, label: "Median (J)" }
+        - { group: tests, exclude: [effect_cat] }
+        - { key: level, label: Level, align: center }
 
-  # ❺ ─ Extra plug‑in discovery ──────────────────────────
   plugins:
-    paths:         ["./plot_hooks"]      # extra PYTHONPATH folders
-    entrypoints:   ["energytrackr_steps"]  # setuptools entry‑points
-
-# ───────── End of configuration ───────────────────────────
+    paths: ["./plot_hooks"]
+    entrypoints: ["energytrackr_steps"]
