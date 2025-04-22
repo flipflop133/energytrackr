@@ -48,12 +48,10 @@ class ReportCfg(BaseModel):
     Attributes:
         theme (str): The theme to use for the report, e.g., "light" or "dark". Defaults to "light".
         chart (dict[str, Any]): Dictionary containing chart-specific configuration options.
-        table (dict[str, Any]): Dictionary containing table-specific configuration options.
     """
 
     theme: str = "light"
     chart: dict[str, Any] = Field(default_factory=dict)
-    table: dict[str, Any] = Field(default_factory=dict)
 
 
 class Thresholds(BaseModel):

@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
-import yaml
 from jinja2 import Environment
 
 from energytrackr.plot.core.context import Context
@@ -37,50 +34,41 @@ group_map = {
 }
 
 
-def _build_columns(columns_conf: str | None) -> list[dict[str, str]]:
-    if not columns_conf:
-        return [
-            {"key": "short_hash", "label": "Commit"},
-            {"key": "message", "label": "Message"},
-            *[{"key": k, "label": label} for k, label in group_map["stats"]],
-            *[{"key": k, "label": label} for k, label in group_map["tests"]],
-            {"key": "level", "label": "Level"},
-        ]
-
-    conf_path = Path(columns_conf)
-    if not conf_path.is_file():
-        logger.error("ChangeTable: columns_conf '%s' not found; using defaults.", columns_conf)
-        return _build_columns(None)
-
-    cols_raw: Sequence[dict[str, Any]] = yaml.safe_load(conf_path.read_text(encoding="utf-8"))
-    cols: list[dict[str, str]] = []
-    for c in cols_raw:
-        if "group" in c:
-            keys = group_map[c["group"]]
-            if include := c.get("include"):
-                keys = [pair for pair in keys if pair[0] in include]
-            if exclude := c.get("exclude"):
-                keys = [pair for pair in keys if pair[0] not in exclude]
-            cols.extend({"key": k, "label": label} for k, label in keys)
-        else:
-            cols.append({"key": c["key"], "label": c.get("label", c["key"])})
-    return cols
-
-
 class ChangeTable(PageObj):
     """Renders a table of every commit with computed metrics."""
 
-    def __init__(self, template: str | None = None, columns_conf: str | None = None) -> None:
+    def __init__(self, template: str | None = None, columns: list[dict[str, str]] | None = None) -> None:
         """Initializes the ChangeTable object.
 
         Args:
             template (str | None): Optional path to a custom template file.
                 If None, defaults to the package template located in templates/change_table.html.
-            columns_conf (str | None): Optional path to a YAML file defining the columns to display.
-                If None, defaults to a predefined set of columns.
+            columns (list[dict[str, str]] | None): Optional list of dictionaries defining the columns to be displayed.
         """
         # Columns and template location
-        self.columns = _build_columns(columns_conf)
+        cols: list[dict[str, str]] = []
+        if columns is None:
+            self.columns = [
+                {"key": "short_hash", "label": "Commit"},
+                {"key": "message", "label": "Message"},
+                {"key": "commit_date", "label": "Date"},
+                {"key": "commit_files", "label": "Files"},
+                {"key": "commit_link", "label": "Link"},
+                {"group": "stats"},
+                {"group": "tests"},
+            ]
+        else:
+            for c in columns:
+                if "group" in c:
+                    keys = group_map[c["group"]]
+                    if include := c.get("include"):
+                        keys = [pair for pair in keys if pair[0] in include]
+                    if exclude := c.get("exclude"):
+                        keys = [pair for pair in keys if pair[0] not in exclude]
+                    cols.extend({"key": k, "label": label} for k, label in keys)
+                else:
+                    cols.append({"key": c["key"], "label": c.get("label", c["key"])})
+            self.columns = cols
         tpl_dir = Path(__file__).with_name("templates")
         self.template_path = Path(template) if template else tpl_dir / "change_table.html"
 
