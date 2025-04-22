@@ -1,6 +1,5 @@
 """Main orchestration module for energy consumption data analysis and reporting."""
 
-import sys
 import webbrowser
 from collections.abc import Sequence
 from pathlib import Path
@@ -44,11 +43,6 @@ def _locate_config(csv_path: Path, config_path: str | None) -> Path:
 
     tried = ", ".join(str(p) for p in candidates)
     raise CantFindFileError(tried)
-
-
-def _extend_pythonpath(plugin_dirs: Sequence[str]) -> None:
-    for plugin_dir in plugin_dirs:
-        sys.path.insert(0, str(Path(plugin_dir).expanduser().resolve()))
 
 
 def _build_context(csv_path: Path, git_repo_path: str | None, energy_fields: list[str]) -> Context:
@@ -110,9 +104,6 @@ def plot(
 
     # Load settings
     settings = get_settings(str(cfg_path))
-
-    # Extend PYTHONPATH for plugins
-    _extend_pythonpath(settings.energytrackr.plugins.paths)
 
     # Prepare context
     ctx = _build_context(

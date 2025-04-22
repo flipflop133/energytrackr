@@ -126,18 +126,6 @@ class DataCfg(BaseModel):
     outlier_iqr: float = 1.5
 
 
-class PluginsCfg(BaseModel):
-    """Configuration model for plugin management.
-
-    Attributes:
-        paths (Sequence[str]): A sequence of file system paths where plugins can be found.
-        entrypoints (Sequence[str]): A sequence of entry point identifiers for plugin discovery.
-    """
-
-    paths: Sequence[str] = ()
-    entrypoints: Sequence[str] = ()
-
-
 class PlotCfg(BaseModel):
     """Configuration model for plotting.
 
@@ -171,7 +159,6 @@ class EnergyTrackRCfg(BaseModel):
     analysis: AnalysisCfg = AnalysisCfg()
     report: ReportCfg = ReportCfg()
     plot: PlotCfg = PlotCfg()
-    plugins: PluginsCfg = PluginsCfg()
 
 
 class Settings(BaseModel):
