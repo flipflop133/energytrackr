@@ -100,13 +100,10 @@ class AnalysisCfg(BaseModel):
     """Configuration model for analysis steps and thresholds.
 
     Attributes:
-        steps (Sequence[str]): A sequence of analysis step names to be executed, in order.
-            Defaults to ("shapiro_normality", "welch_t_test", "change_direction").
         thresholds (Thresholds): An instance of the Thresholds class specifying threshold values for the analysis.
             Defaults to a new Thresholds instance.
     """
 
-    steps: Sequence[str] = ("shapiro_normality", "welch_t_test", "change_direction")
     thresholds: Thresholds = Thresholds()
 
 

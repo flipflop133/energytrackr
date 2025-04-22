@@ -7,13 +7,6 @@ energytrackr:
     outlier_iqr: 1.5 # Tukey IQR rule
 
   analysis:
-    steps:
-      - shapiro_normality
-      - welch_t_test
-      - change_direction
-      - cohen_d
-      - pct_change
-      - practical_threshold
     thresholds:
       normality_p: 0.05
       welch_p: 0.01
