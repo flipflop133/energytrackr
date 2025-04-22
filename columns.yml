@@ -1,0 +1,33 @@
+# columns.yml – custom layout for change_table
+
+- key: short_hash
+  label: Commit
+
+- key: message
+  label: Message
+  width: 30%
+
+- key: commit_date
+  label: Date (Oldest - Newest)
+  width: 15%
+
+- key: commit_files
+  label: Files
+  width: 15%
+
+- group: stats
+  include:
+    - n_val
+    - normality
+    - median_val
+    - std_val
+
+- key: p_value
+  label: p-value
+
+- group: tests
+  exclude:
+    - effect_cat
+
+- key: level
+  label: Level

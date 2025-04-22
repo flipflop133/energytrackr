@@ -1,0 +1,80 @@
+{% block head %}
+<style>
+    :root {
+        --glass-bg: rgba(255, 255, 255, 0.15);
+        --glass-border: rgba(255, 255, 255, 0.25);
+        --text-color: #333;
+        --accent-green: rgba(34, 139, 34, 0.2);
+        --accent-red: rgba(220, 20, 60, 0.2);
+    }
+
+    .summary-box {
+        backdrop-filter: blur(12px);
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+        padding: 1.5rem;
+        margin: 1.5rem auto;
+        max-width: 800px;
+        color: var(--text-color);
+    }
+
+    .summary-box h2 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        font-size: 1.25rem;
+        border-bottom: 1px solid var(--glass-border);
+        padding-bottom: 0.5rem;
+    }
+
+    .summary-box ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .summary-box li {
+        margin-bottom: 0.75rem;
+        line-height: 1.4;
+    }
+
+    .summary-box .regressions {
+        background: var(--accent-red);
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .summary-box .improvements {
+        background: var(--accent-green);
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+<div class="summary-box">
+    <h2>Summary - {{ column }}</h2>
+    <ul>
+        <li><strong>Project:</strong> {{ project_name }}</li>
+        <li><strong>Total commits:</strong> {{ total_commits }}</li>
+        <li><strong>Commit range:</strong>
+            <span title="Latest commit date">{{ latest_commit_hash }}</span>
+            <span style="color: #888;">({{ latest_commit_date }})</span>
+            &ndash;
+            <span title="Oldest commit date">{{ oldest_commit_hash }}</span>
+            <span style="color: #888;">({{ oldest_commit_date }})</span>
+        </li>
+        <li><strong>Significant changes:</strong> {{ significant_changes }}
+            (<span class="regressions">↑ {{ regressions }}</span>,
+            <span class="improvements">↓ {{ improvements }}</span>)
+        </li>
+        <li><strong>Mean energy:</strong> {{ mean_energy|round(2) }} J</li>
+        <li><strong>Median energy:</strong> {{ median_energy|round(2) }} J</li>
+        <li><strong>Std dev:</strong> {{ std_energy|round(2) }} J</li>
+        <li><strong>Normal distributions:</strong> {{ normal_count }} / {{ total_commits }}</li>
+        <li><strong>Outliers removed:</strong> {{ outliers_removed }}</li>
+    </ul>
+</div>

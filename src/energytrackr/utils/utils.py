@@ -2,7 +2,10 @@
 
 import math
 import subprocess
+from pathlib import Path
 from typing import Any
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from energytrackr.utils.logger import logger
 
@@ -74,3 +77,23 @@ def nice_number(x: float) -> float:
     else:
         nice_fraction = 10
     return nice_fraction * (10**exponent)
+
+
+def get_local_env(env: Environment, template_path: str) -> Environment:
+    """Returns a Jinja2 Environment instance configured for the directory containing the specified template.
+
+    If the provided environment's loader is already set to the template's parent directory, it is returned as-is.
+    Otherwise, a new Environment is created with a FileSystemLoader pointing to the template's parent directory.
+
+    Args:
+        env (Environment): The current Jinja2 Environment instance.
+        template_path (str): The file path to the template.
+
+    Returns:
+        Environment: A Jinja2 Environment configured for the template's directory.
+    """
+    return (
+        env
+        if Path(template_path).parent == Path(env.loader.searchpath[0])  # type: ignore[attr-defined]
+        else Environment(loader=FileSystemLoader(Path(template_path).parent), autoescape=select_autoescape())
+    )

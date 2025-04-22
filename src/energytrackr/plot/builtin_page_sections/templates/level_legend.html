@@ -1,0 +1,109 @@
+{% block head %}
+<style>
+    :root {
+        --glass-bg: rgba(255, 255, 255, 0.15);
+        --glass-border: rgba(255, 255, 255, 0.25);
+        --text-color: #333;
+    }
+
+    .level-legend {
+        backdrop-filter: blur(12px);
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        max-width: 800px;
+        color: var(--text-color);
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .level-legend h2 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        font-size: 1.25rem;
+        border-bottom: 1px solid var(--glass-border);
+        padding-bottom: 0.5rem;
+    }
+
+    .level-legend ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .level-legend li {
+        display: flex;
+        align-items: flex-start;
+        margin: 0.5rem 0;
+        line-height: 1.4;
+    }
+
+    .level-legend .legend-marker {
+        width: 12px;
+        height: 12px;
+        display: inline-block;
+        border-radius: 2px;
+        margin-right: 0.75rem;
+        margin-top: 0.2rem;
+    }
+
+    .level-legend .level-1 .legend-marker {
+        background: gray;
+    }
+
+    .level-legend .level-2 .legend-marker {
+        background: blue;
+    }
+
+    .level-legend .level-3 .legend-marker {
+        background: orange;
+    }
+
+    .level-legend .level-4 .legend-marker {
+        background: purple;
+    }
+
+    .level-legend .level-5 .legend-marker {
+        background: red;
+    }
+</style>
+{% endblock %}
+
+<div class="level-legend">
+    <h2>Change‑Event Level Legend</h2>
+    <ul>
+        <li class="level-1">
+            <span class="legend-marker"></span>
+            <strong>Level 1</strong>: Welch’s t‑test <small>– p &lt; {{ welch_p }}</small>
+        </li>
+        <li class="level-2">
+            <span class="legend-marker"></span>
+            <strong>Level 2</strong>: Cohen’s d effect‑size <small>– thresholds: {% for label, thr in cohen_d.items()
+                %}{% if loop.first %}|d| ≤ {{ thr }} ({{ label }}){% elif loop.last %}, > {{ loop.previtem[1] }} ({{
+                label }}){% else %}, {{ loop.previtem[1] }} < |d| ≤ {{ thr }} ({{ label }}){% endif %}{% endfor
+                    %}</small>
+        </li>
+        <li class="level-3">
+            <span class="legend-marker"></span>
+            <strong>Level 3</strong>: Relative change Δ% <small>– thresholds: {% for label, thr in pct_change.items()
+                %}{% if loop.first %}Δ% &lt; {{ (thr*100)|round(1) }}% ({{ label }}){% elif loop.last %}, ≥ {{
+                (loop.previtem[1]*100)|round(1) }}% ({{ label }}){% else %}, {{ (loop.previtem[1]*100)|round(1)
+                }}% ≤ Δ% &lt; {{ (thr*100)|round(1) }}% ({{ label }}){% endif %}{% endfor %}</small>
+        </li>
+        <li class="level-4">
+            <span class="legend-marker"></span>
+            <strong>Level 4</strong>: Practical significance ΔJ <small>– thresholds: {% for label, thr in
+                practical.items() %}{% if loop.first %}ΔJ &lt; {{ (thr*100)|round(1) }}% of median ({{ label }}){% elif
+                loop.last %}, ≥ {{ (loop.previtem[1]*100)|round(1) }}% ({{ label }}){% else %}, {{
+                (loop.previtem[1]*100)|round(1) }}% ≤ ΔJ &lt; {{ (thr*100)|round(1) }}% ({{ label }}){% endif %}{%
+                endfor %}</small>
+        </li>
+        <li class="level-5">
+            <span class="legend-marker"></span>
+            <strong>Level 5</strong>: Context tags present <small>– file/module annotations for root‑cause</small>
+        </li>
+    </ul>
+</div>

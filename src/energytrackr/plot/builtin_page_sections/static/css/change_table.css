@@ -1,0 +1,57 @@
+/* static/css/change_table.css */
+
+/* Container with glass-like background */
+.glass-table-container {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+    padding: 1rem;
+    margin: 2rem 0;
+    overflow-x: auto;
+}
+
+/* Table reset & typography */
+.glass-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #ffffff;
+}
+
+/* Headers */
+.glass-table thead th {
+    background: rgba(255, 255, 255, 0.25);
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Rows */
+.glass-table tbody tr {
+    background: rgba(255, 255, 255, 0.12);
+    transition: background 0.3s ease;
+}
+
+.glass-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* Cells */
+.glass-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Responsive smaller font on narrow screens */
+@media (max-width: 600px) {
+
+    .glass-table thead th,
+    .glass-table td {
+        padding: 0.5rem;
+        font-size: 0.9rem;
+    }
+}

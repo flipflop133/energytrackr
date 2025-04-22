@@ -3,7 +3,7 @@
 import argparse
 
 from energytrackr.pipeline.pipeline import measure
-from energytrackr.plot.main import plot
+from energytrackr.plot.pipeline import plot
 from energytrackr.utils.exceptions import UnknownCommandError
 from energytrackr.utils.sort import reorder_commits
 

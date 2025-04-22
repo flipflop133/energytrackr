@@ -88,3 +88,89 @@ class CantFindFileError(FileNotFoundError):
     def __init__(self, path: str) -> None:
         """Initialize the exception with a custom message."""
         super().__init__(f"File not found: {path}")
+
+
+class SettingsReadOnlyError(AttributeError):
+    """Exception raised when attempting to modify a read-only Settings object."""
+
+    def __init__(self) -> None:
+        """Initialize the exception with a custom message."""
+        super().__init__("Settings object is read-only")
+
+
+class MissingEnergyTrackrKeyError(KeyError):
+    """Exception raised when the top-level 'energytrackr' key is missing in the YAML configuration."""
+
+    def __init__(self) -> None:
+        """Initialize the exception with a custom message."""
+        super().__init__("Top-level 'energytrackr' key missing in YAML.")
+
+
+class PlotObjectDidNotInitializeFigureError(RuntimeError):
+    """Raised when the first PlotObj does not initialize ctx.fig."""
+
+    def __init__(self, module: str) -> None:
+        """Initialize the exception with a custom message.
+
+        Args:
+            module (str): The module name of the PlotObj that failed to initialize.
+        """
+        super().__init__(f"First PlotObj '{module}' did not initialize ctx.fig.")
+
+
+class MissingEnergyFieldError(ValueError):
+    """Exception raised when no energy fields are specified in the configuration."""
+
+    def __init__(self) -> None:
+        """Initialize the exception with a custom message."""
+        super().__init__("Configuration must specify at least one energy field.")
+
+
+class InvalidDottedPathError(ValueError):
+    """Raised when the dotted path is not in the expected 'mod:attr' format."""
+
+    def __init__(self, dotted: str) -> None:
+        """Initialize the exception with a custom message.
+
+        Args:
+            dotted (str): The invalid dotted path that caused the exception.
+        """
+        super().__init__(f"Invalid dotted path '{dotted}', expected 'mod:attr'.")
+
+
+class AttributeNotFoundError(ImportError):
+    """Raised when the attribute is not found in the specified module."""
+
+    def __init__(self, mod_path: str, attr: str) -> None:
+        """Initialize the exception with a custom message.
+
+        Args:
+            mod_path (str): The module path where the attribute was expected to be found.
+            attr (str): The attribute that was not found in the module.
+        """
+        super().__init__(f"Module '{mod_path}' has no attribute '{attr}'.")
+
+
+class InvalidLegendClickPolicyError(ValueError):
+    """Exception raised when an invalid legend click policy is provided."""
+
+    def __init__(self, policy: str, valid: list) -> None:
+        """Initialize with the invalid policy and valid options.
+
+        Args:
+            policy (str): The invalid policy value.
+            valid (list): The list of valid policy values.
+        """
+        super().__init__(f"Invalid legend-click policy {policy!r}; must be one of {valid}")
+
+
+class CommitStatsMissingOrEmptyDataFrameError(ValueError):
+    """Exception raised when the DataFrame is missing or empty in CommitStats, or the specified column is not found."""
+
+    def __init__(self, column: str) -> None:
+        """Initialize the exception with a custom message.
+
+        Args:
+            column (str): The column that was expected in the DataFrame.
+        """
+        super().__init__(f"CommitStats: missing or empty DataFrame for column '{column}'")
