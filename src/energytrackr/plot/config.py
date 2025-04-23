@@ -51,6 +51,8 @@ class ReportCfg(BaseModel):
     """
 
     theme: str = "light"
+    font: str = "Roboto"
+    font_size: int = 12
     chart: dict[str, Any] = Field(default_factory=dict)
 
 

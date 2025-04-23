@@ -7,6 +7,7 @@ from pathlib import Path
 from jinja2 import Environment
 from jinja2.environment import Template
 
+from energytrackr.plot.config import get_settings
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import PageObj
 from energytrackr.utils.logger import logger
@@ -44,5 +45,6 @@ class Base(PageObj):
             logger.error("LevelLegend: template '%s' not found.", self.template_path)
             return "<p><strong>Error:</strong> level legend template missing.</p>"
 
+        settings = get_settings()
         tmpl: Template = get_local_env(env, self.template_path).get_template(Path(self.template_path).name)
-        return tmpl.render()
+        return tmpl.render(font=settings.energytrackr.report.font)

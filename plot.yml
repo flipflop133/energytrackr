@@ -84,6 +84,7 @@ energytrackr:
 
   report:
     theme: "dark"
+    font: "Roboto"
     chart:
       default: "line"
       candlestick_toggle: true

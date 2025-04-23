@@ -6,6 +6,7 @@ from pathlib import Path
 
 from jinja2 import Environment
 
+from energytrackr.plot.config import get_settings
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import PageObj
 from energytrackr.utils.logger import logger
@@ -135,6 +136,6 @@ class ChangeTable(PageObj):
                     else ""
                 ),
             })
-
+        settings = get_settings()
         # Render with Jinja2
-        return tmpl.render(columns=self.columns, rows=table_rows)
+        return tmpl.render(columns=self.columns, rows=table_rows, font=settings.energytrackr.report.font)

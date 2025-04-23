@@ -59,3 +59,4 @@ class LegendPolicy(PlotObj):
             if isinstance(legend, Legend):
                 legend.click_policy = self.policy
                 legend.label_text_font = "Roboto"
+                legend.location = "top_left"
