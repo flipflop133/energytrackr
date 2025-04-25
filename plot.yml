@@ -9,7 +9,7 @@ energytrackr:
   analysis:
     thresholds:
       normality_p: 0.05
-      welch_p: 0.01
+      welch_p: 0.05
       min_pct_increase: 0.03
       cohen_d: { negligible: 0.2, small: 0.5, medium: 0.8, large: 1.2 }
       pct_change: { minor: 0.05, moderate: 0.10, major: 0.25 }
@@ -41,19 +41,25 @@ energytrackr:
       - module: energytrackr.plot.builtin_data_transforms.commit_details:CommitDetails
 
     objects:
-      - module: energytrackr.plot.builtin_plot_objects.plot:Plot
-      - module: energytrackr.plot.builtin_plot_objects.median_line:MedianLine
+      - name: median_line
+        module: energytrackr.plot.builtin_plot_objects.median_line:MedianLine
         params:
           color: blue
-      - module: energytrackr.plot.builtin_plot_objects.error_bars:ErrorBars
-      - module: energytrackr.plot.builtin_plot_objects.candlestick:Candlestick
+          default_visible: true
+      - name: error_bars
+        module: energytrackr.plot.builtin_plot_objects.error_bars:ErrorBars
+      - name: candlestick
+        module: energytrackr.plot.builtin_plot_objects.candlestick:Candlestick
         params:
           default_visible: false
-      - module: energytrackr.plot.builtin_plot_objects.dynamic_ticks:DynamicTicks
+      - name: dynamic_ticks
+        module: energytrackr.plot.builtin_plot_objects.dynamic_ticks:DynamicTicks
         params:
           max_ticks: 20
-      - module: energytrackr.plot.builtin_plot_objects.change_events:ChangeEventMarkers
-      - module: energytrackr.plot.builtin_plot_objects.distribution_scatter:DistributionScatter
+      - name: change_events
+        module: energytrackr.plot.builtin_plot_objects.change_events:ChangeEventMarkers
+      - name: distribution_scatter
+        module: energytrackr.plot.builtin_plot_objects.distribution_scatter:DistributionScatter
         params:
           style:
             normal_color: "blue"
@@ -61,27 +67,46 @@ energytrackr:
             radius: 0.3
             alpha: 0.5
             normal_visible: false
-      - module: energytrackr.plot.builtin_plot_objects.legend_policy:LegendPolicy
+      - name: legend_policy
+        module: energytrackr.plot.builtin_plot_objects.legend_policy:LegendPolicy
         params:
           policy: hide
 
+    plots:
+      - module: energytrackr.plot.builtin_plots.base:EvolutionPlot
+        params:
+          objects:
+            [
+              median_line,
+              error_bars,
+              candlestick,
+              dynamic_ticks,
+              change_events,
+              distribution_scatter,
+              legend_policy,
+            ]
+      - module: energytrackr.plot.builtin_plots.boxplot_comparison:BoxplotComparison
+      - module: energytrackr.plot.builtin_plots.violin_comparison:ViolinComparison
+      - module: energytrackr.plot.builtin_plots.qq_comparison:QQComparison
+      - module: energytrackr.plot.builtin_plots.bootstrap_comparison:BootstrapComparison
+      - module: energytrackr.plot.builtin_plots.cusum_comparison:CUSUMComparison
+      - module: energytrackr.plot.builtin_plots.change_point_comparison:ChangePointComparison
+
     page:
-      - module: energytrackr.plot.builtin_page_sections.base:Base
-      - module: energytrackr.plot.builtin_page_sections.plot_embed:PlotEmbed
-      - module: energytrackr.plot.builtin_page_sections.level_legend:LevelLegend
       - module: energytrackr.plot.builtin_page_sections.summary_box:SummaryBox
+      - module: energytrackr.plot.builtin_page_sections.base:Base
+      - module: energytrackr.plot.builtin_page_sections.level_legend:LevelLegend
+      - module: energytrackr.plot.builtin_page_sections.plot_embed:PlotEmbed
       - module: energytrackr.plot.builtin_page_sections.change_table:ChangeTable
         params:
           columns:
             - { key: short_hash, label: Commit }
-            - { key: message, label: Message, width: 30% }
+            - { key: message, label: Message, width: 10% }
             - { key: commit_date, label: Date (Oldest - Newest), width: 15% }
             - { key: commit_files, label: Files, width: 15% }
             - { group: stats, include: [n_val, normality, median_val, std_val] }
-            - { key: p_value, label: "p-value" }
             - { group: tests, exclude: [effect_cat] }
             - { key: level, label: Level, align: center }
-
   report:
     theme: "dark"
     font: "Roboto"

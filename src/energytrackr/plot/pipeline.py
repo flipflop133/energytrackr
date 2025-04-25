@@ -13,7 +13,6 @@ from energytrackr.plot.core.loader import load_callable
 from energytrackr.utils.exceptions import (
     CantFindFileError,
     MissingEnergyFieldError,
-    PlotObjectDidNotInitializeFigureError,
 )
 from energytrackr.utils.logger import logger
 
@@ -63,15 +62,13 @@ def _apply_transforms(ctx: Context, transforms: Sequence[dict[str, Any]]) -> Non
         cls(**params).apply(ctx)
 
 
-def _build_plot_objects(ctx: Context, plot_objs: Sequence[dict[str, Any]]) -> None:
-    for idx, spec in enumerate(plot_objs):
+def _resolve_plot_objects(ctx: Context, plot_objs: Sequence[dict[str, Any]]) -> None:
+    for _, spec in enumerate(plot_objs):
         cls = load_callable(spec["module"])
         params = spec.get("params", {}) or {}
         logger.info("▶ PlotObj %s(%s)", spec["module"], params)
         obj = cls(**params)
-        obj.add(ctx)
-        if not idx and ctx.fig is None:
-            raise PlotObjectDidNotInitializeFigureError(spec["module"])
+        ctx.plot_objects[spec["name"]] = obj
 
 
 def _render_page_sections(ctx: Context, page_objs: Sequence[dict[str, Any]]) -> str:
@@ -84,6 +81,21 @@ def _render_page_sections(ctx: Context, page_objs: Sequence[dict[str, Any]]) -> 
         logger.info("▶ PageObj %s(%s)", spec["module"], params)
         sections.append(cls(**params).render(env, ctx))
     return "\n".join(sections)
+
+
+def _build_plots(ctx: Context, plot_objs: Sequence[dict[str, Any]]) -> None:
+    """Build plot objects and add them to the context.
+
+    Args:
+        ctx (Context): The context object containing data and settings.
+        plot_objs (Sequence[dict[str, Any]]): List of plot object specifications.
+    """
+    for _, spec in enumerate(plot_objs):
+        cls = load_callable(spec["module"])
+        params = spec.get("params", {}) or {}
+        logger.info("▶ PlotObj %s(%s)", spec["module"], params)
+        obj = cls(**params)
+        obj.build(ctx)
 
 
 def plot(
@@ -115,8 +127,11 @@ def plot(
     # Apply data transforms
     _apply_transforms(ctx, settings.energytrackr.plot.transforms)
 
-    # Build plot objects
-    _build_plot_objects(ctx, settings.energytrackr.plot.objects)
+    # Resolve plot objects for the context
+    _resolve_plot_objects(ctx, settings.energytrackr.plot.objects)
+
+    # Build plots
+    _build_plots(ctx, settings.energytrackr.plot.plots)
 
     # Render HTML report
     html_content = _render_page_sections(ctx, settings.energytrackr.plot.page)

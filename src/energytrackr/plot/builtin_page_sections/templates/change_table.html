@@ -1,83 +1,26 @@
-<!-- Improved HTML/CSS/JS for integrating the toggle button into the change table -->
-<div class="change-table-container">
-    <!-- Toggle control integrated as a caption in the table -->
-    <table class="change-table">
-        <caption>
-            <button id="toggle-change-btn" aria-pressed="false">
-                Show Only Changes&nbsp;<span class="icon">⌄</span>
-            </button>
-        </caption>
-        <thead>
-            <tr>
-                {% for col in columns %}
-                <th>{{ col.label }}</th>
-                {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in rows %}
-            <tr class="{{ row.row_class|default('') }}">
-                {% for col in columns %}
-                <td class="{{ col.key }}">
-                    {% if col.key == "short_hash" and row.commit_link %}
-                    <a href="{{ row.commit_link }}" target="_blank" rel="noopener">{{ row.short_hash }}</a>
-                    {% elif col.key == "commit_files" and row.commit_files %}
-                    {% if row.commit_files is iterable and row.commit_files is not string %}
-                    <ul>
-                        {% for f in row.commit_files %}
-                        <li>{{ f }}</li>
-                        {% endfor %}
-                    </ul>
-                    {% else %}
-                    {{ row.commit_files }}
-                    {% endif %}
-                    {% else %}
-                    {{ row[col.key] }}
-                    {% endif %}
-                </td>
-                {% endfor %}
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
+{% extends "base.html" %}
 
+{% block head %}
 <style>
+    /* Utilities */
     :root {
-        --glass-bg: rgba(255, 255, 255, 0.15);
-        --glass-border: rgba(255, 255, 255, 0.25);
-        --header-bg: rgba(255, 255, 255, 0.2);
-        --text-color: #333;
-        --accent-green: rgba(34, 139, 34, 0.2);
-        --accent-red: rgba(220, 20, 60, 0.2);
-    }
-
-    body {
-        margin: 0;
-        padding: 0;
-        background: #f4f7f9;
-        font-family: "{{ font }}",
-        sans-serif;
-        color: var(--text-color);
-    }
-
-    .change-table-container {
-        position: relative;
-        padding: 2rem;
+        --header-bg: rgba(0, 0, 0, 0.03);
+        --accent-green: rgba(34, 139, 34, 0.15);
+        --accent-red: rgba(220, 20, 60, 0.15);
+        --toggle-radius: 999px;
+        --toggle-padding: 0.6rem 1.2rem;
     }
 
     .change-table {
         width: 100%;
         max-width: 1000px;
         margin: 0 auto;
-        backdrop-filter: blur(12px);
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
         border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 8px 20px var(--card-shadow);
         overflow: hidden;
         caption-side: top;
-        position: relative;
     }
 
     .change-table caption {
@@ -89,20 +32,18 @@
         display: inline-flex;
         align-items: center;
         gap: 0.4rem;
-        padding: 0.6rem 1.2rem;
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
-        border-radius: 999px;
+        padding: var(--toggle-padding);
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--toggle-radius);
         font-size: 0.9rem;
         font-weight: 600;
         color: var(--text-color);
-        backdrop-filter: blur(10px);
         cursor: pointer;
-        transition: background 0.3s ease, transform 0.2s ease;
+        transition: background 0.3s, transform 0.2s;
     }
 
     #toggle-change-btn:hover {
-        background: rgba(255, 255, 255, 0.3);
         transform: scale(1.05);
     }
 
@@ -110,14 +51,10 @@
         background: var(--accent-green);
     }
 
-    #toggle-change-btn[aria-pressed="true"] .icon {
-        transform: rotate(180deg);
-    }
-
     .change-table th,
     .change-table td {
-        padding: 0.4rem 0.6rem;
-        border-bottom: 1px solid var(--glass-border);
+        padding: 0.6rem 0.8rem;
+        border-bottom: 1px solid var(--card-border);
         text-align: left;
     }
 
@@ -128,37 +65,155 @@
         letter-spacing: 0.5px;
     }
 
-    .change-table tbody tr:hover td {
-        background: rgba(255, 255, 255, 0.3);
-    }
-
-    .change-table tr.increase>td.change,
-    .change-table tr.decrease>td.change {
-        font-weight: 600;
-    }
-
+    /* Row-level highlighting */
     .change-table tr.increase>td {
         background: var(--accent-red);
+        font-weight: 600;
     }
 
     .change-table tr.decrease>td {
         background: var(--accent-green);
+        font-weight: 600;
+    }
+
+
+    .change-table-container {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+    }
+
+    .change-table-container .card {
+        width: auto;
+        /* allow it to size to its contents */
+        max-width: none;
+        /* remove the 800px cap */
+        margin: 1rem auto;
+        /* re-center in the viewport */
+    }
+
+    /* make sure the table itself fills the card and stays centered */
+    .change-table {
+        width: 100%;
+        max-width: 1000px;
+        margin: 0;
+        /* no extra auto-margins here */
+    }
+
+    .change-table td ul {
+        list-style-position: inside;
+        margin: 0;
+        /* kill most of the default UL margins */
+        padding-left: 1em;
+        /* indent the list items relative to the cell */
+    }
+
+    .change-table td {
+        text-align: center;
+        vertical-align: middle;
+        /* if you also want it vertically centered */
+    }
+
+    /* center everything except message & file‐list columns */
+    .change-table td:not(.message):not(.commit_files) {
+        text-align: center;
+        vertical-align: middle;
+        /* if you also want vertical centering */
+    }
+
+    /* make sure message & file‐list stay left */
+    .change-table td.message,
+    .change-table td.commit_files {
+        text-align: left;
+    }
+
+    /* center the caption (table title) */
+    .change-table caption {
+        text-align: center;
+    }
+
+    /* center all the <th> text */
+    .change-table th {
+        text-align: center;
+    }
+
+    /* if you’re still overriding <td> elsewhere, you can also force all cells in the header row: */
+    .change-table thead th {
+        text-align: center;
     }
 </style>
+{% endblock %}
+
+{% block content %}
+<div class="change-table-container">
+    <div class="card">
+        <table class="change-table">
+            <caption>
+                <button id="toggle-change-btn" aria-pressed="false">
+                    Show Only Changes <span class="icon">⌄</span>
+                </button>
+            </caption>
+            <thead>
+                <tr>
+                    {% for col in columns %}
+                    <th>{{ col.label }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr class="{{ row.row_class|default('') }}">
+                    {% for col in columns %}
+                    <td class="{{ col.key }}">
+                        {% if col.key == "short_hash" and row.commit_link %}
+                        <a href="{{ row.commit_link }}" target="_blank" rel="noopener">
+                            {{ row.short_hash }}
+                        </a>
+                        {% elif col.key == "commit_files" and row.commit_files %}
+                        {% if row.commit_files is iterable and row.commit_files is not string %}
+                        <ul>
+                            {% for f in row.commit_files %}<li>{{ f }}</li>{% endfor %}
+                        </ul>
+                        {% else %}
+                        {{ row.commit_files }}
+                        {% endif %}
+                        {% else %}
+                        {{ row[col.key] }}
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 
 <script>
     document.addEventListener("DOMContentLoaded", () => {
         const btn = document.getElementById("toggle-change-btn");
+        const icon = btn.querySelector(".icon");
         const rows = document.querySelectorAll(".change-table tbody tr");
+
         btn.addEventListener("click", () => {
-            const pressed = btn.getAttribute("aria-pressed") === "true";
-            btn.setAttribute("aria-pressed", String(!pressed));
-            btn.querySelector('.icon').textContent = pressed ? '⌄' : '⌃';
-            btn.firstChild.textContent = pressed ? 'Show Only Changes ' : 'Show All ';
+            const showOnly = btn.getAttribute("aria-pressed") === "false";
+            btn.setAttribute("aria-pressed", String(showOnly));
+
+            // Update button text & icon
+            btn.firstChild.textContent = showOnly
+                ? "Show All "
+                : "Show Only Changes ";
+            icon.textContent = showOnly ? "⌃" : "⌄";
+
+            // Toggle row visibility
             rows.forEach(row => {
-                const isChange = row.classList.contains("increase") || row.classList.contains("decrease");
-                row.style.display = (!pressed && isChange) || pressed ? '' : 'none';
+                const isChange = row.classList.contains("increase") ||
+                    row.classList.contains("decrease");
+                row.style.display = showOnly
+                    ? (isChange ? "" : "none")
+                    : "";
             });
         });
     });
 </script>
+{% endblock %}

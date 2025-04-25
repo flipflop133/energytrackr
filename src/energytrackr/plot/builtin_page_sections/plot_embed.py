@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from bokeh.embed import components
+from bokeh.models import TabPanel, Tabs
 from bokeh.resources import CDN
 from jinja2 import Environment
 
@@ -32,11 +33,10 @@ class PlotEmbed(PageObj):
         Returns:
             str: HTML snippet with Bokeh resources, script, and div.
         """
-        if ctx.fig is None:
-            return "<p><strong>Error:</strong> no figure to embed.</p>"
-
-        # Generate the standalone components
-        script, div = components(ctx.fig)
+        tabs: list[TabPanel] = []
+        for title, plot in ctx.plots.items():
+            tabs.append(TabPanel(child=plot, title=title))
+        script, div = components(Tabs(tabs=tabs, sizing_mode="stretch_width"))
         cdn_js = CDN.js_files
         cdn_css = CDN.css_files
 

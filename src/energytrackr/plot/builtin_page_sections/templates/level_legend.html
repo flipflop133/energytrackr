@@ -1,109 +1,168 @@
+{% extends "base.html" %}
+
 {% block head %}
 <style>
     :root {
-        --glass-bg: rgba(255, 255, 255, 0.15);
-        --glass-border: rgba(255, 255, 255, 0.25);
-        --text-color: #333;
+        /* marker & layout tokens */
+        --marker-size: 16px;
+        --legend-gap: 1rem;
+        --legend-radius: 12px;
+        --legend-font-base: 1rem;
+        --legend-font-strong: 1.1rem;
     }
 
     .level-legend {
-        backdrop-filter: blur(12px);
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
-        border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        max-width: 800px;
+        /* reuse card look */
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--legend-radius);
+        box-shadow: 0 8px 20px var(--card-shadow);
+        padding: 2rem;
+        margin: 2rem auto;
+        max-width: 700px;
         color: var(--text-color);
-        margin-left: auto;
-        margin-right: auto;
+        font-size: var(--legend-font-base);
+        line-height: 1.6;
     }
 
     .level-legend h2 {
-        margin-top: 0;
         margin-bottom: 1rem;
-        font-size: 1.25rem;
-        border-bottom: 1px solid var(--glass-border);
+        font-size: 1.5rem;
+        border-bottom: 2px solid var(--card-border);
         padding-bottom: 0.5rem;
     }
 
-    .level-legend ul {
-        list-style: none;
-        padding: 0;
+    .level-legend dl {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        column-gap: var(--legend-gap);
+        row-gap: var(--legend-gap);
         margin: 0;
     }
 
-    .level-legend li {
+    .level-legend dt {
         display: flex;
-        align-items: flex-start;
-        margin: 0.5rem 0;
-        line-height: 1.4;
+        align-items: center;
+        font-weight: bold;
+        font-size: var(--legend-font-strong);
     }
 
-    .level-legend .legend-marker {
-        width: 12px;
-        height: 12px;
-        display: inline-block;
-        border-radius: 2px;
+    .legend-marker {
+        width: var(--marker-size);
+        height: var(--marker-size);
+        border-radius: 3px;
         margin-right: 0.75rem;
-        margin-top: 0.2rem;
+        flex-shrink: 0;
     }
 
-    .level-legend .level-1 .legend-marker {
+    /* marker colors */
+    .level-1 .legend-marker {
         background: gray;
     }
 
-    .level-legend .level-2 .legend-marker {
+    .level-2 .legend-marker {
         background: blue;
     }
 
-    .level-legend .level-3 .legend-marker {
+    .level-3 .legend-marker {
         background: orange;
     }
 
-    .level-legend .level-4 .legend-marker {
+    .level-4 .legend-marker {
         background: purple;
     }
 
-    .level-legend .level-5 .legend-marker {
+    .level-5 .legend-marker {
         background: red;
+    }
+
+    .level-legend dd {
+        margin: 0;
+        color: #444;
+        font-size: 0.95rem;
+    }
+
+    .level-legend dd small {
+        display: block;
+        margin-top: 0.25rem;
+        color: #666;
     }
 </style>
 {% endblock %}
 
-<div class="level-legend">
-    <h2>Change‑Event Level Legend</h2>
-    <ul>
-        <li class="level-1">
-            <span class="legend-marker"></span>
-            <strong>Level 1</strong>: Welch’s t‑test <small>– p &lt; {{ welch_p }}</small>
-        </li>
-        <li class="level-2">
-            <span class="legend-marker"></span>
-            <strong>Level 2</strong>: Cohen’s d effect‑size <small>– thresholds: {% for label, thr in cohen_d.items()
-                %}{% if loop.first %}|d| ≤ {{ thr }} ({{ label }}){% elif loop.last %}, > {{ loop.previtem[1] }} ({{
-                label }}){% else %}, {{ loop.previtem[1] }} < |d| ≤ {{ thr }} ({{ label }}){% endif %}{% endfor
-                    %}</small>
-        </li>
-        <li class="level-3">
-            <span class="legend-marker"></span>
-            <strong>Level 3</strong>: Relative change Δ% <small>– thresholds: {% for label, thr in pct_change.items()
-                %}{% if loop.first %}Δ% &lt; {{ (thr*100)|round(1) }}% ({{ label }}){% elif loop.last %}, ≥ {{
-                (loop.previtem[1]*100)|round(1) }}% ({{ label }}){% else %}, {{ (loop.previtem[1]*100)|round(1)
-                }}% ≤ Δ% &lt; {{ (thr*100)|round(1) }}% ({{ label }}){% endif %}{% endfor %}</small>
-        </li>
-        <li class="level-4">
-            <span class="legend-marker"></span>
-            <strong>Level 4</strong>: Practical significance ΔJ <small>– thresholds: {% for label, thr in
-                practical.items() %}{% if loop.first %}ΔJ &lt; {{ (thr*100)|round(1) }}% of median ({{ label }}){% elif
-                loop.last %}, ≥ {{ (loop.previtem[1]*100)|round(1) }}% ({{ label }}){% else %}, {{
-                (loop.previtem[1]*100)|round(1) }}% ≤ ΔJ &lt; {{ (thr*100)|round(1) }}% ({{ label }}){% endif %}{%
-                endfor %}</small>
-        </li>
-        <li class="level-5">
-            <span class="legend-marker"></span>
-            <strong>Level 5</strong>: Context tags present <small>– file/module annotations for root‑cause</small>
-        </li>
-    </ul>
+{% block content %}
+<div class="card level-legend">
+    <h2>Change-Event Level Legend</h2>
+    <dl>
+        <dt class="level-1">
+            <span class="legend-marker"></span>Level 1
+        </dt>
+        <dd>
+            Welch’s <em>t</em>-test
+            <small>p &lt; {{ welch_p }}</small>
+        </dd>
+
+        <dt class="level-2">
+            <span class="legend-marker"></span>Level 2
+        </dt>
+        <dd>
+            Cohen’s <em>d</em> effect-size
+            <small>
+                thresholds:
+                {% for label, thr in cohen_d.items() %}
+                {% if loop.first %}
+                |d| ≤ {{ thr }} ({{ label }})
+                {% elif loop.last %}
+                , > {{ loop.previtem[1] }} ({{ label }})
+                {% else %}
+                , {{ loop.previtem[1] }} < |d| ≤ {{ thr }} ({{ label }}) {% endif %} {% endfor %} </small>
+        </dd>
+
+        <dt class="level-3">
+            <span class="legend-marker"></span>Level 3
+        </dt>
+        <dd>
+            Relative change Δ%
+            <small>
+                thresholds:
+                {% for label, thr in pct_change.items() %}
+                {% if loop.first %}
+                Δ% &lt; {{ (thr*100)|round(1) }}% ({{ label }})
+                {% elif loop.last %}
+                , ≥ {{ (loop.previtem[1]*100)|round(1) }}% ({{ label }})
+                {% else %}
+                , {{ (loop.previtem[1]*100)|round(1) }}% ≤ Δ% &lt; {{ (thr*100)|round(1) }}% ({{ label }})
+                {% endif %}
+                {% endfor %}
+            </small>
+        </dd>
+
+        <dt class="level-4">
+            <span class="legend-marker"></span>Level 4
+        </dt>
+        <dd>
+            Practical significance ΔJ
+            <small>
+                thresholds:
+                {% for label, thr in practical.items() %}
+                {% if loop.first %}
+                ΔJ &lt; {{ (thr*100)|round(1) }}% of median ({{ label }})
+                {% elif loop.last %}
+                , ≥ {{ (loop.previtem[1]*100)|round(1) }}% ({{ label }})
+                {% else %}
+                , {{ (loop.previtem[1]*100)|round(1) }}% ≤ ΔJ &lt; {{ (thr*100)|round(1) }}% ({{ label }})
+                {% endif %}
+                {% endfor %}
+            </small>
+        </dd>
+
+        <dt class="level-5">
+            <span class="legend-marker"></span>Level 5
+        </dt>
+        <dd>
+            Context tags present
+            <small>file/module annotations for root-cause</small>
+        </dd>
+    </dl>
 </div>
+{% endblock %}

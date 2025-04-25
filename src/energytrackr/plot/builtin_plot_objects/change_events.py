@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from bokeh.models import BoxAnnotation
+from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import PlotObj
-from energytrackr.utils.exceptions import PlotObjectDidNotInitializeFigureError
 from energytrackr.utils.logger import logger
 
 
@@ -23,7 +23,7 @@ class ChangeEventMarkers(PlotObj):
         self.show_levels = show_levels
         self.radius_base = radius_base
 
-    def add(self, ctx: Context) -> None:
+    def add(self, ctx: Context, fig: figure) -> None:
         """Adds visual markers for change events to the plot in the given context.
 
         This method retrieves change events from the context's artefacts and adds
@@ -37,17 +37,11 @@ class ChangeEventMarkers(PlotObj):
 
         Args:
             ctx (Context): The plotting context containing artefacts, statistics, and the figure.
-
-
-        Raises:
-            PlotObjectDidNotInitializeFigureError: If the figure is not initialized in the context.
-
+            fig (figure): The Bokeh figure to which the change event markers will be added.
         """
         if not (events := ctx.artefacts.get("change_events", [])):
             logger.info("ChangeEventMarkers: no events; skipping")
             return
-        if not (fig := ctx.fig):
-            raise PlotObjectDidNotInitializeFigureError(self.__class__.__name__)
         # Regression / improvement boxes
         for e in events:
             color = "red" if e.direction == "increase" else "green"

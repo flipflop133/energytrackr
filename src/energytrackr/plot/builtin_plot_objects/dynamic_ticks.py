@@ -9,10 +9,10 @@ from collections.abc import Mapping
 
 from bokeh.core.properties import TextLike
 from bokeh.models import CustomJS, FixedTicker
+from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import PlotObj
-from energytrackr.utils.exceptions import PlotObjectDidNotInitializeFigureError
 
 
 class DynamicTicks(PlotObj):
@@ -26,7 +26,7 @@ class DynamicTicks(PlotObj):
         """
         self.max_ticks = max_ticks
 
-    def add(self, ctx: Context) -> None:
+    def add(self, ctx: Context, fig: figure) -> None:
         """Adds dynamic tick labeling to the x-axis of the plot based on the current view range.
 
         This method initializes the x-axis with a fixed set of ticks and label overrides using short hashes.
@@ -35,13 +35,8 @@ class DynamicTicks(PlotObj):
 
         Args:
             ctx (Context): The plotting context containing the figure and statistics.
-
-        Raises:
-            PlotObjectDidNotInitializeFigureError: If the figure is not initialized in the context.
+            fig (figure): The Bokeh figure to which the dynamic ticks will be added.
         """
-        if not (fig := ctx.fig):
-            raise PlotObjectDidNotInitializeFigureError(self.__class__.__name__)
-
         # 1) Build mapping from index → short_hash
         hashes = ctx.stats["short_hashes"]
 

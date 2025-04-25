@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from bokeh.plotting import figure
 from jinja2 import Environment
 
 from energytrackr.plot.core.context import Context
@@ -30,11 +31,12 @@ class PlotObj(ABC):
     """Adds glyphs/renderers to a Bokeh *Figure*."""
 
     @abstractmethod
-    def add(self, ctx: Context) -> None:
+    def add(self, ctx: Context, fig: figure) -> None:
         """Mutate *ctx* in-place or add artefacts used by later stages.
 
         Args:
             ctx (Context): The context object containing the energy data and other artefacts.
+            fig (figure): The Bokeh figure object to which the plot elements will be added.
         """
         raise NotImplementedError
 

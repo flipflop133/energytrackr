@@ -138,6 +138,7 @@ class PlotCfg(BaseModel):
     transforms: Sequence[dict[str, Any]] = ()
     objects: Sequence[dict[str, Any]] = ()
     page: Sequence[dict[str, Any]] = ()
+    plots: Sequence[dict[str, Any]] = ()
 
 
 class EnergyTrackRCfg(BaseModel):

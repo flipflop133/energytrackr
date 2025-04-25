@@ -8,10 +8,11 @@ from typing import Never, cast
 
 from bokeh.core.enums import LegendClickPolicy, LegendClickPolicyType
 from bokeh.models import Legend
+from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import PlotObj
-from energytrackr.utils.exceptions import InvalidLegendClickPolicyError, PlotObjectDidNotInitializeFigureError
+from energytrackr.utils.exceptions import InvalidLegendClickPolicyError
 
 
 class LegendPolicy(PlotObj):
@@ -39,7 +40,7 @@ class LegendPolicy(PlotObj):
             raise InvalidLegendClickPolicyError(policy_str, valid)
         self.policy: LegendClickPolicyType = policy
 
-    def add(self, ctx: Context) -> None:
+    def add(self, ctx: Context, fig: figure) -> None:  # noqa: ARG002
         """Adds legend policy and styling to the figure's legends in the given context.
 
         This method sets the `click_policy` and `label_text_font` attributes for each
@@ -47,13 +48,8 @@ class LegendPolicy(PlotObj):
 
         Args:
             ctx (Context): The plotting context containing the figure (`fig`) to modify.
-
-        Raises:
-            PlotObjectDidNotInitializeFigureError: If the figure is not initialized in the context.
+            fig (figure): The Bokeh figure to which the legend policy will be applied.
         """
-        if not (fig := ctx.fig):
-            raise PlotObjectDidNotInitializeFigureError(self.__class__.__name__)
-
         legends: list[Legend] | list[Never] = fig.legend if isinstance(fig.legend, (list, tuple)) else [fig.legend]
         for legend in legends:
             if isinstance(legend, Legend):

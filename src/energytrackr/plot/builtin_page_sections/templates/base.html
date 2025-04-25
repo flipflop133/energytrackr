@@ -5,14 +5,128 @@
     <meta charset="UTF-8">
     <title>{% block title %}Energy Analyzer{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    {% block head %}
 
+    {# — FONT IMPORT — #}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family={{ font }}:ital,wght@0,100..900;1,100..900&display=swap"
         rel="stylesheet">
 
+    {% block head %}
+    <style>
+        :root {
+            /* page & card colors */
+            --bg-color: #e0e4e8;
+            --card-bg: #ffffff;
+            --card-border: rgba(0, 0, 0, 0.05);
+            --card-shadow: rgba(0, 0, 0, 0.1);
+
+            /* text & accents */
+            --text-color: #333;
+            --accent-green: rgba(34, 139, 34, 0.2);
+            --accent-red: rgba(220, 20, 60, 0.2);
+        }
+
+        /* reset & base */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            height: 100%;
+            font-family: '{{ font }}',
+            sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        /* generic “card” container */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            /* optional: reduce or remove blur if desired */
+            /* backdrop-filter: blur(4px); */
+            box-shadow: 0 8px 20px var(--card-shadow);
+            padding: 1.5rem;
+            margin: 1rem auto;
+            max-width: 800px;
+            transition: transform .2s, box-shadow .2s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
+        }
+
+        /* badge utilities */
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .badge.green {
+            background: var(--accent-green);
+        }
+
+        .badge.red {
+            background: var(--accent-red);
+        }
+
+        /* responsive dashboard grid (optional) */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            row-gap: 1rem;
+            column-gap: 2rem;
+        }
+
+        .summary-label {
+            font-weight: 600;
+            color: #555;
+            align-self: start;
+        }
+
+        .summary-value {
+            color: #222;
+        }
+
+        .mb-6 {
+            margin-bottom: 1.5rem;
+        }
+
+        .text-xl {
+            font-size: 1.25rem;
+        }
+
+        .font-semibold {
+            font-weight: 600;
+        }
+
+        .text-muted {
+            color: #888;
+            font-size: 0.875rem;
+        }
+    </style>
     {% endblock %}
 </head>
+
+<body>
+    {% block content %}{% endblock %}
+</body>
 
 </html>

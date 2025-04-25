@@ -5,10 +5,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from bokeh.models import ColumnDataSource
+from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import PlotObj
-from energytrackr.utils.exceptions import PlotObjectDidNotInitializeFigureError
 from energytrackr.utils.logger import logger
 
 
@@ -39,7 +39,7 @@ class ErrorBars(PlotObj):
         self.color = color
         self.legend = legend
 
-    def add(self, ctx: Context) -> None:
+    def add(self, ctx: Context, fig: figure) -> None:
         """Adds vertical error bars to the plot using the provided context.
 
         Retrieves x-coordinates, median y-values, and y-error values from the context's statistics.
@@ -48,9 +48,7 @@ class ErrorBars(PlotObj):
 
         Args:
             ctx (Context): The plotting context containing figure and statistical data.
-
-        Raises:
-            PlotObjectDidNotInitializeFigureError: If the figure is not initialized in the context.
+            fig (figure): The Bokeh figure to which the error bars will be added.
         """
         x: Sequence[int] = ctx.stats["x_indices"]
         y: Sequence[float] = ctx.stats["medians"]
@@ -58,8 +56,6 @@ class ErrorBars(PlotObj):
         lower = [m - e for m, e in zip(y, err, strict=True)]
         upper = [m + e for m, e in zip(y, err, strict=True)]
         src = ColumnDataSource({"x": x, "y_lower": lower, "y_upper": upper})
-        if not (fig := ctx.fig):
-            raise PlotObjectDidNotInitializeFigureError(self.__class__.__name__)
         fig.segment(
             "x",
             "y_lower",

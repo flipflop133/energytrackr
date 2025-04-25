@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from bokeh.plotting import figure
+
+if TYPE_CHECKING:
+    from energytrackr.plot.core.interfaces import PlotObj
 
 
 @dataclass
@@ -28,3 +31,5 @@ class Context:
     stats: dict[str, Any] = field(default_factory=dict)
 
     fig: figure | None = None  # created by pipeline, manipulated by objects
+    plots: dict[str, Any] = field(default_factory=dict)
+    plot_objects: dict[str, PlotObj] = field(default_factory=dict)

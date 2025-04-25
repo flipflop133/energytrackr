@@ -19,7 +19,7 @@ from energytrackr.utils.utils import get_local_env
 group_map = {
     "stats": [
         ("n_val", "n"),
-        ("normality", "Normality"),
+        ("normality", "Normality (Shapiro-Wilk)"),
         ("median_val", "Median (J)"),
         ("std_val", "Std Dev (J)"),
     ],

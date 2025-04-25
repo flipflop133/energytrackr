@@ -6,10 +6,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from bokeh.models import ColumnDataSource
+from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import PlotObj
-from energytrackr.utils.exceptions import PlotObjectDidNotInitializeFigureError
 
 
 @dataclass(frozen=True)
@@ -51,7 +51,7 @@ class DistributionScatter(PlotObj):
                 nonnormal_label=str(data.get("nonnormal_label", DistributionScatterStyle.nonnormal_label)),
             )
 
-    def add(self, ctx: Context) -> None:
+    def add(self, ctx: Context, fig: figure) -> None:
         """Add the distribution scatter plot to the figure.
 
         Args:
@@ -59,13 +59,8 @@ class DistributionScatter(PlotObj):
                 It should contain the following artefacts:
                 - "distributions": List of distributions for each commit.
                 - "normality_flags": List of booleans indicating if the distribution is normal or not.
-
-        Raises:
-            PlotObjectDidNotInitializeFigureError: If the figure is not initialized in the context.
+            fig (figure): The Bokeh figure to which the scatter plot will be added.
         """
-        if not (fig := ctx.fig):
-            raise PlotObjectDidNotInitializeFigureError(self.__class__.__name__)
-
         dists = ctx.artefacts.get("distributions", [])
         flags = ctx.artefacts.get("normality_flags", [])
 

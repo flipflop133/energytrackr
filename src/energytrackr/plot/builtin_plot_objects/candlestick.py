@@ -6,10 +6,10 @@ from collections.abc import Sequence
 
 import numpy as np
 from bokeh.models import ColumnDataSource
+from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import PlotObj
-from energytrackr.utils.exceptions import PlotObjectDidNotInitializeFigureError
 from energytrackr.utils.logger import logger
 
 
@@ -26,7 +26,7 @@ class Candlestick(PlotObj):
         self.visible = default_visible
         self.body_width = body_width
 
-    def add(self, ctx: Context) -> None:
+    def add(self, ctx: Context, fig: figure) -> None:
         """Adds a candlestick plot to the given context's figure using statistical data.
 
         This method constructs a candlestick chart by computing the open, close, low, and high values
@@ -42,10 +42,7 @@ class Candlestick(PlotObj):
                 - ctx.stats["x_indices"]: Sequence of x-axis indices for each candlestick.
                 - ctx.stats["medians"]: Sequence of median values for each candlestick.
                 - ctx.artefacts["distributions"]: Sequence of distributions (arrays) for each candlestick.
-
-        Raises:
-            PlotObjectDidNotInitializeFigureError: If the figure is not initialized in the context.
-
+            fig (figure): The Bokeh figure to which the candlestick plot will be added.
         """
         x: Sequence[int] = ctx.stats["x_indices"]
         medians: Sequence[float] = ctx.stats["medians"]
@@ -75,8 +72,6 @@ class Candlestick(PlotObj):
         src = ColumnDataSource(data)
 
         # Use data column names for quad glyph
-        if not (fig := ctx.fig):
-            raise PlotObjectDidNotInitializeFigureError(self.__class__.__name__)
         fig.quad(
             top="top",
             bottom="bottom",

@@ -17,17 +17,25 @@ from collections.abc import Sequence
 from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.models.glyphs import Circle
 from bokeh.models.renderers import GlyphRenderer
+from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import PlotObj
-from energytrackr.utils.exceptions import PlotObjectDidNotInitializeFigureError
 from energytrackr.utils.logger import logger
 
 
 class MedianLine(PlotObj):
     """Draws median points connected by a line."""
 
-    def __init__(self, color: str = "blue", line_width: int = 1, radius: float = 0.3, legend: str | None = None) -> None:
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def __init__(
+        self,
+        color: str = "blue",
+        line_width: int = 1,
+        radius: float = 0.3,
+        legend: str | None = None,
+        default_visible: bool = True,
+    ) -> None:
         """Initialize the MedianLine object.
 
         Args:
@@ -35,13 +43,15 @@ class MedianLine(PlotObj):
             line_width (int): Width of the line.
             radius (float): Radius of the points.
             legend (str | None): Legend label for the line. If None, defaults to "Median".
+            default_visible (bool): Whether the line is visible by default.
         """
         self.color = color
         self.line_width = line_width
         self.radius = radius
         self.legend = legend or "Median"
+        self.default_visible = default_visible
 
-    def add(self, ctx: Context) -> None:
+    def add(self, ctx: Context, fig: figure) -> None:
         """Adds a median line and interactive hover tool to the provided Bokeh figure context.
 
         This method extracts x-indices, median values, and commit short hashes from the context's statistics,
@@ -50,16 +60,11 @@ class MedianLine(PlotObj):
 
         Args:
             ctx (Context): The plotting context containing statistics and the Bokeh figure.
-
-        Raises:
-            PlotObjectDidNotInitializeFigureError: If the figure is not initialized in the context.
+            fig (figure): The Bokeh figure to which the median line will be added.
         """
         x: Sequence[int] = ctx.stats["x_indices"]
         y: Sequence[float] = ctx.stats["medians"]
         src = ColumnDataSource(data={"x": x, "y": y, "commit": ctx.stats["short_hashes"]})
-
-        if not (fig := ctx.fig):
-            raise PlotObjectDidNotInitializeFigureError(self.__class__.__name__)
 
         fig.line("x", "y", source=src, color=self.color, line_width=self.line_width, legend_label=f"{self.legend} line")
 
@@ -71,6 +76,7 @@ class MedianLine(PlotObj):
             radius=self.radius,
             color=self.color,
             legend_label=self.legend,
+            visible=self.default_visible,
         )
         hover: HoverTool = HoverTool(
             renderers=[median_renderer],

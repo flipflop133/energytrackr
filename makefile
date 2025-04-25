@@ -25,10 +25,10 @@ venv:
 
 update-venv: venv
 	$(PIP) install --upgrade pip
-	$(PIP) install -r $(REQ)
-	$(PIP) install -r $(REQ_DEV)
-	$(PIP) install -r $(REQ_DOCS)
-	$(PIP) install -r $(REQ_TEST)
+	$(PIP) install --upgrade -r $(REQ)
+	$(PIP) install --upgrade -r $(REQ_DEV)
+	$(PIP) install --upgrade -r $(REQ_DOCS)
+	$(PIP) install --upgrade -r $(REQ_TEST)
 	$(PIP) install -e .
 
 clean-venv:
