@@ -1,92 +1,130 @@
-"""Violin plot comparing two commits with working hover tooltips."""
+"""ViolinComparison using BasePlot and mixins for cleaner composition."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any
 
 import numpy as np
-from bokeh.models import ColumnDataSource, Label, Range1d, Span
-from bokeh.models.renderers import GlyphRenderer
+from bokeh.models import ColumnDataSource, Label, Span
 from bokeh.models.tickers import FixedTicker
 from bokeh.plotting import figure
 from scipy.stats import gaussian_kde
 
-from energytrackr.plot.builtin_plots.plot_interface import Plot
-from energytrackr.plot.builtin_plots.utils import get_labels_and_dists, make_selectors, wrap_layout
+from energytrackr.plot.builtin_plots.mixins import (
+    ComparisonBase,
+    get_labels_and_dists,
+)
+from energytrackr.plot.builtin_plots.registry import register_plot
 from energytrackr.plot.core.context import Context
-
-if TYPE_CHECKING:
-    from bokeh.models.sources import DataDict
+from energytrackr.utils.exceptions import PlotLabelsNotSetError, PlotSourcesNotSetError
 
 
-class ViolinComparison(Plot):
+@register_plot
+class ViolinComparison(
+    ComparisonBase,
+):
     """Interactive violin plot comparing two selected commits with hover tooltips."""
 
-    # pylint: disable=too-many-locals
-    def build(self, ctx: Context) -> None:  # noqa: PLR0914
-        """Build an interactive violin comparison plot in the given context.
+    def __init__(self) -> None:
+        """Initialize the ViolinComparison plot."""
+        self._kde_src: ColumnDataSource | None = None
+        self._medians: list[float] | None = None
+        self._labels: list[str] | None = None
+        self._width: float | None = None
+        self._sources: dict[str, Any] | None = None
 
-        Args:
-            ctx: Plotting context containing stats, artefacts, energy_fields, and a plots dict.
-        """
+    def _make_sources(self, ctx: Context) -> dict[str, Any]:
         labels, dists = get_labels_and_dists(ctx)
-        full_kde, medians = self._compute_kdes(dists)
+        kde_src, medians = self._compute_kdes(dists)
+        # store for callback wiring and drawing
+        self._kde_src = kde_src
+        self._medians = medians
+        self._labels = labels
+        self._width = 0.4
+        return {"kde_src": kde_src}
 
-        # after computing full_kde & medians
-        p: figure = self._create_figure(ctx.energy_fields[0])
-
-        # 1) initial indices
-        i1, i2 = 0, -1
-        init1, init2 = labels[i1], labels[i2]
-
-        # 2) initial patch data
-        v1_ds = ColumnDataSource(self._make_patch_ds(full_kde, i1, 0, init1, 0.4))
-        v2_ds = ColumnDataSource(self._make_patch_ds(full_kde, i2, 1, init2, 0.4))
-
-        # 3) render
-        self._render_violin(p, v1_ds, fill_color="lightsteelblue")
-        self._render_violin(p, v2_ds, fill_color="lightcoral" if medians[i2] > medians[i1] else "lightgreen")
-
-        # 4) spans & label
-        span1, span2 = self._add_median_spans(p, medians, i1, i2)
-        label_diff = self._add_diff_label(p, medians, i1, i2, full_kde)
-
-        sel1, sel2 = make_selectors(
-            labels,
-            js_code_path=Path(__file__).parent / "static" / "violin_comparison.js",
-            cb_args={
-                "full_kde": full_kde,
-                "violin1_ds": v1_ds,
-                "violin2_ds": v2_ds,
-                "span1": span1,
-                "span2": span2,
-                "label_diff": label_diff,
-                "sel1": None,
-                "sel2": None,
-                "width": 0.4,
-                "labels": labels,
-                "ticker": p.xaxis[0].ticker,
-                "v2": p.renderers[-1],
-            },
+    def _make_figure(self, ctx: Context) -> figure:
+        field = ctx.energy_fields[0]
+        p = figure(
+            title=self._title(ctx),
+            sizing_mode="stretch_width",
+            tools="pan,box_zoom,reset,save,wheel_zoom,hover",
+            toolbar_location="above",
+            y_axis_label=f"{field} (J)",
         )
-        ViolinComparison._configure_xaxis(p, sel1.value, sel2.value)
-        wrap_layout(sel1, sel2, p, "Violin", ctx)
+        return p
+
+    def _draw_glyphs(self, fig: figure, sources: dict[str, ColumnDataSource], ctx: Context) -> None:  # noqa: ARG002
+        labels = self._labels
+        medians = self._medians
+        kde_src = self._kde_src
+        w = self._width
+        if kde_src is None or medians is None or labels is None or w is None:
+            raise ValueError()
+
+        i1, i2 = 0, -1
+        # initial patch data
+        ds1 = ColumnDataSource(self._make_patch_ds(kde_src, i1, 0, labels[i1], w))
+        ds2 = ColumnDataSource(self._make_patch_ds(kde_src, i2, 1, labels[i2], w))
+        # render violins
+        self._render_violin(fig, ds1, fill_color="lightsteelblue")
+        self._render_violin(
+            fig,
+            ds2,
+            fill_color="lightcoral" if medians[i2] > medians[i1] else "lightgreen",
+        )
+        # median spans and difference label
+        span1, span2 = self._add_median_spans(fig, medians, i1, i2)
+        diff_label = self._add_diff_label(fig, medians, i1, i2, kde_src)
+
+        # store for JS callbacks
+        self._sources = {
+            "kde_src": kde_src,
+            "violin1_ds": ds1,
+            "violin2_ds": ds2,
+            "span1": span1,
+            "span2": span2,
+            "label_diff": diff_label,
+            "width": w,
+            "labels": labels,
+        }
+
+    def _callback_js_path(self) -> Path:  # noqa: PLR6301
+        return Path(__file__).parent / "static" / "violin_comparison.js"
+
+    def _callback_args(self, fig: figure, ctx: Context) -> dict[str, Any]:
+        if self._sources is None:
+            raise PlotSourcesNotSetError(self._key(ctx))
+        self._sources.update({"plot": fig, "ticker": fig.xaxis[0].ticker})
+        return self._sources
+
+    def _configure(self, fig: figure, ctx: Context) -> None:
+        super()._configure(fig, ctx)
+        # configure fixed x-axis ticks
+        if self._labels is None:
+            raise PlotLabelsNotSetError(self._key(ctx))
+        self._configure_xaxis(fig, self._labels[0], self._labels[-1])
+
+    def _hover_tooltips(self, ctx: Context) -> list[tuple[str, str]]:  # noqa: PLR6301
+        field = ctx.energy_fields[0]
+        return [
+            ("Commit", "@commit"),
+            (field, "@y{0.00} J"),
+        ]
+
+    def _title(self, ctx: Context) -> str:  # noqa: PLR6301
+        return f"Violin Plot: {ctx.energy_fields[0]}"
+
+    def _key(self, ctx: Context) -> str:  # noqa: ARG002, PLR6301
+        return "Violin"
 
     @staticmethod
-    def _compute_kdes(dists: Sequence[Sequence[float] | np.ndarray]) -> tuple[ColumnDataSource, list[float]]:
-        """Compute normalized KDEs and medians for given distributions.
-
-        Args:
-            dists: A list of numeric arrays.
-
-        Returns:
-            Tuple containing a ColumnDataSource with 'kde_x', 'kde_y', 'median' keys and the medians list.
-        """
+    def _compute_kdes(dists: list[np.ndarray]) -> tuple[ColumnDataSource, list[float]]:
         kde_x_list: list[list[float]] = []
         kde_y_list: list[list[float]] = []
         medians: list[float] = []
+
         for arr in dists:
             a = np.asarray(arr, float)
             grid = np.linspace(a.min(), a.max(), 200)
@@ -98,102 +136,70 @@ class ViolinComparison(Plot):
         return src, medians
 
     @staticmethod
-    def _create_figure(field: str) -> figure:
-        """Initialize base Bokeh figure for violin plot.
-
-        Args:
-            field: Energy field name for y-axis and title.
-
-        Returns:
-            Configured Bokeh Figure.
-        """
-        p = figure(
-            title=f"Violin Plot: {field}",
-            sizing_mode="stretch_width",
-            x_range=Range1d(-0.6, 1.6),
-            y_axis_label=f"{field} (J)",
-            tools="pan,box_zoom,reset,save,wheel_zoom",
-            toolbar_location="above",
-        )
-        return p
-
-    @staticmethod
     def _make_patch_ds(
         source: ColumnDataSource,
         idx: int,
         pos: int,
         label: str,
         width: float,
-    ) -> DataDict:
+    ) -> dict[str, Any]:
         norm = source.data["kde_x"][idx]
         grid = source.data["kde_y"][idx]
-
         xs = [pos - n * width for n in norm] + [pos + n * width for n in reversed(norm)]
         ys = list(grid) + list(reversed(grid))
         commits = [label] * len(xs)
-
-        # dict[str, Sequence[Any] | NDArray[Any]] is accepted as DataDict
-        return {
-            "x": xs,  # list[float] is a Sequence[Any]
-            "y": ys,
-            "commit": commits,
-        }
+        return {"x": xs, "y": ys, "commit": commits}
 
     @staticmethod
-    def _render_violin(p: figure, ds: ColumnDataSource, fill_color: str) -> GlyphRenderer:
-        """Render a violin patch onto the figure.
-
-        Args:
-            p: Bokeh Figure.
-            ds: ColumnDataSource for patch.
-            fill_color: Fill color string.
-
-        Returns:
-            The Bokeh GlyphRenderer for the patch.
-        """
-        return p.patch("x", "y", source=ds, fill_color=fill_color, fill_alpha=0.6, line_color="black")
+    def _render_violin(
+        fig: figure,
+        ds: ColumnDataSource,
+        fill_color: str,
+    ) -> None:
+        fig.patch(
+            x="x",
+            y="y",
+            source=ds,
+            fill_color=fill_color,
+            fill_alpha=0.6,
+            line_color="black",
+        )
 
     @staticmethod
-    def _add_median_spans(p: figure, medians: list[float], idx1: int, idx2: int) -> tuple[Span, Span]:
-        """Add dashed spans for medians.
-
-        Args:
-            p: Bokeh Figure.
-            medians: List of medians.
-            idx1: First index.
-            idx2: Second index.
-
-        Returns:
-            Tuple of two Span objects.
-        """
-        span1 = Span(location=medians[idx1], dimension="width", line_color="blue", line_dash="dashed", line_width=2)
-        span2 = Span(
-            location=medians[idx2],
+    def _add_median_spans(
+        fig: figure,
+        medians: list[float],
+        i1: int,
+        i2: int,
+    ) -> tuple[Span, Span]:
+        span1 = Span(
+            location=medians[i1],
             dimension="width",
-            line_color="red" if medians[idx2] > medians[idx1] else "green",
+            line_color="blue",
             line_dash="dashed",
             line_width=2,
         )
-        p.add_layout(span1)
-        p.add_layout(span2)
+        span2 = Span(
+            location=medians[i2],
+            dimension="width",
+            line_color="red" if medians[i2] > medians[i1] else "green",
+            line_dash="dashed",
+            line_width=2,
+        )
+        fig.add_layout(span1)
+        fig.add_layout(span2)
         return span1, span2
 
     @staticmethod
-    def _add_diff_label(p: figure, medians: list[float], idx1: int, idx2: int, source: ColumnDataSource) -> Label:
-        """Annotate median difference.
-
-        Args:
-            p: Bokeh Figure.
-            medians: List of medians.
-            idx1: First index.
-            idx2: Second index.
-            source: ColumnDataSource with 'kde_y'.
-
-        Returns:
-            A Bokeh Label renderer.
-        """
-        delta = medians[idx2] - medians[idx1]
-        y_max = max(source.data["kde_y"][-1])
+    def _add_diff_label(
+        fig: figure,
+        medians: list[float],
+        i1: int,
+        i2: int,
+        source: ColumnDataSource,
+    ) -> Label:
+        delta = medians[i2] - medians[i1]
+        y_max = max(source.data["kde_y"][i2])
         label = Label(
             x=0.5,
             y=y_max * 1.05,
@@ -202,19 +208,16 @@ class ViolinComparison(Plot):
             text_font_size="12pt",
             text_color="red" if delta > 0 else "green",
         )
-        p.add_layout(label)
+        fig.add_layout(label)
         return label
 
     @staticmethod
-    def _configure_xaxis(p: figure, label1: str, label2: str) -> None:
-        """Configure fixed x-axis ticks and labels.
-
-        Args:
-            p: Bokeh Figure.
-            label1: First commit label.
-            label2: Second commit label.
-        """
+    def _configure_xaxis(
+        fig: figure,
+        label1: str,
+        label2: str,
+    ) -> None:
         ticker = FixedTicker(ticks=[0, 1])
-        p.xaxis[0].ticker = ticker
-        p.xaxis[0].major_label_overrides = {0: label1, 1: label2}
-        p.xaxis[0].axis_label = "Commit"
+        fig.xaxis[0].ticker = ticker
+        fig.xaxis[0].major_label_overrides = {0: label1, 1: label2}
+        fig.xaxis[0].axis_label = "Commit"

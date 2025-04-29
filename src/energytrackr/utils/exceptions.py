@@ -174,3 +174,51 @@ class CommitStatsMissingOrEmptyDataFrameError(ValueError):
             column (str): The column that was expected in the DataFrame.
         """
         super().__init__(f"CommitStats: missing or empty DataFrame for column '{column}'")
+
+
+class PlotAlreadyRegisteredError(ValueError):
+    """Exception raised when a plot class is already registered."""
+
+    def __init__(self, name: str) -> None:
+        """Initialize the exception with the plot class name.
+
+        Args:
+            name (str): The name of the plot class that is already registered.
+        """
+        super().__init__(f"Plot '{name}' already registered.")
+
+
+class PlotLabelsNotSetError(ValueError):
+    """Exception raised when plot labels are not set."""
+
+    def __init__(self, plot_key: str) -> None:
+        """Initialize the exception with the plot key.
+
+        Args:
+            plot_key (str): The key identifying the plot.
+        """
+        super().__init__(f"{plot_key} plot labels not set.")
+
+
+class PlotSourcesNotSetError(ValueError):
+    """Exception raised when plot sources are not set."""
+
+    def __init__(self, plot_key: str) -> None:
+        """Initialize the exception with the plot key.
+
+        Args:
+            plot_key (str): The key identifying the plot.
+        """
+        super().__init__(f"Sources not set for graph {plot_key}")
+
+
+class NotAPlotObjTypeError(TypeError):
+    """Exception raised when an object is not a PlotObj."""
+
+    def __init__(self, name: str) -> None:
+        """Initialize the exception with the object name.
+
+        Args:
+            name (str): The name of the object that is not a PlotObj.
+        """
+        super().__init__(f"Plot object '{name}' is not a PlotObj")

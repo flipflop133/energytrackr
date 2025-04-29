@@ -1,109 +1,94 @@
-"""Change-Point Comparison Plot."""
+"""ChangePointComparison using BasePlot and mixins for cleaner composition."""
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import ruptures as rpt
-from bokeh.layouts import column
 from bokeh.models import ColumnDataSource, HoverTool
-from bokeh.models.layouts import Column
 from bokeh.plotting import figure
 
-from energytrackr.plot.builtin_plots.plot_interface import Plot
+from energytrackr.plot.builtin_plots.base import BasePlot
+from energytrackr.plot.builtin_plots.mixins import FontMixin, HoverMixin, draw_additional_objects
+from energytrackr.plot.builtin_plots.registry import register_plot
 from energytrackr.plot.core.context import Context
 
 
-class ChangePointComparison(Plot):
+@register_plot
+class ChangePointComparison(FontMixin, HoverMixin, BasePlot):
     """Renders a median-trend plot with change-point detection overlays."""
 
-    def build(self, ctx: Context) -> None:  # noqa: PLR6301
-        """Builds the change-point comparison plot.
+    def __init__(self, objects: list[str]) -> None:
+        """Initialize the ChangePointComparison plot."""
+        self.objects = objects
 
-        Builds a Bokeh plot visualizing change-point detection on median energy values across commits.
-
-        This function performs the following steps:
-        1. Extracts commit labels and computes the median of energy distributions for each commit.
-        2. Detects change-points in the sequence of medians using the PELT algorithm with an RBF cost model.
-        3. Prepares a Bokeh data source for the median line.
-        4. Determines the y-axis span for plotting vertical change-point segments.
-        5. Constructs a Bokeh figure showing the median trend line across commits.
-        6. Overlays vertical dashed segments at each detected change-point.
-        7. Adds a hover tool to display precise commit and median values.
-        8. Stores the resulting plot layout in the context under the key "change_point_comparison".
-
-        Args:
-            ctx (Context): The plotting context containing statistics, artefacts, and configuration.
-        """
-        # 1) Extract commit labels & compute medians
-        labels = ctx.stats["short_hashes"]
-        dists = ctx.artefacts["distributions"]
+    def _make_sources(self, ctx: Context) -> dict[str, Any]:  # noqa: PLR6301
+        labels: list[str] = ctx.stats["short_hashes"]
+        dists: list[list[float]] = ctx.artefacts["distributions"]
         medians = np.array([float(np.median(arr)) for arr in dists])
-
-        # 2) Detect change-points with PELT + RBF cost
+        idx = np.arange(len(labels))
+        # detect change-points using PELT + RBF
         algo = rpt.Pelt(model="rbf").fit(medians)
         breakpoints = algo.predict(pen=3)
-        # drop the final index (always == len(medians))
         cps = [bp for bp in breakpoints if bp < len(medians)]
 
-        # 3) Prepare data source for the median line
         source = ColumnDataSource(
             data={
                 "commit": labels,
                 "med": medians.tolist(),
+                "idx": idx,
             },
         )
 
-        # 5) Build the figure
-        p = figure(
-            x_range=labels,
-            sizing_mode="stretch_width",
-            title=f"Change-Point Detection: {ctx.energy_fields[0]} Medians",
-            x_axis_label="Commit",
-            y_axis_label=f"Median {ctx.energy_fields[0]} (J)",
-            tools="pan,box_zoom,reset,save,wheel_zoom,hover",
-            toolbar_location="above",
-        )
-        # median-trend line
-        median_line = p.line(
-            x="commit",
+        return {"source": source, "cps": cps, "medians": medians}
+
+    def _draw_glyphs(self, fig: figure, sources: dict[str, Any], ctx: Context) -> None:
+        # median trend line
+        median_line = fig.line(
+            x="idx",
             y="med",
-            source=source,
+            source=sources["source"],
             line_width=2,
-            line_color="navy",
             name="median_line",
         )
-
-        # 6) Overlay vertical segments at each detected change-point
-        if cps:
+        # change-point segments
+        if cps := sources["cps"]:
+            medians = sources["medians"]
             segment_source = ColumnDataSource({
-                "commit": [labels[cp] for cp in cps],
+                "x": [sources["source"].data["idx"][i] for i in cps],
                 "y0": [medians.min()] * len(cps),
                 "y1": [medians.max()] * len(cps),
             })
-            p.segment(
-                x0="commit",
+            fig.segment(
+                x0="x",
                 y0="y0",
-                x1="commit",
+                x1="x",
                 y1="y1",
                 source=segment_source,
                 line_dash="dashed",
                 line_color="firebrick",
                 line_width=2,
             )
-
-        # 7) Hover tool for precise values (only for the median line)
+        # add hover on median line
         hover = HoverTool(
-            tooltips=[
-                ("Commit", "@commit"),
-                ("Median", "@med{0.00} J"),
-            ],
+            tooltips=[("Commit", "@commit"), ("Median", "@med{0.00} J")],
             mode="vline",
             renderers=[median_line],
         )
-        p.add_tools(hover)
-        for axis in p.xaxis:
-            axis.major_label_orientation = 0.8
+        fig.add_tools(hover)
 
-        # 8) Add the plot to the context
-        layout: Column = column(p, sizing_mode="stretch_width")
-        ctx.plots["Change Point Detection"] = layout
+        draw_additional_objects(self.objects, fig, ctx)
+
+    def _configure(self, fig: figure, ctx: Context) -> None:
+        super()._configure(fig, ctx)
+        # axis labels
+        field = ctx.energy_fields[0]
+        fig.xaxis[0].axis_label = "Commit (oldest → newest)"
+        fig.yaxis[0].axis_label = f"Median {field} (J)"
+
+    def _title(self, ctx: Context) -> str:  # noqa: PLR6301
+        return f"Change-Point Detection: {ctx.energy_fields[0]} Medians"
+
+    def _key(self, ctx: Context) -> str:  # noqa: ARG002, PLR6301
+        return "Change Point Detection"

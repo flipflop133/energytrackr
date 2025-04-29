@@ -43,10 +43,10 @@
         if (idx >= nb) idx = nb - 1;
         counts[idx]++;
     }
-    hist_source.data['top'] = counts;
-    hist_source.data['left'] = edges.slice(0, nb);
-    hist_source.data['right'] = edges.slice(1);
-    hist_source.change.emit();
+    hist.data['top'] = counts;
+    hist.data['left'] = edges.slice(0, nb);
+    hist.data['right'] = edges.slice(1);
+    hist.change.emit();
 
     // compute 95% CI
     diffs.sort((a, b) => a - b);

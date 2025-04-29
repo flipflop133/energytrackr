@@ -73,7 +73,7 @@ energytrackr:
           policy: hide
 
     plots:
-      - module: energytrackr.plot.builtin_plots.base:EvolutionPlot
+      - module: energytrackr.plot.builtin_plots.evolution_plot:EvolutionPlot
         params:
           objects:
             [
@@ -91,6 +91,8 @@ energytrackr:
       - module: energytrackr.plot.builtin_plots.bootstrap_comparison:BootstrapComparison
       - module: energytrackr.plot.builtin_plots.cusum_comparison:CUSUMComparison
       - module: energytrackr.plot.builtin_plots.change_point_comparison:ChangePointComparison
+        params:
+          objects: [dynamic_ticks, legend_policy]
 
     page:
       - module: energytrackr.plot.builtin_page_sections.summary_box:SummaryBox

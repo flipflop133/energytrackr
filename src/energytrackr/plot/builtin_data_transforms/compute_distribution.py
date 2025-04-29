@@ -1,6 +1,7 @@
 # builtin_data_transforms/compute_distribution.py
 """Compute the distribution of a given column for each commit."""
 
+import numpy as np
 from scipy.stats import shapiro
 
 from energytrackr.plot.core.context import Context
@@ -49,7 +50,8 @@ class ComputeDistribution(Transform):
         min_for_sw = self.min_values_for_normality
         alpha = self.normality_p
 
-        dists, flags = [], []
+        dists: list[np.ndarray] = []
+        flags = []
         for c in commits:
             vals = df[df["commit"] == c][col].values.astype(float)
             dists.append(vals)

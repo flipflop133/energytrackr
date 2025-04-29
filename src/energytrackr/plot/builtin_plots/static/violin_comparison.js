@@ -1,5 +1,5 @@
 (() => {
-    const data = full_kde.data;
+    const data = kde_src.data;
     const i1 = labels.indexOf(sel1.value);
     const i2 = labels.indexOf(sel2.value);
 

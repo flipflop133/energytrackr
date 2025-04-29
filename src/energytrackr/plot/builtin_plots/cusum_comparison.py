@@ -1,89 +1,170 @@
-"""CUSUM comparison plot for energy consumption regression analysis."""
+"""CUSUMComparison using BasePlot and mixins for cleaner composition."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
-from bokeh.layouts import column
-from bokeh.models import ColumnDataSource, FactorRange, HoverTool, Label, Range1d, Span
+import numpy.typing as npt
+from bokeh.models import ColumnDataSource, FactorRange, Label, Range1d, Span
 from bokeh.plotting import figure
 
-from energytrackr.plot.builtin_plots.plot_interface import Plot
+from energytrackr.plot.builtin_plots.base import BasePlot
+from energytrackr.plot.builtin_plots.mixins import FontMixin, HoverMixin
+from energytrackr.plot.builtin_plots.registry import register_plot
 from energytrackr.plot.core.context import Context
 
 
 @dataclass
 class CUSStats:
-    """Computed statistics for CUSUM plot."""
+    """Statistics for CUSUM control chart."""
 
-    medians: np.ndarray
+    medians: npt.NDArray[np.float64]
     baseline: float
-    deviations: np.ndarray
-    cusum: np.ndarray
+    deviations: npt.NDArray[np.float64]
+    cusum: npt.NDArray[np.float64]
     sigma: float
     upper_limit: float
     lower_limit: float
 
 
-@dataclass
-class CUSSources:
-    """ColumnDataSource bundle for CUSUM plot."""
+@register_plot
+class CUSUMComparison(FontMixin, HoverMixin, BasePlot):
+    """Renders an enhanced CUSUM control chart highlighting regressions and improvements."""
 
-    main: ColumnDataSource
+    def __init__(self) -> None:
+        """Initialize the CUSUMComparison plot."""
+        super().__init__()
+        self._upper_span: Span | None = None
+        self._lower_span: Span | None = None
+        self._upper_label: Label | None = None
+        self._lower_label: Label | None = None
+        self._stats: Any | None = None
+        self._src: ColumnDataSource | None = None
 
+    def _make_figure(self, ctx: Context) -> figure:
+        fig = super()._make_figure(ctx)
 
-@dataclass
-class CUSFigure:
-    """Encapsulates the Bokeh figure and its annotation glyphs."""
-
-    p: figure
-    upper_span: Span
-    lower_span: Span
-    upper_label: Label
-    lower_label: Label
-
-
-class CUSUMComparison(Plot):
-    """Renders an enhanced CUSUM control chart highlighting regressions."""
-
-    def build(self, ctx: Context) -> None:  # noqa: PLR6301
-        """Builds the CUSUM comparison chart and stores it in the context.
-
-        Fetches commit labels and distributions, computes CUSUM statistics,
-        creates data sources and figure, then assembles into a layout.
-
-        Args:
-            ctx: Plotting context with stats, artefacts, energy_fields, and plots dict.
-        """
         labels = ctx.stats["short_hashes"]
-        dists = ctx.artefacts["distributions"]
+        fig.x_range = FactorRange(*labels)
 
-        stats = CUSUMComparison._compute_stats(dists)
-        sources = CUSUMComparison._make_sources(labels, stats)
-        fig = CUSUMComparison._create_figure(ctx.energy_fields[0], labels, stats, sources)
+        return fig
 
-        layout = column(fig.p, sizing_mode="stretch_width")
-        ctx.plots["CUSUM"] = layout
+    def _make_sources(self, ctx: Context) -> dict[str, Any]:
+        labels: list[str] = ctx.stats["short_hashes"]
+        dists: list[list[float]] = ctx.artefacts["distributions"]
+        stats: CUSStats = self._compute_stats(dists)
+
+        data = {
+            "commit": labels,
+            "cusum": stats.cusum.tolist(),
+            "pos": np.maximum(stats.cusum, 0).tolist(),
+            "neg": np.minimum(stats.cusum, 0).tolist(),
+        }
+        src = ColumnDataSource(data=data)
+
+        # store for drawing and configuration
+        self._stats = stats
+        self._src = src
+        return {"src": src}
+
+    def _draw_glyphs(self, fig: figure, sources: dict[str, ColumnDataSource], ctx: Context) -> None:  # noqa: ARG002
+        src = sources["src"]
+        # shaded areas for regression (pos) and improvement (neg)
+        fig.varea(
+            x="commit",
+            y1=0,
+            y2="pos",
+            source=src,
+            fill_alpha=0.3,
+            legend_label="Regression",
+        )
+        fig.varea(
+            x="commit",
+            y1=0,
+            y2="neg",
+            source=src,
+            fill_alpha=0.3,
+            legend_label="Improvement",
+        )
+        # CUSUM line and points
+        fig.line(
+            x="commit",
+            y="cusum",
+            source=src,
+            line_width=2,
+            legend_label="CUSUM",
+        )
+        fig.circle(
+            x="commit",
+            y="cusum",
+            source=src,
+            radius=0.02,
+            fill_color="white",
+            line_width=2,
+        )
+        assert self._stats is not None
+        # control limit spans
+        stats = self._stats
+        self._upper_span = Span(
+            location=stats.upper_limit,
+            dimension="width",
+            line_dash="dashed",
+            line_color="red",
+            line_width=1,
+        )
+        self._lower_span = Span(
+            location=stats.lower_limit,
+            dimension="width",
+            line_dash="dashed",
+            line_color="green",
+            line_width=1,
+        )
+        fig.add_layout(self._upper_span)
+        fig.add_layout(self._lower_span)
+
+        # labels for limits
+        self._upper_label = Label(
+            x=0,
+            y=stats.upper_limit,
+            text=f"+2sigma = {stats.upper_limit:.2f} J",
+            text_color="red",
+            y_offset=5,
+        )
+        self._lower_label = Label(
+            x=0,
+            y=stats.lower_limit,
+            text=f"-2sigma = {stats.lower_limit:.2f} J",
+            text_color="green",
+            y_offset=-10,
+        )
+        fig.add_layout(self._upper_label)
+        fig.add_layout(self._lower_label)
+
+    def _configure(self, fig: figure, ctx: Context) -> None:
+        super()._configure(fig, ctx)
+        # axis labels
+        fig.x_range = FactorRange(*ctx.stats["short_hashes"])
+        fig.xaxis[0].axis_label = "Commit"
+        fig.yaxis[0].axis_label = "Cumulative deviation (J)"
+        # rotate x-axis labels
+        for ax in fig.xaxis:
+            ax.major_label_orientation = 0.8
+        # set y-range based on data
+        stats = self._stats
+        assert stats is not None
+        y_min = min(stats.lower_limit, float(np.min(stats.cusum))) * 1.1
+        y_max = max(stats.upper_limit, float(np.max(stats.cusum))) * 1.1
+        fig.y_range = Range1d(start=y_min, end=y_max)
 
     @staticmethod
     def _compute_stats(dists: list[list[float]]) -> CUSStats:
-        """Compute CUSUM statistics from distributions.
-
-        Compute per-commit medians, baseline deviations, and CUSUM values,
-        plus control limits at ±2sigma of the deviations.
-
-        Args:
-            dists: List of numeric arrays representing distributions.
-
-        Returns:
-            CUSStats: Object containing computed statistics for CUSUM.
-        """
-        med = np.array([np.median(arr) for arr in dists], dtype=float)
+        med = np.array([float(np.median(arr)) for arr in dists], dtype=float)
         base = med[0]
         dev = med - base
         cus = np.cumsum(dev)
-        sigma = float(dev.std())
+        sigma = float(np.std(dev))
         return CUSStats(
             medians=med,
             baseline=base,
@@ -94,92 +175,8 @@ class CUSUMComparison(Plot):
             lower_limit=-2 * sigma,
         )
 
-    @staticmethod
-    def _make_sources(labels: list[str], stats: CUSStats) -> CUSSources:
-        """Create data sources for CUSUM plot.
-
-        Prepare a ColumnDataSource with CUSUM and masks for positive (regression)
-        and negative (improvement) deviations.
-
-        Args:
-            labels: List of commit labels.
-            stats: CUSStats object containing computed statistics.
-
-        Returns:
-            CUSSources: Data sources for the CUSUM plot.
-        """
-        data = {
-            "commit": labels,
-            "cusum": stats.cusum.tolist(),
-            "pos": np.maximum(stats.cusum, 0).tolist(),
-            "neg": np.minimum(stats.cusum, 0).tolist(),
-        }
-        return CUSSources(main=ColumnDataSource(data=data))
-
-    @staticmethod
-    def _create_figure(
-        energy_field: str,
-        labels: list[str],
-        stats: CUSStats,
-        src: CUSSources,
-    ) -> CUSFigure:
-        """Create the CUSUM plot with shaded areas and control limits.
-
-        Build the Bokeh figure:
-          - shaded vareas for pos/neg CUSUM
-          - CUSUM line and points
-          - control limit spans and labels
-          - hover tool and axis styling
-
-        Args:
-            energy_field: Name of the energy field being analyzed.
-            labels: List of commit labels.
-            stats: CUSUM statistics object.
-            src: Data sources for the plot.
-
-        Returns:
-            CUSFigure: The figure with annotations and data sources.
-        """
-        p = figure(
-            x_range=FactorRange(*labels),
-            sizing_mode="stretch_width",
-            title=f"CUSUM Chart: {energy_field}",
-            x_axis_label="Commit",
-            y_axis_label="Cumulative deviation (J)",
-            tools="pan,box_zoom,reset,save,wheel_zoom,hover",
-            toolbar_location="above",
-        )
-
-        # shaded areas
-        p.varea(x="commit", y1=0, y2="pos", source=src.main, fill_alpha=0.3, legend_label="Regression")
-        p.varea(x="commit", y1=0, y2="neg", source=src.main, fill_alpha=0.3, legend_label="Improvement")
-
-        # CUSUM line + points
-        p.line(x="commit", y="cusum", source=src.main, line_width=2, legend_label="CUSUM")
-        p.circle(x="commit", y="cusum", source=src.main, radius=0.02, fill_color="white", line_width=2)
-
-        # control limit spans
-        up = Span(location=stats.upper_limit, dimension="width", line_dash="dashed", line_color="red", line_width=1)
-        lo = Span(location=stats.lower_limit, dimension="width", line_dash="dashed", line_color="green", line_width=1)
-        p.add_layout(up)
-        p.add_layout(lo)
-
-        # limit labels
-        y_max = max(stats.cusum.max(), stats.upper_limit) * 1.1
-        up_lbl = Label(x=0, y=stats.upper_limit, text=f"+2sigma = {stats.upper_limit:.2f} J", text_color="red", y_offset=5)
-        lo_lbl = Label(x=0, y=stats.lower_limit, text=f"-2sigma = {stats.lower_limit:.2f} J", text_color="green", y_offset=-10)
-        p.add_layout(up_lbl)
-        p.add_layout(lo_lbl)
-
-        # hover & styling
-        hover = HoverTool(tooltips=[("Commit", "@commit"), ("CUSUM", "@cusum{0.00} J")], mode="vline")
-        p.add_tools(hover)
-        for ax in p.xaxis:
-            ax.major_label_orientation = 0.8
-        y_start = min(stats.lower_limit, stats.cusum.min()) * 1.1
-        p.y_range = Range1d(start=y_start, end=y_max)
-        if p.legend:
-            p.legend[0].location = "top_left"
-            p.legend[0].click_policy = "hide"
-
-        return CUSFigure(p=p, upper_span=up, lower_span=lo, upper_label=up_lbl, lower_label=lo_lbl)
+    def _hover_tooltips(self, ctx: Context) -> list[tuple[str, str]]:  # noqa: ARG002, PLR6301
+        return [
+            ("Commit", "@commit"),
+            ("CUSUM", "@cusum{0.00} J"),
+        ]

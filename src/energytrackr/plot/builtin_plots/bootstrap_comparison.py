@@ -1,22 +1,21 @@
-"""Bootstrap CI histogram for Δ-median between two commits."""
+"""BootstrapComparison using BasePlot and mixins for cleaner composition."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, NamedTuple
 
 import numpy as np
 from bokeh.models import ColumnDataSource, Label, Span
 from bokeh.plotting import figure
 
-from energytrackr.plot.builtin_plots.plot_interface import Plot
-from energytrackr.plot.builtin_plots.utils import get_labels_and_dists, make_selectors, wrap_layout
+from energytrackr.plot.builtin_plots.mixins import ComparisonBase, get_labels_and_dists
+from energytrackr.plot.builtin_plots.registry import register_plot
 from energytrackr.plot.core.context import Context
 
 
-@dataclass
-class BootStats:
-    """Holds bootstrap histogram counts, bin edges, and confidence interval bounds."""
+class BootStats(NamedTuple):
+    """Statistical summary for bootstrap CI histogram."""
 
     counts: list[int]
     lefts: list[float]
@@ -25,115 +24,23 @@ class BootStats:
     high_ci: float
 
 
-@dataclass
-class BootSources:
-    """Bundles the Bokeh ColumnDataSources used in the bootstrap comparison plot."""
+@register_plot
+class BootstrapComparison(ComparisonBase):
+    """Interactive bootstrap CI histogram for Δ-median between two commits."""
 
-    raw: ColumnDataSource
-    hist: ColumnDataSource
-    ci: ColumnDataSource
+    def __init__(self) -> None:
+        """Initialize the BootstrapComparison plot."""
+        super().__init__()
+        self._low_span: Span | None = None
+        self._high_span: Span | None = None
+        self._low_label: Label | None = None
+        self._high_label: Label | None = None
+        self._sources: dict[str, ColumnDataSource] | None = None
 
-
-@dataclass
-class BootFigure:
-    """Encapsulates the Bokeh figure and its CI span/label annotations."""
-
-    p: figure
-    low_span: Span
-    high_span: Span
-    low_label: Label
-    high_label: Label
-
-
-class BootstrapComparison(Plot):
-    """Renders an interactive bootstrap CI histogram for Δ-median between two commits."""
-
-    def build(self, ctx: Context) -> None:
-        """Builds the bootstrap comparison layout and stores it in the plotting context.
-
-        Steps:
-        1. Compute bootstrap statistics for initial (oldest vs newest) commits.
-        2. Create data sources for raw distributions, histogram, and CI.
-        3. Construct the Bokeh figure with histogram and CI annotations.
-        4. Set up AutocompleteInput widgets and wire the JS callback.
-        5. Assemble into a column layout and assign to ctx.plots.
-
-        Args:
-            ctx (Context): Plotting context with `stats`, `artefacts`, and `plots` dict.
-        """
+    def _make_sources(self, ctx: Context) -> dict[str, Any]:
         labels, dists = get_labels_and_dists(ctx)
         stats = self._compute_boot_stats(dists)
-        sources = self._make_sources(labels, dists, stats)
-        fig = self._create_figure(ctx.energy_fields[0], sources, stats)
 
-        sel1, sel2 = make_selectors(
-            labels,
-            js_code_path=Path(__file__).parent / "static" / "bootstrap_comparison.js",
-            cb_args={
-                "raw": sources.raw,
-                "hist_source": sources.hist,
-                "ci_source": sources.ci,
-                "low_span": fig.low_span,
-                "high_span": fig.high_span,
-                "low_label": fig.low_label,
-                "high_label": fig.high_label,
-                "sel1": None,
-                "sel2": None,
-                "plot": fig.p,
-            },
-        )
-
-        wrap_layout(sel1, sel2, fig.p, "Bootstrap", ctx)
-
-    @staticmethod
-    def _compute_boot_stats(dists: list[list[float]], num_bootstraps: int = 1000) -> BootStats:
-        """Computes bootstrap statistics for the Δ-median CI.
-
-        Performs a bootstrap sampling of the median difference (%) between
-        the oldest and newest distributions and computes a histogram + 95% CI.
-
-        Args:
-            dists: List of energy measurement lists for each commit.
-            num_bootstraps: Number of bootstrap resamples to draw.
-
-        Returns:
-            BootStats: counts, bin edges, and CI bounds for the bootstrap distribution.
-        """
-        arr1, arr2 = np.asarray(dists[0], float), np.asarray(dists[-1], float)
-        diffs = []
-        for _ in range(num_bootstraps):
-            m1 = np.median(np.random.choice(arr1, size=len(arr1), replace=True))
-            m2 = np.median(np.random.choice(arr2, size=len(arr2), replace=True))
-            diffs.append((m2 / m1 - 1) * 100)
-
-        counts, edges = np.histogram(diffs, bins="sturges")
-        low_ci, high_ci = np.percentile(diffs, [2.5, 97.5])
-
-        return BootStats(
-            counts=[int(x) for x in counts],
-            lefts=[float(x) for x in edges[:-1]],
-            rights=[float(x) for x in edges[1:]],
-            low_ci=low_ci,
-            high_ci=high_ci,
-        )
-
-    @staticmethod
-    def _make_sources(labels: list[str], dists: list[list[float]], stats: BootStats) -> BootSources:
-        """Makes the Bokeh ColumnDataSource objects for the plot.
-
-        Creates ColumnDataSource objects for:
-          - raw distributions (for JS callbacks)
-          - histogram bins and counts
-          - confidence interval bounds
-
-        Args:
-            labels: List of commit hashes.
-            dists: List of measurement arrays.
-            stats: Precomputed bootstrap statistics.
-
-        Returns:
-            BootSources: Bundle of three ColumnDataSource instances.
-        """
         raw = ColumnDataSource({"commit": labels, "raw": dists})
         hist = ColumnDataSource({
             "top": stats.counts,
@@ -141,80 +48,98 @@ class BootstrapComparison(Plot):
             "right": stats.rights,
         })
         ci = ColumnDataSource({"low": [stats.low_ci], "high": [stats.high_ci]})
-        return BootSources(raw, hist, ci)
 
-    @staticmethod
-    def _create_figure(energy_field: str, src: BootSources, stats: BootStats) -> BootFigure:
-        """Creates the Bokeh figure for the bootstrap comparison.
+        # store for JS callbacks
+        self._sources = {
+            "raw": raw,
+            "hist": hist,
+            "ci": ci,
+        }
+        return self._sources
 
-        Constructs the Bokeh figure with:
-          - Histogram of bootstrap Δ-median
-          - Vertical dashed spans at 2.5% and 97.5% CI
-          - Labels above each CI bound
-
-        Args:
-            energy_field: Name of the energy metric for the title.
-            src: Sources for histogram and CI.
-            stats: Bootstrap statistics for binning and CI.
-
-        Returns:
-            BootFigure: The figure plus Span/Label annotations.
-        """
-        p = figure(
-            sizing_mode="stretch_width",
-            title=f"Bootstrap Δ-Median CI: {energy_field}",
-            x_axis_label="Δ-median (%)",
-            y_axis_label="Count",
-            tools="pan,box_zoom,reset,save,wheel_zoom,hover",
-            toolbar_location="above",
-        )
-        p.quad(
+    def _draw_glyphs(self, fig: figure, sources: dict[str, ColumnDataSource], ctx: Context) -> None:  # noqa: ARG002
+        # histogram
+        fig.quad(
             top="top",
             bottom=0,
             left="left",
             right="right",
-            source=src.hist,
+            source=sources["hist"],
             fill_alpha=0.5,
             line_color="black",
         )
-
-        low_span = Span(
-            location=stats.low_ci,
-            dimension="height",
-            line_color="firebrick",
-            line_dash="dashed",
-            line_width=2,
-        )
-        high_span = Span(
-            location=stats.high_ci,
-            dimension="height",
-            line_color="firebrick",
-            line_dash="dashed",
-            line_width=2,
-        )
-        p.add_layout(low_span)
-        p.add_layout(high_span)
-
-        y_max = max(stats.counts) * 0.9
-        low_label = Label(
-            x=stats.low_ci,
+        # CI spans
+        low = sources["ci"].data["low"][0]
+        high = sources["ci"].data["high"][0]
+        self._low_span = Span(location=low, dimension="height", line_color="firebrick", line_dash="dashed", line_width=2)
+        self._high_span = Span(location=high, dimension="height", line_color="firebrick", line_dash="dashed", line_width=2)
+        fig.add_layout(self._low_span)
+        fig.add_layout(self._high_span)
+        # CI labels
+        y_max = max(sources["hist"].data["top"]) * 0.9
+        self._low_label = Label(
+            x=low,
             y=y_max,
             x_units="data",
             y_units="data",
-            text=f"2.5%: {stats.low_ci:.2f}%",
+            text=f"2.5%: {low:.2f}%",
             text_align="center",
             background_fill_alpha=0.7,
         )
-        high_label = Label(
-            x=stats.high_ci,
+        self._high_label = Label(
+            x=high,
             y=y_max,
             x_units="data",
             y_units="data",
-            text=f"97.5%: {stats.high_ci:.2f}%",
+            text=f"97.5%: {high:.2f}%",
             text_align="center",
             background_fill_alpha=0.7,
         )
-        p.add_layout(low_label)
-        p.add_layout(high_label)
+        fig.add_layout(self._low_label)
+        fig.add_layout(self._high_label)
 
-        return BootFigure(p, low_span, high_span, low_label, high_label)
+    def _title(self, ctx: Context) -> str:  # noqa: PLR6301
+        return f"Bootstrap Δ-Median CI: {ctx.energy_fields[0]}"
+
+    def _key(self, ctx: Context) -> str:  # noqa: ARG002, PLR6301
+        return "Bootstrap"
+
+    def _callback_js_path(self) -> Path:  # noqa: PLR6301
+        return Path(__file__).parent / "static" / "bootstrap_comparison.js"
+
+    def _callback_args(self, fig: figure, ctx: Context) -> dict[str, Any]:  # noqa: ARG002
+        assert self._sources is not None
+        self._sources.update()
+        return {
+            **self._sources,
+            "low_span": self._low_span,
+            "high_span": self._high_span,
+            "low_label": self._low_label,
+            "high_label": self._high_label,
+            "plot": fig,
+        }
+
+    def _hover_tooltips(self, ctx: Context) -> list[tuple[str, str]]:  # noqa: ARG002, PLR6301
+        return [
+            ("Bin start", "@left{0.00}%"),
+            ("Count", "@top"),
+        ]
+
+    @staticmethod
+    def _compute_boot_stats(dists: list[np.ndarray], num_bootstraps: int = 1000) -> BootStats:
+        arr1, arr2 = np.asarray(dists[0], float), np.asarray(dists[-1], float)
+        diffs = []
+        for _ in range(num_bootstraps):
+            m1 = np.median(np.random.choice(arr1, len(arr1), replace=True))
+            m2 = np.median(np.random.choice(arr2, len(arr2), replace=True))
+            diffs.append((m2 / m1 - 1) * 100)
+        counts, edges = np.histogram(diffs, bins="sturges")
+        low_ci, high_ci = np.percentile(diffs, [2.5, 97.5])
+
+        return BootStats(
+            counts=[int(c) for c in counts],
+            lefts=edges[:-1].tolist(),
+            rights=edges[1:].tolist(),
+            low_ci=low_ci,
+            high_ci=high_ci,
+        )

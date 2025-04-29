@@ -1,295 +1,281 @@
-"""Boxplot comparison plot for energy distributions."""
+"""This module implements the BoxplotComparison plot for energytrackr.
+
+BoxplotComparison using BasePlot and composable mixins for cleaner architecture,
+with notches, median-connecting line, and full/raw data sources restored.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-from bokeh.models import ColumnDataSource, DataRenderer, FactorRange, HoverTool, Range1d, Whisker
+from bokeh.models import ColumnDataSource, FactorRange, Range1d, Whisker
 from bokeh.palettes import Category10
 from bokeh.plotting import figure
 from bokeh.transform import jitter
 
-from energytrackr.plot.builtin_plots.plot_interface import Plot
-from energytrackr.plot.builtin_plots.utils import get_labels_and_dists, initial_commits, make_selectors, wrap_layout
+from energytrackr.plot.builtin_plots.mixins import (
+    ComparisonBase,
+    get_labels_and_dists,
+    initial_commits,
+)
+from energytrackr.plot.builtin_plots.registry import register_plot
 from energytrackr.plot.core.context import Context
 
 
 @dataclass
-class Quartiles:
-    """Quartile values for a distribution (Q1, median, Q3)."""
-
-    q1: float
-    median: float
-    q3: float
-
-
-@dataclass
-class Whiskers:
-    """Lower and upper whisker values for a boxplot."""
-
-    lower: float
-    upper: float
-
-
-@dataclass
-class Notch:
-    """Lower and upper bounds of the notch around the median."""
-
-    low: float
-    high: float
-
-
-@dataclass
 class SingleStats:
-    """Statistical summary for a single commit's distribution."""
+    """Statistical summary for a commit: quartiles, whiskers, and notch bounds."""
 
     commit: str
-    quartiles: Quartiles
-    whiskers: Whiskers
-    notch: Notch
+    quartiles: tuple[float, float, float]  # Q1, median, Q3
+    whiskers: tuple[float, float]  # lower, upper
+    notch: tuple[float, float]  # lower, upper notch around the median
 
 
-@dataclass
-class PlotSources:
-    """Container for all Bokeh ColumnDataSource objects used."""
+@register_plot
+class BoxplotComparison(ComparisonBase):
+    """Interactive boxplot comparison for two selected commits.
 
-    full: ColumnDataSource
-    raw: ColumnDataSource
-    box: ColumnDataSource
-    scatter1: ColumnDataSource
-    scatter2: ColumnDataSource
-    med_ticks: ColumnDataSource
-    line: ColumnDataSource
+    - quartiles & whiskers
+    - notches around medians
+    - dashed line connecting medians
+    - full & raw data sources for dynamic JS callbacks
+    - tilted x-axis labels for readability
+    """
 
+    def __init__(self) -> None:
+        """Initialize the BoxplotComparison plot."""
+        super().__init__()
+        self._stats: list[SingleStats] | None = None
+        self._sources: dict[str, ColumnDataSource] | None = None
 
-class BoxplotComparison(Plot):
-    """Interactive boxplot comparison for two selected commits with hover tooltips."""
-
-    def __init__(self, template: str | None = None) -> None:
-        """Initialize the BoxplotComparison plot.
-
-        Args:
-            template (str | None): Path to the HTML template file. If None, uses the default template.
-        """
-        tpl_dir = Path(__file__).parent / "templates"
-        self.template_path = Path(template) if template else tpl_dir / "boxplot_comparison.html"
-
-    def build(self, ctx: Context) -> None:
-        """Builds the boxplot comparison plot and adds it to the context.
-
-        This function performs the following steps:
-        1. Retrieves labels and distributions from the context.
-        2. Computes quartile statistics for the boxplot.
-        3. Identifies the initial and final commits for comparison.
-        4. Creates data sources for the plot.
-        5. Generates the boxplot figure.
-        6. Creates interactive widgets for selection.
-        7. Arranges the widgets and plot into a layout and stores it in the context.
-
-        Args:
-            ctx (Context): The plotting context containing statistics, artefacts, and configuration.
-        """
-        labels, dists = get_labels_and_dists(ctx)
-        stats = self._compute_stats(labels, dists)
+    def _make_figure(self, ctx: Context) -> figure:  # noqa: PLR6301
+        labels, _ = get_labels_and_dists(ctx)
         init1, init2 = initial_commits(labels)
-        src = self._make_sources(stats, dists, init1, init2)
-        fig = self._create_figure(stats, src, ctx.energy_fields[0], init1, init2)
 
-        common_args = {
-            "full": src.full,
-            "raw": src.raw,
-            "box": src.box,
-            "scatter1": src.scatter1,
-            "scatter2": src.scatter2,
-            "tick": src.med_ticks,
-            "line": src.line,
-            "plot": fig,
-            "color_list": src.box.data["color"],
-        }
-
-        sel1, sel2 = make_selectors(
-            labels=labels,
-            js_code_path=Path(__file__).parent / "static" / "boxplot_comparison.js",
-            cb_args=common_args,
+        fig = figure(
+            x_range=FactorRange(*[init1, init2]),
+            sizing_mode="stretch_width",
+            tools="pan,box_zoom,reset,save,wheel_zoom,hover",
+            toolbar_location="above",
+            title=f"Distribution Boxplot: {ctx.energy_fields[0]}",
+            x_axis_label="Commit",
+            y_axis_label=f"{ctx.energy_fields[0]} (J)",
         )
+        # tilt x-axis labels like the old version
+        for axis in fig.xaxis:
+            axis.major_label_orientation = 0.8
+        return fig
 
-        wrap_layout(sel1, sel2, fig, "Boxplot", ctx)
+    def _compute_stats(self, labels: list[str], dists: list[np.ndarray]) -> list[SingleStats]:  # noqa: PLR6301 # pylint: disable=too-many-locals
+        stats: list[SingleStats] = []
+        for lbl, arr in zip(labels, dists, strict=False):
+            a = np.sort(np.asarray(arr, float))
+            q1, med, q3 = np.percentile(a, [25, 50, 75])
+            iqr = q3 - q1
+            lower = max(a.min(), q1 - 1.5 * iqr)
+            upper = min(a.max(), q3 + 1.5 * iqr)
+            half_notch = 1.57 * iqr / np.sqrt(len(a))
+            notch_low, notch_high = med - half_notch, med + half_notch
+            stats.append(SingleStats(lbl, (q1, med, q3), (lower, upper), (notch_low, notch_high)))
+        return stats
 
-    @staticmethod
-    def _stats_for_commit(commit: str, arr: list[float]) -> SingleStats:
-        data = np.sort(np.asarray(arr, float))
-        q1, median, q3 = np.percentile(data, [25, 50, 75])
-        iqr = q3 - q1
-        lower = max(data.min(), q1 - 1.5 * iqr)
-        upper = min(data.max(), q3 + 1.5 * iqr)
-        notch = 1.57 * iqr / np.sqrt(len(data))
-        return SingleStats(
-            commit=commit,
-            quartiles=Quartiles(q1, median, q3),
-            whiskers=Whiskers(lower, upper),
-            notch=Notch(median - notch, median + notch),
-        )
+    def _make_sources(self, ctx: Context) -> dict[str, Any]:  # noqa: PLR0914 # pylint: disable=too-many-locals
+        labels, dists = get_labels_and_dists(ctx)
 
-    @staticmethod
-    def _compute_stats(labels: list[str], dists: list[list[float]]) -> list[SingleStats]:
-        return [BoxplotComparison._stats_for_commit(lbl, arr) for lbl, arr in zip(labels, dists, strict=False)]
+        # compute stats for each commit, including notch
+        stats = self._compute_stats(labels, dists)
 
-    @staticmethod
-    def _make_full_and_raw(stats: list[SingleStats], dists: list[list[float]]) -> tuple[ColumnDataSource, ColumnDataSource]:
-        full = ColumnDataSource({
-            "commit": [s.commit for s in stats],
-            "q1": [s.quartiles.q1 for s in stats],
-            "q2": [s.quartiles.median for s in stats],
-            "q3": [s.quartiles.q3 for s in stats],
-            "lower": [s.whiskers.lower for s in stats],
-            "upper": [s.whiskers.upper for s in stats],
-            "n_low": [s.notch.low for s in stats],
-            "n_high": [s.notch.high for s in stats],
+        init1, init2 = initial_commits(labels)
+        i1, i2 = labels.index(init1), labels.index(init2)
+        vals1, vals2 = dists[i1], dists[i2]
+
+        l1, u1 = stats[i1].whiskers
+        l2, u2 = stats[i2].whiskers
+
+        norm1 = [v for v in vals1 if l1 <= v <= u1]
+        out1 = [v for v in vals1 if v < l1 or v > u1]
+        norm2 = [v for v in vals2 if l2 <= v <= u2]
+        out2 = [v for v in vals2 if v < l2 or v > u2]
+
+        # build two new CDS's
+        inlier_scatter = ColumnDataSource({
+            "commit": [init1] * len(norm1) + [init2] * len(norm2),
+            "value": norm1 + norm2,
         })
-        raw = ColumnDataSource({"commit": [s.commit for s in stats], "raw": dists})
-        return full, raw
+        outlier_scatter = ColumnDataSource({
+            "commit": [init1] * len(out1) + [init2] * len(out2),
+            "value": out1 + out2,
+        })
+        # full data source (all commits)
+        full_src = ColumnDataSource({
+            "commit": [s.commit for s in stats],
+            "q1": [s.quartiles[0] for s in stats],
+            "median": [s.quartiles[1] for s in stats],
+            "q3": [s.quartiles[2] for s in stats],
+            "lower": [s.whiskers[0] for s in stats],
+            "upper": [s.whiskers[1] for s in stats],
+            "n_low": [s.notch[0] for s in stats],
+            "n_high": [s.notch[1] for s in stats],
+        })
 
-    @staticmethod
-    def _make_box_and_scatters(
-        stats: list[SingleStats],
-        dists: list[list[float]],
-        init1: str,
-        init2: str,
-    ) -> tuple[ColumnDataSource, ColumnDataSource, ColumnDataSource]:
-        # find stats
-        s1 = next(s for s in stats if s.commit == init1)
-        s2 = next(s for s in stats if s.commit == init2)
+        # raw distributions source
+        raw_src = ColumnDataSource({
+            "commit": labels,
+            "values": dists,
+        })
+
+        # color palette for the two boxes
         palette = Category10[3]
         colors = palette[:2]
-        box = ColumnDataSource({
-            "commit": [s1.commit, s2.commit],
-            "q1": [s1.quartiles.q1, s2.quartiles.q1],
-            "q2": [s1.quartiles.median, s2.quartiles.median],
-            "q3": [s1.quartiles.q3, s2.quartiles.q3],
-            "lower": [s1.whiskers.lower, s2.whiskers.lower],
-            "upper": [s1.whiskers.upper, s2.whiskers.upper],
-            "n_low": [s1.notch.low, s2.notch.low],
-            "n_high": [s1.notch.high, s2.notch.high],
+
+        # box + notch + whisker source for initial pair
+        box_src = ColumnDataSource({
+            "commit": [init1, init2],
+            "q1": [stats[i1].quartiles[0], stats[i2].quartiles[0]],
+            "median": [stats[i1].quartiles[1], stats[i2].quartiles[1]],
+            "q3": [stats[i1].quartiles[2], stats[i2].quartiles[2]],
+            "lower": [stats[i1].whiskers[0], stats[i2].whiskers[0]],
+            "upper": [stats[i1].whiskers[1], stats[i2].whiskers[1]],
+            "n_low": [stats[i1].notch[0], stats[i2].notch[0]],
+            "n_high": [stats[i1].notch[1], stats[i2].notch[1]],
             "color": colors,
         })
-        i1, i2 = [stats.index(s) for s in (s1, s2)]
-        sc1 = ColumnDataSource({"x": [init1] * len(dists[i1]), "y": dists[i1]})
-        sc2 = ColumnDataSource({"x": [init2] * len(dists[i2]), "y": dists[i2]})
-        return box, sc1, sc2
 
-    @staticmethod
-    def _make_med_ticks_and_line(
-        stats: list[SingleStats],
-        init1: str,
-        init2: str,
-    ) -> tuple[ColumnDataSource, ColumnDataSource]:
-        s1 = next(s for s in stats if s.commit == init1)
-        s2 = next(s for s in stats if s.commit == init2)
-        lowers = [s.whiskers.lower for s in stats]
-        uppers = [s.whiskers.upper for s in stats]
-        h = (max(uppers) - min(lowers)) * 0.05 * 0.1
-        ticks = ColumnDataSource({
-            "commit": [s1.commit, s2.commit],
-            "med": [s1.quartiles.median, s2.quartiles.median],
-            "w": [0.6, 0.6],
-            "h": [h, h],
+        # scatter sources for raw points
+        scat1 = ColumnDataSource({"commit": [init1] * len(vals1), "value": vals1})
+        scat2 = ColumnDataSource({"commit": [init2] * len(vals2), "value": vals2})
+
+        # line source connecting medians
+        line_src = ColumnDataSource({
+            "x": [init1, init2],
+            "y": [stats[i1].quartiles[1], stats[i2].quartiles[1]],
         })
-        line = ColumnDataSource({
-            "x": [s1.commit, s2.commit],
-            "y": [s1.quartiles.median, s2.quartiles.median],
-        })
-        return ticks, line
 
-    @staticmethod
-    def _make_sources(stats: list[SingleStats], dists: list[list[float]], init1: str, init2: str) -> PlotSources:
-        full, raw = BoxplotComparison._make_full_and_raw(stats, dists)
-        box, sc1, sc2 = BoxplotComparison._make_box_and_scatters(stats, dists, init1, init2)
-        ticks, line = BoxplotComparison._make_med_ticks_and_line(stats, init1, init2)
-        return PlotSources(full, raw, box, sc1, sc2, ticks, line)
+        self._stats = stats
+        self._sources = {
+            "full": full_src,
+            "raw": raw_src,
+            "box": box_src,
+            "scatter1": scat1,
+            "scatter2": scat2,
+            "line": line_src,
+            "inlier_scatter": inlier_scatter,
+            "outlier_scatter": outlier_scatter,
+        }
+        return self._sources
 
-    @staticmethod
-    def _create_figure(stats: list[SingleStats], src: PlotSources, energy_field: str, init1: str, init2: str) -> figure:
-        y_start, y_end = BoxplotComparison.__compute_y_range(stats)
-        palette = Category10[3]
-        colors = palette[:2]
+    def _draw_glyphs(self, fig: figure, sources: dict[str, ColumnDataSource], ctx: Context) -> None:  # noqa: ARG002
+        box_src = sources["box"]
 
-        p = figure(
-            x_range=FactorRange([init1, init2]),
-            y_range=Range1d(start=y_start, end=y_end),
-            tools="pan,box_zoom,reset,save,wheel_zoom",
-            toolbar_location="above",
-            sizing_mode="stretch_width",
-            title=f"Distribution Boxplot: {energy_field}",
+        # notch (thin bar around median)
+        fig.vbar(
+            x="commit",
+            bottom="n_low",
+            top="n_high",
+            width=0.3,
+            source=box_src,
+            fill_color="color",
+            fill_alpha=0.5,
+            line_color="red",
         )
 
-        BoxplotComparison.__add_box_layers(p, src)
-        BoxplotComparison.__add_whiskers(p, src)
-        BoxplotComparison.__add_median_markers(p, src)
-        BoxplotComparison.__add_raw_points(p, src, colors)
-        BoxplotComparison.__add_hover(p)
-
-        for xaxis in p.xaxis:
-            xaxis.major_label_orientation = 0.8
-            xaxis.axis_label = f"{energy_field} (J)"
-
-        return p
-
-    @staticmethod
-    def __compute_y_range(stats: list[SingleStats]) -> tuple[float, float]:
-        lowers = [s.whiskers.lower for s in stats]
-        uppers = [s.whiskers.upper for s in stats]
-        lo, hi = min(lowers), max(uppers)
-        margin = (hi - lo) * 0.05
-        return lo - margin, hi + margin
-
-    @staticmethod
-    def __add_box_layers(p: figure, src: PlotSources) -> None:
-        layers = [("q1", "q3", 0.6), ("n_low", "n_high", 0.3)]
-        for bottom, top, width in layers:
-            p.vbar(
-                x="commit",
-                bottom=bottom,
-                top=top,
-                width=width,
-                source=src.box,
-                fill_color="color",
-                fill_alpha=0.3,
-                line_color="black",
-            )
-
-    @staticmethod
-    def __add_whiskers(p: figure, src: PlotSources) -> None:
-        whisk = Whisker(source=src.box, base="commit", lower="lower", upper="upper")
-        for head in (whisk.upper_head, whisk.lower_head):
-            if head:
-                head.size = 8
-        p.add_layout(whisk)
-
-    @staticmethod
-    def __add_median_markers(p: figure, src: PlotSources) -> None:
-        p.line(x="x", y="y", source=src.line, line_dash="dashed", line_color="firebrick", line_width=2)
-        p.rect(x="commit", y="med", width="w", height="h", source=src.med_ticks, fill_color="firebrick", line_color=None)
-
-    @staticmethod
-    def __add_raw_points(p: figure, src: PlotSources, colors: list[str]) -> None:
-        for scatter, color in ((src.scatter1, colors[0]), (src.scatter2, colors[1])):
-            p.circle(x=jitter("x", width=0.3, range=p.x_range), y="y", source=scatter, radius=0.02, alpha=0.4, color=color)
-
-    @staticmethod
-    def __add_hover(p: figure) -> None:
-        # Find the first DataRenderer (e.g., GlyphRenderer) for the hover tool
-        data_renderers = [r for r in p.renderers if isinstance(r, DataRenderer)]
-        tool = HoverTool(
-            tooltips=[
-                ("Commit", "@commit"),
-                ("Q1", "@q1{0.00} J"),
-                ("Median", "@q2{0.00} J"),
-                ("Q3", "@q3{0.00} J"),
-                ("Lower", "@lower{0.00} J"),
-                ("Upper", "@upper{0.00} J"),
-            ],
-            renderers=[data_renderers[0]] if data_renderers else "auto",
+        # box between Q1 and Q3
+        fig.vbar(
+            x="commit",
+            bottom="q1",
+            top="q3",
+            width=0.6,
+            source=box_src,
+            fill_color="color",
+            fill_alpha=0.3,
+            line_color="black",
         )
-        p.add_tools(tool)
+
+        # whiskers
+        whisk = Whisker(source=box_src, base="commit", lower="lower", upper="upper")
+        upper_head = whisk.upper_head
+        assert upper_head is not None
+        upper_head.size = 8
+        lower_head = whisk.lower_head
+        assert lower_head is not None
+        lower_head.size = 8
+        fig.add_layout(whisk)
+
+        # median ticks
+        fig.rect(
+            x="commit",
+            y="median",
+            width=0.6,
+            height=1,
+            height_units="screen",
+            source=box_src,
+            color="red",
+        )
+
+        # dashed line connecting the two medians
+        fig.line(
+            x="x",
+            y="y",
+            source=sources["line"],
+            line_dash="dashed",
+            line_color="firebrick",
+            line_width=2,
+        )
+
+        # draw inliers lightly
+        fig.circle(
+            x=jitter("commit", width=0.3, range=fig.x_range),
+            y="value",
+            source=sources["inlier_scatter"],
+            radius=0.02,  # small, subtle
+            alpha=0.3,
+            color="grey",
+        )
+
+        # draw outliers in bold
+        fig.circle(
+            x=jitter("commit", width=0.3, range=fig.x_range),
+            y="value",
+            source=sources["outlier_scatter"],
+            radius=0.04,  # larger marker
+            alpha=0.8,  # more opaque
+            fill_color="firebrick",
+            line_color="black",
+            line_width=1,
+            legend_label="Outliers",
+        )
+
+        # adjust y-range to include whiskers with margin
+        assert self._stats is not None
+        lows = [ws[0] for ws in (s.whiskers for s in self._stats)]
+        highs = [ws[1] for ws in (s.whiskers for s in self._stats)]
+        margin = (max(highs) - min(lows)) * 0.05
+        fig.y_range = Range1d(start=min(lows) - margin, end=max(highs) + margin)
+
+    def _title(self, ctx: Context) -> str:  # noqa: PLR6301
+        return f"Distribution Boxplot: {ctx.energy_fields[0]}"
+
+    def _key(self, ctx: Context) -> str:  # noqa: ARG002, PLR6301
+        return "Boxplot"
+
+    def _callback_js_path(self) -> Path:  # noqa: PLR6301
+        return Path(__file__).parent / "static" / "boxplot_comparison.js"
+
+    def _callback_args(self, fig: figure, ctx: Context) -> dict[str, Any]:  # noqa: ARG002
+        # pass full/raw + box/scatter/line sources into JS callback
+        assert self._sources is not None
+        return {**self._sources, "plot": fig}
+
+    def _hover_tooltips(self, ctx: Context) -> list[tuple[str, str]]:  # noqa: ARG002, PLR6301
+        return [
+            ("Commit", "@commit"),
+            ("Q1", "@q1{0.00} J"),
+            ("Median", "@median{0.00} J"),
+            ("Q3", "@q3{0.00} J"),
+            ("Lower", "@lower{0.00} J"),
+            ("Upper", "@upper{0.00} J"),
+        ]
