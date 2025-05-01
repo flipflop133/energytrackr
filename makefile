@@ -6,7 +6,7 @@ PIP := $(VENV)/bin/pip
 SRC_DIR := src
 TEST_DIR := tests
 DOCS_DIR := docs
-DOCS_BUILD := $(DOCS_DIR)/_build/html
+DOCS_BUILD := $(DOCS_DIR)/build/html
 
 # Files
 REQ := requirements.txt
@@ -95,7 +95,10 @@ precommit:
 .PHONY: docs clean-docs
 
 docs:
-	$(MAKE) -C $(DOCS_DIR) html
+	$(VENV)/bin/sphinx-build \
+	  -b html \
+	  $(DOCS_DIR)/source \
+	  $(DOCS_BUILD)
 
 clean-docs:
 	rm -rf $(DOCS_BUILD)
