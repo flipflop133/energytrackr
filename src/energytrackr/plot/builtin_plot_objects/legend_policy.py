@@ -1,21 +1,31 @@
-# src/plot/builtin_plot_objects/legend_policy.py
-
 """LegendPolicy - sets click_policy on all legend entries."""
 
 from __future__ import annotations
 
-from typing import Never, cast
+from dataclasses import dataclass, field
+from typing import Any, Never, cast
 
 from bokeh.core.enums import LegendClickPolicy, LegendClickPolicyType
 from bokeh.models import Legend
 from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import PlotObj
+from energytrackr.plot.core.interfaces import Configurable, PlotObj
 from energytrackr.utils.exceptions import InvalidLegendClickPolicyError
 
 
-class LegendPolicy(PlotObj):
+@dataclass(frozen=True)
+class LegendPolicyConfig:
+    """Configuration for LegendPolicy.
+
+    Attributes:
+        policy (LegendClickPolicyType): The click policy for the legend. Options are "hide", "mute", or "disable".
+    """
+
+    policy: LegendClickPolicyType = field(default="hide")
+
+
+class LegendPolicy(PlotObj, Configurable[LegendPolicyConfig]):
     """A PlotObj that sets click_policy on all legend entries.
 
     YAML usage:
@@ -24,21 +34,21 @@ class LegendPolicy(PlotObj):
           policy: hide             # "hide", "mute", "disable"
     """
 
-    def __init__(self, *, policy: LegendClickPolicyType | None = None) -> None:
+    def __init__(self, **params: dict[str, Any]) -> None:
         """Initialize the LegendPolicy with a click policy.
 
         Args:
-            policy (LegendClickPolicyType): The click policy for the legend. Options are "hide", "mute", or "disable".
+            **params: Configuration parameters for the LegendPolicy.
 
         Raises:
             InvalidLegendClickPolicyError: If the provided policy is not valid.
         """
-        if policy is None:
+        super().__init__(LegendPolicyConfig, **params)
+        if (policy := self.config.policy) is None:
             policy = cast(LegendClickPolicyType, LegendClickPolicy._default)
         if (policy_str := str(policy)) not in LegendClickPolicy:
             valid = list(LegendClickPolicy)
             raise InvalidLegendClickPolicyError(policy_str, valid)
-        self.policy: LegendClickPolicyType = policy
 
     def add(self, ctx: Context, fig: figure) -> None:  # noqa: ARG002
         """Adds legend policy and styling to the figure's legends in the given context.
@@ -53,6 +63,6 @@ class LegendPolicy(PlotObj):
         legends: list[Legend] | list[Never] = fig.legend if isinstance(fig.legend, (list, tuple)) else [fig.legend]
         for legend in legends:
             if isinstance(legend, Legend):
-                legend.click_policy = self.policy
+                legend.click_policy = self.config.policy
                 legend.label_text_font = "Roboto"
                 legend.location = "top_left"

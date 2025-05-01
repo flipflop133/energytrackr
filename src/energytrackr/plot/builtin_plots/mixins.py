@@ -5,20 +5,33 @@ from __future__ import annotations
 from abc import abstractmethod
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from bokeh.layouts import column, row
-from bokeh.models import AutocompleteInput, ColorBar, CustomJS, HoverTool, LinearColorMapper
+from bokeh.models import (
+    AutocompleteInput,
+    ColorBar,
+    ColumnDataSource,
+    CustomJS,
+    DataRange1d,
+    FixedTicker,
+    GlyphRenderer,
+    HoverTool,
+    LinearColorMapper,
+    Range,
+    Range1d,
+    RangeTool,
+)
 from bokeh.models.annotations.labels import Title
 from bokeh.models.layouts import Column
 from bokeh.models.renderers import DataRenderer
 from bokeh.palettes import Viridis256
 from bokeh.plotting import figure
 
-from energytrackr.plot.builtin_plots.base import BasePlot
 from energytrackr.plot.config import get_settings
 from energytrackr.plot.core.context import Context
+from energytrackr.plot.core.interfaces import BasePlot
 
 
 def make_selectors(
@@ -170,7 +183,7 @@ class HoverMixin:
             return
         tool = HoverTool(
             tooltips=self._hover_tooltips(ctx),
-            renderers=[renderers[0]],
+            renderers=renderers,
         )
         fig.add_tools(tool)
 
@@ -181,6 +194,22 @@ class HoverMixin:
 
 class ComparisonBase(CommitSelectorsMixin, FontMixin, HoverMixin, BasePlot):
     """Abstract base for any “compare-two commits” plot."""
+
+    def _callback_js_path(self) -> str | Path:
+        """Placeholder implementation for abstract method."""
+        raise NotImplementedError("_callback_js_path must be implemented by subclasses.")
+
+    def _draw_glyphs(self, fig: figure, sources: dict[str, ColumnDataSource], ctx: Context) -> None:
+        """Placeholder implementation for abstract method."""
+        raise NotImplementedError("_draw_glyphs must be implemented by subclasses.")
+
+    def _hover_tooltips(self, ctx: Context) -> list[tuple[str, str]]:
+        """Placeholder implementation for abstract method."""
+        raise NotImplementedError("_hover_tooltips must be implemented by subclasses.")
+
+    def _make_sources(self, ctx: Context) -> dict[str, ColumnDataSource]:
+        """Placeholder implementation for abstract method."""
+        raise NotImplementedError("_make_sources must be implemented by subclasses.")
 
 
 def draw_additional_objects(objects: list[str], fig: figure, ctx: Context) -> None:
@@ -193,3 +222,86 @@ def draw_additional_objects(objects: list[str], fig: figure, ctx: Context) -> No
     """
     for name in objects:
         ctx.plot_objects[name].add(ctx, fig)
+
+
+class RangeToolMixin:
+    """Adds a drag-to-zoom minimap under the chart."""
+
+    @staticmethod
+    def _ensure_range1d(fig: figure, src: ColumnDataSource) -> Range1d | Range:
+        xr = fig.x_range
+        if isinstance(xr, DataRange1d):
+            xs = src.data.get("x", [])
+            xr = Range1d(min(xs) if len(xs) > 0 else 0, max(xs) if len(xs) > 0 else 1)
+            fig.x_range = xr
+        return xr
+
+    def _wrap_layout(self, fig: figure, ctx: Context) -> Column:  # noqa: ARG002 # pylint: disable=unused-argument
+        if not (glyphs := self._get_glyph_renderers(fig)):
+            return column(fig, sizing_mode="stretch_width")
+
+        src = cast(ColumnDataSource, glyphs[0].data_source)
+        xr = self._ensure_range1d(fig, src)
+        overview = self._create_overview_figure(src, xr)
+        self._sync_xaxis_ticker(fig, overview)
+        self._set_initial_range(fig, src)
+        self._add_range_tool(fig, overview)
+
+        return column(fig, overview, sizing_mode="stretch_width")
+
+    @staticmethod
+    def _get_glyph_renderers(fig: figure) -> list[GlyphRenderer]:
+        """Return all glyph renderers from the figure."""
+        return [r for r in fig.renderers if isinstance(r, GlyphRenderer)]
+
+    @staticmethod
+    def _create_overview_figure(src: ColumnDataSource, xr: Range1d | Range) -> figure:
+        """Create the overview (minimap) figure.
+
+        Args:
+            src (ColumnDataSource): The data source for the main figure.
+            xr (Range1d | Range): The x-range for the main figure.
+
+        Returns:
+            figure: The overview figure.
+        """
+        overview = figure(
+            height=100,
+            sizing_mode="stretch_width",
+            x_range=xr,
+            tools="",
+            toolbar_location="above",
+            y_axis_location=None,
+            background_fill_color="#f5f5f5",
+        )
+        for ygrid in overview.ygrid:
+            ygrid.grid_line_color = None
+        overview.line("x", "y", source=src, line_color="grey", line_width=1)
+        return overview
+
+    @staticmethod
+    def _sync_xaxis_ticker(fig: figure, overview: figure) -> None:
+        """Sync the x-axis ticker and label overrides between main and overview figures."""
+        if fig.xaxis and isinstance(fig.xaxis[0].ticker, FixedTicker):
+            main_ticker = fig.xaxis[0].ticker
+            for xaxis in overview.xaxis:
+                xaxis.ticker = main_ticker
+                xaxis.major_label_overrides = fig.xaxis[0].major_label_overrides
+                xaxis.major_label_orientation = fig.xaxis[0].major_label_orientation
+
+    @staticmethod
+    def _set_initial_range(fig: figure, src: ColumnDataSource) -> None:
+        """Set the initial x_range for the main figure to avoid RangeTool interaction issues."""
+        xs = src.data.get("x", [])
+        xmin, xmax = (min(xs), max(xs)) if len(xs) > 0 else (0, 1)
+        width = max(1, xmax - xmin - 1)
+        start = xmin
+        end = xmin + width
+        fig.x_range = Range1d(start, end)
+
+    @staticmethod
+    def _add_range_tool(fig: figure, overview: figure) -> None:
+        """Add the RangeTool to the overview figure."""
+        range_tool = RangeTool(x_range=fig.x_range)
+        overview.add_tools(range_tool)
+        overview.toolbar_location = None

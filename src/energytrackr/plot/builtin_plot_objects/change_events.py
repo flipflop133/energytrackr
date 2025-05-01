@@ -2,26 +2,35 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any
+
 from bokeh.models import BoxAnnotation
 from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import PlotObj
+from energytrackr.plot.core.interfaces import Configurable, PlotObj
 from energytrackr.utils.logger import logger
 
 
-class ChangeEventMarkers(PlotObj):
+@dataclass(frozen=True)
+class ChangeEventMarkersConfig:
+    """Configuration for ChangeEventMarkers."""
+
+    show_levels: bool = True
+    radius_base: float = 6
+
+
+class ChangeEventMarkers(PlotObj, Configurable[ChangeEventMarkersConfig]):
     """Draws regression/improvement markers and optional level circles."""
 
-    def __init__(self, show_levels: bool = True, radius_base: float = 6) -> None:
+    def __init__(self, **params: dict[str, Any]) -> None:
         """Initialize the ChangeEventMarkers object.
 
         Args:
-            show_levels (bool): Whether to show level circles.
-            radius_base (float): Base radius for level circles.
+            **params: Configuration parameters for ChangeEventMarkers.
         """
-        self.show_levels = show_levels
-        self.radius_base = radius_base
+        super().__init__(ChangeEventMarkersConfig, **params)
 
     def add(self, ctx: Context, fig: figure) -> None:
         """Adds visual markers for change events to the plot in the given context.
@@ -57,7 +66,7 @@ class ChangeEventMarkers(PlotObj):
             )
 
         # Level circles
-        if self.show_levels:
+        if self.config.show_levels:
             color_map = {1: "gray", 2: "blue", 3: "orange", 4: "purple", 5: "red"}
             for lvl, color in color_map.items():
                 if not (xs := [e.index for e in events if e.level == lvl]):

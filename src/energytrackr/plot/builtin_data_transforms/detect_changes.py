@@ -1,13 +1,14 @@
 """Detect changes in distributions of energy data over time."""
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from scipy.stats import ttest_ind
 
 from energytrackr.plot.config import get_settings
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import Transform
+from energytrackr.plot.core.interfaces import Configurable, Transform
 
 
 @dataclass
@@ -60,20 +61,28 @@ class ChangeEvent:
     level: int
 
 
-class DetectChanges(Transform):
+@dataclass(frozen=True)
+class DetectChangesConfig:
+    """Configuration for detecting changes in distributions of energy measurements."""
+
+    column: str | None = None
+    thresholds: dict | None = None
+
+
+class DetectChanges(Transform, Configurable[DetectChangesConfig]):
     """Detect changes in distributions of energy data over time."""
 
-    def __init__(self, column: str | None = None, thresholds: dict | None = None) -> None:
+    def __init__(self, **params: dict[str, Any]) -> None:
         """Initialize the DetectChanges transform.
 
         Args:
-            column (str | None): The column name to analyze. If None, defaults to the first energy field.
-            thresholds (dict | None): Optional dictionary of thresholds for analysis. If None, defaults to settings.
+            **params: Configuration parameters for the transform.
         """
-        self.column = column
+        super().__init__(DetectChangesConfig, **params)
+        self.column = self.config.column or None
         settings = get_settings()
         cfg = settings.energytrackr.analysis.thresholds
-        incoming = thresholds or {}
+        incoming = self.config.thresholds or {}
         self.thr = {
             "welch_p": incoming.get("welch_p", cfg.welch_p),
             "min_pct_increase": incoming.get("min_pct_increase", cfg.min_pct_increase),

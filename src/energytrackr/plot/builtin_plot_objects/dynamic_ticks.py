@@ -6,25 +6,34 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
 
 from bokeh.core.properties import TextLike
 from bokeh.models import CustomJS, FixedTicker
 from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import PlotObj
+from energytrackr.plot.core.interfaces import Configurable, PlotObj
 
 
-class DynamicTicks(PlotObj):
+@dataclass(frozen=True)
+class DynamicTicksConfig:
+    """Configuration for DynamicTicks."""
+
+    max_ticks: int = 30
+
+
+class DynamicTicks(PlotObj, Configurable[DynamicTicksConfig]):
     """Adaptive x-axis ticks + label overrides using commit hashes."""
 
-    def __init__(self, max_ticks: int = 30) -> None:
-        """Initialize the object with a maximum number of ticks.
+    def __init__(self, **params: dict[str, Any]) -> None:
+        """Initialize the DynamicTicks object with configuration parameters.
 
         Args:
-            max_ticks (int, optional): The maximum number of ticks to display. Defaults to 30.
+            **params: Configuration parameters for the DynamicTicks object.
         """
-        self.max_ticks = max_ticks
+        super().__init__(DynamicTicksConfig, **params)
 
     def add(self, ctx: Context, fig: figure) -> None:
         """Adds dynamic tick labeling to the x-axis of the plot based on the current view range.
@@ -43,7 +52,7 @@ class DynamicTicks(PlotObj):
         # 2) Set up initial ticker
         x_min = 0
         x_max = len(hashes) - 1
-        raw_step = (x_max - x_min) / self.max_ticks
+        raw_step = (x_max - x_min) / self.config.max_ticks
         step = max(1, int(raw_step))
         ticker = FixedTicker(ticks=list(range(x_min, x_max + 1, step)))
         overrides: Mapping[float | str, TextLike] = {float(i): h for i, h in enumerate(hashes)}
@@ -54,7 +63,7 @@ class DynamicTicks(PlotObj):
 
         # 3) Dynamic callback to recalc ticks on pan/zoom
         callback = CustomJS(
-            args={"ticker": ticker, "full_length": x_max, "max_ticks": self.max_ticks},
+            args={"ticker": ticker, "full_length": x_max, "max_ticks": self.config.max_ticks},
             code="""
                 const start = cb_obj.start;
                 const end   = cb_obj.end;

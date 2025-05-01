@@ -27,7 +27,6 @@ class ECDFComparison(ComparisonBase):
 
     def __init__(self) -> None:
         """Initialize the ECDFComparison plot."""
-        super().__init__()
         self._full_ecdf: ColumnDataSource | None = None
         self._labels: Sequence[str] | None = None
         self._init_indices: tuple[int, int] | None = None

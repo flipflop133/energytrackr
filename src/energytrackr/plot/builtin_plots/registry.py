@@ -1,6 +1,6 @@
 """Registry for BasePlot subclasses, enabling automatic discovery of available plots."""
 
-from energytrackr.plot.builtin_plots.base import BasePlot
+from energytrackr.plot.core.interfaces import BasePlot
 from energytrackr.utils.exceptions import PlotAlreadyRegisteredError
 
 _PLOT_REGISTRY: dict[str, type[BasePlot]] = {}

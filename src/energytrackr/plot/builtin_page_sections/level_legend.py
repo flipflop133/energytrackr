@@ -2,32 +2,48 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from jinja2 import Environment
 
 from energytrackr.plot.config import get_settings
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import PageObj
+from energytrackr.plot.core.interfaces import Configurable, PageObj
 from energytrackr.utils.logger import logger
 from energytrackr.utils.utils import get_local_env
 
 
-class LevelLegend(PageObj):
+@dataclass(frozen=True)
+class LevelLegendConfig:
+    """Configuration for the LevelLegend page section.
+
+    Attributes:
+        template (str | None): Path to a custom template file. If None, defaults to the package template.
+    """
+
+    template: str = str(Path(__file__).with_name("templates") / "level_legend.html")
+
+
+class LevelLegend(PageObj, Configurable[LevelLegendConfig]):
     """Renders the Change-Event Level Legend as an HTML fragment.
 
     Reads threshold values from the YAML config via `settings`.
     """
 
-    def __init__(self, template: str | None = None) -> None:
-        """Initialize the LevelLegend page section.
+    def __init__(self, **params: dict[str, Any]) -> None:
+        """Initialize the level legend with configuration parameters."""
+        super().__init__(LevelLegendConfig, **params)
 
-        Args:
-            template (str | None): Optional path to a custom template file.
-                If None, defaults to the package template located in templates/level_legend.html.
+    @property
+    def template_path(self) -> str:
+        """Get the path to the template file.
+
+        Returns:
+            str: The path to the template file.
         """
-        # fallback to package template under templates/level_legend.html
-        self.template_path = template or str(Path(__file__).with_name("templates") / "level_legend.html")
+        return self.config.template
 
     def render(self, env: Environment, ctx: Context) -> str:  # noqa: ARG002
         """Renders the level legend template using the provided Jinja2 environment and context.

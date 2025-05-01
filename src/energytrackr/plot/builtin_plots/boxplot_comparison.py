@@ -48,7 +48,6 @@ class BoxplotComparison(ComparisonBase):
 
     def __init__(self) -> None:
         """Initialize the BoxplotComparison plot."""
-        super().__init__()
         self._stats: list[SingleStats] | None = None
         self._sources: dict[str, ColumnDataSource] | None = None
 
@@ -62,7 +61,7 @@ class BoxplotComparison(ComparisonBase):
             tools="pan,box_zoom,reset,save,wheel_zoom,hover",
             toolbar_location="above",
             title=f"Distribution Boxplot: {ctx.energy_fields[0]}",
-            x_axis_label="Commit",
+            x_axis_label="Commit (short hash)",
             y_axis_label=f"{ctx.energy_fields[0]} (J)",
         )
         # tilt x-axis labels like the old version
@@ -181,6 +180,7 @@ class BoxplotComparison(ComparisonBase):
             fill_color="color",
             fill_alpha=0.5,
             line_color="red",
+            legend_label="Notch",
         )
 
         # box between Q1 and Q3
@@ -193,6 +193,7 @@ class BoxplotComparison(ComparisonBase):
             fill_color="color",
             fill_alpha=0.3,
             line_color="black",
+            legend_label="IQR box",
         )
 
         # whiskers
@@ -214,6 +215,7 @@ class BoxplotComparison(ComparisonBase):
             height_units="screen",
             source=box_src,
             color="red",
+            legend_label="Median",
         )
 
         # dashed line connecting the two medians
@@ -224,6 +226,7 @@ class BoxplotComparison(ComparisonBase):
             line_dash="dashed",
             line_color="firebrick",
             line_width=2,
+            legend_label="Median trend",
         )
 
         # draw inliers lightly
@@ -231,9 +234,10 @@ class BoxplotComparison(ComparisonBase):
             x=jitter("commit", width=0.3, range=fig.x_range),
             y="value",
             source=sources["inlier_scatter"],
-            radius=0.02,  # small, subtle
+            radius=0.01,  # small, subtle
             alpha=0.3,
             color="grey",
+            legend_label="Inliers",
         )
 
         # draw outliers in bold
@@ -241,7 +245,7 @@ class BoxplotComparison(ComparisonBase):
             x=jitter("commit", width=0.3, range=fig.x_range),
             y="value",
             source=sources["outlier_scatter"],
-            radius=0.04,  # larger marker
+            radius=0.02,  # larger marker
             alpha=0.8,  # more opaque
             fill_color="firebrick",
             line_color="black",

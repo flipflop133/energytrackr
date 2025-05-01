@@ -68,11 +68,12 @@ class ViolinComparison(
         ds1 = ColumnDataSource(self._make_patch_ds(kde_src, i1, 0, labels[i1], w))
         ds2 = ColumnDataSource(self._make_patch_ds(kde_src, i2, 1, labels[i2], w))
         # render violins
-        self._render_violin(fig, ds1, fill_color="lightsteelblue")
+        self._render_violin(fig, ds1, fill_color="lightsteelblue", legend_label=f"{labels[i2]} density")
         self._render_violin(
             fig,
             ds2,
             fill_color="lightcoral" if medians[i2] > medians[i1] else "lightgreen",
+            legend_label=f"{labels[i1]} density",
         )
         # median spans and difference label
         span1, span2 = self._add_median_spans(fig, medians, i1, i2)
@@ -155,6 +156,7 @@ class ViolinComparison(
         fig: figure,
         ds: ColumnDataSource,
         fill_color: str,
+        legend_label: str,
     ) -> None:
         fig.patch(
             x="x",
@@ -163,6 +165,7 @@ class ViolinComparison(
             fill_color=fill_color,
             fill_alpha=0.6,
             line_color="black",
+            legend_label=legend_label,
         )
 
     @staticmethod
@@ -220,4 +223,4 @@ class ViolinComparison(
         ticker = FixedTicker(ticks=[0, 1])
         fig.xaxis[0].ticker = ticker
         fig.xaxis[0].major_label_overrides = {0: label1, 1: label2}
-        fig.xaxis[0].axis_label = "Commit"
+        fig.xaxis[0].axis_label = "Commit (short hash)"

@@ -30,7 +30,6 @@ class BootstrapComparison(ComparisonBase):
 
     def __init__(self) -> None:
         """Initialize the BootstrapComparison plot."""
-        super().__init__()
         self._low_span: Span | None = None
         self._high_span: Span | None = None
         self._low_label: Label | None = None
@@ -101,7 +100,7 @@ class BootstrapComparison(ComparisonBase):
     def _title(self, ctx: Context) -> str:  # noqa: PLR6301
         return f"Bootstrap Δ-Median CI: {ctx.energy_fields[0]}"
 
-    def _key(self, ctx: Context) -> str:  # noqa: ARG002, PLR6301
+    def _key(self, ctx: Context) -> str:  # noqa: ARG002, PLR6301 # pylint: disable=unused-argument
         return "Bootstrap"
 
     def _callback_js_path(self) -> Path:  # noqa: PLR6301
@@ -143,3 +142,11 @@ class BootstrapComparison(ComparisonBase):
             low_ci=low_ci,
             high_ci=high_ci,
         )
+
+    def _configure(self, fig: figure, ctx: Context) -> None:
+        super()._configure(fig, ctx)
+        # X is the Δ-median (%) bins
+        fig.xaxis[0].axis_label = "Δ-median (%)"
+
+        # Y is count of bootstrap samples per bin
+        fig.yaxis[0].axis_label = "Frequency"

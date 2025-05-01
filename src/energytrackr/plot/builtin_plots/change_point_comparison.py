@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -9,19 +10,26 @@ import ruptures as rpt
 from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.plotting import figure
 
-from energytrackr.plot.builtin_plots.base import BasePlot
 from energytrackr.plot.builtin_plots.mixins import FontMixin, HoverMixin, draw_additional_objects
 from energytrackr.plot.builtin_plots.registry import register_plot
 from energytrackr.plot.core.context import Context
+from energytrackr.plot.core.interfaces import BasePlot, Configurable
+
+
+@dataclass(frozen=True)
+class ChangePointComparisonConfig:
+    """Configuration for the ChangePointComparison plot."""
+
+    objects: list[str] = field(default_factory=list)
 
 
 @register_plot
-class ChangePointComparison(FontMixin, HoverMixin, BasePlot):
+class ChangePointComparison(FontMixin, HoverMixin, BasePlot, Configurable[ChangePointComparisonConfig]):
     """Renders a median-trend plot with change-point detection overlays."""
 
-    def __init__(self, objects: list[str]) -> None:
+    def __init__(self, **params: dict[str, Any]) -> None:
         """Initialize the ChangePointComparison plot."""
-        self.objects = objects
+        super().__init__(ChangePointComparisonConfig, **params)
 
     def _make_sources(self, ctx: Context) -> dict[str, Any]:  # noqa: PLR6301
         labels: list[str] = ctx.stats["short_hashes"]
@@ -51,6 +59,7 @@ class ChangePointComparison(FontMixin, HoverMixin, BasePlot):
             source=sources["source"],
             line_width=2,
             name="median_line",
+            legend_label="Median",
         )
         # change-point segments
         if cps := sources["cps"]:
@@ -69,6 +78,7 @@ class ChangePointComparison(FontMixin, HoverMixin, BasePlot):
                 line_dash="dashed",
                 line_color="firebrick",
                 line_width=2,
+                legend_label="Change Points",
             )
         # add hover on median line
         hover = HoverTool(
@@ -78,17 +88,19 @@ class ChangePointComparison(FontMixin, HoverMixin, BasePlot):
         )
         fig.add_tools(hover)
 
-        draw_additional_objects(self.objects, fig, ctx)
+        draw_additional_objects(self.config.objects, fig, ctx)
 
     def _configure(self, fig: figure, ctx: Context) -> None:
         super()._configure(fig, ctx)
         # axis labels
-        field = ctx.energy_fields[0]
         fig.xaxis[0].axis_label = "Commit (oldest → newest)"
-        fig.yaxis[0].axis_label = f"Median {field} (J)"
+        fig.yaxis[0].axis_label = f"Median {ctx.energy_fields[0]} (J)"
 
     def _title(self, ctx: Context) -> str:  # noqa: PLR6301
         return f"Change-Point Detection: {ctx.energy_fields[0]} Medians"
 
     def _key(self, ctx: Context) -> str:  # noqa: ARG002, PLR6301
         return "Change Point Detection"
+
+    def _hover_tooltips(self, ctx: Context) -> list[tuple[str, str]]:  # noqa: ARG002, PLR6301
+        return []

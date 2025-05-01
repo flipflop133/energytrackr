@@ -2,34 +2,50 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from jinja2 import Environment
 from jinja2.environment import Template
 
 from energytrackr.plot.config import get_settings
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import PageObj
+from energytrackr.plot.core.interfaces import Configurable, PageObj
 from energytrackr.utils.logger import logger
 from energytrackr.utils.utils import get_local_env
 
 
-class Base(PageObj):
+@dataclass(frozen=True)
+class BaseConfig:
+    """Configuration for the Base page section."""
+
+    template: str = str(Path(__file__).with_name("templates") / "base.html")
+
+
+class Base(PageObj, Configurable[BaseConfig]):
     """Base page section for energytrackr.
 
     This class serves as a base for creating page sections in the energytrackr application.
     It provides a template path and a render method to generate HTML content using Jinja2 templates.
     """
 
-    def __init__(self, template: str | None = None) -> None:
+    def __init__(self, **params: dict[str, Any]) -> None:
         """Initialize the Base page section.
 
         Args:
-            template (str | None): Optional path to a custom template file.
-                If None, defaults to the package template located in templates/base.html.
+            params (dict[str, Any]): Configuration parameters for the page section.
         """
-        # fallback to package template under templates/base.html
-        self.template_path = template or str(Path(__file__).with_name("templates") / "base.html")
+        super().__init__(BaseConfig, **params)
+
+    @property
+    def template_path(self) -> str:
+        """Get the path to the template file.
+
+        Returns:
+            str: Path to the template file.
+        """
+        return self.config.template
 
     def render(self, env: Environment, ctx: Context) -> str:  # noqa: ARG002
         """Render the page section using Jinja2 templates.

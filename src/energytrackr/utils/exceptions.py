@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from bokeh.core.validation.check import ValidationIssues
+
 
 class UnknownCommandError(Exception):
     """Exception raised for unknown commands.
@@ -222,3 +224,67 @@ class NotAPlotObjTypeError(TypeError):
             name (str): The name of the object that is not a PlotObj.
         """
         super().__init__(f"Plot object '{name}' is not a PlotObj")
+
+
+class BokehValidationIssuesError(ValueError):
+    """Exception raised when Bokeh validation issues are detected in a tab."""
+
+    def __init__(self, tab_title: str, issues: ValidationIssues) -> None:
+        """Initialize the exception with the tab title and issues.
+
+        Args:
+            tab_title (str): The title of the tab with validation issues.
+            issues: The Bokeh validation issues object.
+        """
+        super().__init__(f"Bokeh validation issues in tab '{tab_title}': {issues}")
+
+
+class UnexpectedArgumentError(TypeError):
+    """Exception raised when MACDLine receives unexpected keyword arguments."""
+
+    def __init__(self, invalid_args: list[str], cls: str) -> None:
+        """Initialize with the list of invalid argument names.
+
+        Args:
+            invalid_args (list[str]): The unexpected argument names.
+            cls (str): The class that raised the error.
+        """
+        args_str = ", ".join(sorted(invalid_args))
+        super().__init__(f"{cls} got unexpected argument(s): {args_str}")
+
+
+class NotADataclassTypeError(TypeError):
+    """Exception raised when a provided class is not a dataclass type."""
+
+    def __init__(self, config_cls: type) -> None:
+        """Initialize with the offending class type.
+
+        Args:
+            config_cls (type): The class that is not a dataclass.
+        """
+        super().__init__(f"{config_cls} must be a dataclass type")
+
+
+class ModuleDidNotResolveToClassError(TypeError):
+    """Exception raised when a module path does not resolve to a class."""
+
+    def __init__(self, module_path: str) -> None:
+        """Initialize with the module path that failed to resolve.
+
+        Args:
+            module_path (str): The module path that did not resolve to a class.
+        """
+        super().__init__(f"{module_path!r} did not resolve to a class")
+
+
+class MustImplementError(TypeError):
+    """Exception raised when a class does not implement the Transform interface."""
+
+    def __init__(self, class_name: str, cls: type) -> None:
+        """Initialize with the class name that failed to implement Transform.
+
+        Args:
+            class_name (str): The name of the class that must implement Transform.
+            cls (type): The class or interface that must be implemented.
+        """
+        super().__init__(f"{class_name} must implement {cls}.")

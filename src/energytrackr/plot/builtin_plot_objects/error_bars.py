@@ -3,16 +3,33 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any
 
 from bokeh.models import ColumnDataSource
 from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import PlotObj
+from energytrackr.plot.core.interfaces import Configurable, PlotObj
 from energytrackr.utils.logger import logger
 
 
-class ErrorBars(PlotObj):
+@dataclass(frozen=True)
+class ErrorBarsConfig:
+    """Configuration for error bars in a plot.
+
+    Attributes:
+        line_width (int): Width of the error bar lines.
+        color (str): Color of the error bars.
+        legend (str): Label for the error bars in the plot legend.
+    """
+
+    line_width: int = 2
+    color: str = "black"
+    legend: str = "Error Bars"
+
+
+class ErrorBars(PlotObj, Configurable[ErrorBarsConfig]):
     """A plot object for rendering error bars on a plot.
 
     Attributes:
@@ -27,17 +44,13 @@ class ErrorBars(PlotObj):
             Uses data from ctx.stats: "x_indices", "medians", and "y_errors".
     """
 
-    def __init__(self, line_width: int = 2, color: str = "black", legend: str = "Error Bars") -> None:
+    def __init__(self, **params: dict[str, Any]) -> None:
         """Initialize the ErrorBars object with line width, color, and legend label.
 
         Args:
-            line_width (int): Width of the error bar lines.
-            color (str): Color of the error bars.
-            legend (str): Label for the error bars in the plot legend.
+            **params: Configuration parameters for the error bars.
         """
-        self.line_width = line_width
-        self.color = color
-        self.legend = legend
+        super().__init__(ErrorBarsConfig, **params)
 
     def add(self, ctx: Context, fig: figure) -> None:
         """Adds vertical error bars to the plot using the provided context.
@@ -62,8 +75,8 @@ class ErrorBars(PlotObj):
             "x",
             "y_upper",
             source=src,
-            line_width=self.line_width,
-            color=self.color,
-            legend_label=self.legend,
+            line_width=self.config.line_width,
+            color=self.config.color,
+            legend_label=self.config.legend,
         )
         logger.debug("ErrorBars added with %d segments", len(x))

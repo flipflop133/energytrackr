@@ -22,8 +22,8 @@ energytrackr:
           csv_columns: ["commit", "energy-pkg", "energy-core"]
       - module: energytrackr.plot.builtin_data_transforms.filter_outliers:FilterOutliers
         params:
-          column: energy-pkg
-          multiplier: 1.5
+          commit_col: commit
+          energy_col: energy-pkg
       - module: energytrackr.plot.builtin_data_transforms.commit_stats:CommitStats
         params:
           column: energy-pkg
@@ -61,16 +61,27 @@ energytrackr:
       - name: distribution_scatter
         module: energytrackr.plot.builtin_plot_objects.distribution_scatter:DistributionScatter
         params:
-          style:
-            normal_color: "blue"
-            nonnormal_color: "orange"
-            radius: 0.3
-            alpha: 0.5
-            normal_visible: false
+          normal_color: "blue"
+          nonnormal_color: "orange"
+          radius: 0.3
+          alpha: 0.5
+          normal_visible: false
       - name: legend_policy
         module: energytrackr.plot.builtin_plot_objects.legend_policy:LegendPolicy
         params:
-          policy: hide
+          policy: "hide"
+      - name: sma_line
+        module: energytrackr.plot.builtin_plot_objects.sma_line:SMALine
+        params: { window: 50, color: orange, default_visible: false }
+      - name: ema_line
+        module: energytrackr.plot.builtin_plot_objects.ema_line:EMALine
+        params: { span: 20, color: green, default_visible: false }
+      - name: bollinger_bands
+        module: energytrackr.plot.builtin_plot_objects.bollinger_bands:BollingerBands
+        params: { window: 20, n_std: 2.0, default_visible: false }
+      - name: macd_line
+        module: energytrackr.plot.builtin_plot_objects.macd_line:MACDLine
+        params: { default_visible: false }
 
     plots:
       - module: energytrackr.plot.builtin_plots.evolution_plot:EvolutionPlot
@@ -84,12 +95,18 @@ energytrackr:
               change_events,
               distribution_scatter,
               legend_policy,
+              sma_line,
+              ema_line,
+              bollinger_bands,
+              macd_line,
             ]
       - module: energytrackr.plot.builtin_plots.boxplot_comparison:BoxplotComparison
       - module: energytrackr.plot.builtin_plots.violin_comparison:ViolinComparison
       - module: energytrackr.plot.builtin_plots.qq_comparison:QQComparison
       - module: energytrackr.plot.builtin_plots.bootstrap_comparison:BootstrapComparison
       - module: energytrackr.plot.builtin_plots.cusum_comparison:CUSUMComparison
+        params:
+          objects: [dynamic_ticks, legend_policy]
       - module: energytrackr.plot.builtin_plots.change_point_comparison:ChangePointComparison
         params:
           objects: [dynamic_ticks, legend_policy]

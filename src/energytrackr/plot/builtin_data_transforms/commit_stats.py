@@ -1,15 +1,26 @@
 # src/energytrackr/plot/builtin_data_transforms/commit_stats.py
 """Commit statistics transform for energy data analysis."""
 
+from dataclasses import dataclass
+from typing import Any
+
 import pandas as pd
 
 from energytrackr.plot.config import get_settings
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import Transform
+from energytrackr.plot.core.interfaces import Configurable, Transform
 from energytrackr.utils.exceptions import CommitStatsMissingOrEmptyDataFrameError
 
 
-class CommitStats(Transform):
+@dataclass(frozen=True)
+class CommitStatsConfig:
+    """Configuration for commit statistics transform."""
+
+    column: str | None = None
+    min_measurements: int | None = None
+
+
+class CommitStats(Transform, Configurable[CommitStatsConfig]):
     """Compute commit statistics for a given column in the DataFrame.
 
     Groups the DataFrame by commit, computes median, std, count,
@@ -22,17 +33,12 @@ class CommitStats(Transform):
       ctx.stats["df_median"]      -> the merged DataFrame
     """
 
-    def __init__(self, column: str | None = None, min_measurements: int | None = None) -> None:
-        """Initialize the CommitStats transform.
-
-        Args:
-            column (str | None): The column name to compute statistics for. If None, defaults to the first energy field.
-            min_measurements (int | None): Minimum number of measurements required for a commit to be included.
-                If None, defaults to the value from the configuration.
-        """
+    def __init__(self, **params: dict[str, Any]) -> None:
+        """Initialize the outlier filter with configuration parameters."""
+        super().__init__(CommitStatsConfig, **params)
         data = get_settings().energytrackr.data
-        self.column = column or data.energy_fields[0]
-        self.min_measurements = min_measurements if min_measurements is not None else data.min_measurements
+        self.column = self.config.column or data.energy_fields[0]
+        self.min_measurements = self.config.min_measurements or data.min_measurements
 
     def apply(self, ctx: Context) -> None:
         """Apply the CommitStats transform to the context.

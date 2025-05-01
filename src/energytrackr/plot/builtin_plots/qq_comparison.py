@@ -11,7 +11,6 @@ from bokeh.models import ColumnDataSource, LinearColorMapper
 from bokeh.palettes import Viridis256
 from bokeh.plotting import figure
 
-from energytrackr.plot.builtin_plots.base import BasePlot
 from energytrackr.plot.builtin_plots.mixins import (
     ColorbarMixin,
     CommitSelectorsMixin,
@@ -22,6 +21,7 @@ from energytrackr.plot.builtin_plots.mixins import (
 )
 from energytrackr.plot.builtin_plots.registry import register_plot
 from energytrackr.plot.core.context import Context
+from energytrackr.plot.core.interfaces import BasePlot
 
 
 @register_plot
@@ -62,6 +62,12 @@ class QQComparison(
         return self._current_sources
 
     def _draw_glyphs(self, fig: figure, sources: dict[str, Any], ctx: Context) -> None:  # noqa: ARG002, PLR6301
+        # Set axis labels
+        for xaxis in fig.xaxis:
+            xaxis.axis_label = "Commit A Energy (J)"
+        for yaxis in fig.yaxis:
+            yaxis.axis_label = "Commit B Energy (J)"
+
         mapper = LinearColorMapper(palette=Viridis256, low=0, high=100)
         # QQ scatter
         fig.circle(

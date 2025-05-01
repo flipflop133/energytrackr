@@ -1,31 +1,35 @@
 # builtin_data_transforms/compute_distribution.py
 """Compute the distribution of a given column for each commit."""
 
+from dataclasses import dataclass
+from typing import Any
+
 import numpy as np
 from scipy.stats import shapiro
 
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import Transform
+from energytrackr.plot.core.interfaces import Configurable, Transform
 
 
-class ComputeDistribution(Transform):
+@dataclass(frozen=True)
+class ComputeDistributionConfig:
+    """Configuration for computing distributions of energy measurements."""
+
+    column: str | None = None
+    min_values_for_normality: int = 3
+    normality_p: float = 0.05
+
+
+class ComputeDistribution(Transform, Configurable[ComputeDistributionConfig]):
     """Compute the distribution of a given column for each commit.
 
     From ctx.stats['valid_commits'] and ctx.artefacts['df'], build `distributions`
     and `normality_flags` in ctx.artefacts.
     """
 
-    def __init__(self, column: str | None = None, min_values_for_normality: int = 3, normality_p: float = 0.05) -> None:
-        """Initialize the ComputeDistribution transform.
-
-        Args:
-            column (str | None): The column name to compute distributions for. If None, defaults to the first energy field.
-            min_values_for_normality (int): Minimum number of values required for normality test.
-            normality_p (float): P-value threshold for normality test.
-        """
-        self.column = column
-        self.min_values_for_normality = min_values_for_normality
-        self.normality_p = normality_p
+    def __init__(self, **params: dict[str, Any]) -> None:
+        """Initialize the compute distribution with configuration parameters."""
+        super().__init__(ComputeDistributionConfig, **params)
 
     def apply(self, ctx: Context) -> None:
         """Computes and stores the value distributions and normality flags for each commit.
@@ -46,9 +50,9 @@ class ComputeDistribution(Transform):
         """
         df = ctx.artefacts["df"]
         commits = ctx.stats["valid_commits"]
-        col = self.column or ctx.energy_fields[0]
-        min_for_sw = self.min_values_for_normality
-        alpha = self.normality_p
+        col = self.config.column or ctx.energy_fields[0]
+        min_for_sw = self.config.min_values_for_normality
+        alpha = self.config.normality_p
 
         dists: list[np.ndarray] = []
         flags = []

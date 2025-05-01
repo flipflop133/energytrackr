@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from bokeh.models import ColumnDataSource
 from bokeh.plotting import figure
 
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import PlotObj
+from energytrackr.plot.core.interfaces import Configurable, PlotObj
 
 
 @dataclass(frozen=True)
@@ -25,31 +25,30 @@ class DistributionScatterStyle:
     nonnormal_label: str = "Non-Normal"
 
 
-class DistributionScatter(PlotObj):
+@dataclass(frozen=True)
+class DistributionScatterConfig:
+    """Configuration for the distribution scatter plot."""
+
+    normal_color: str = DistributionScatterStyle.normal_color
+    nonnormal_color: str = DistributionScatterStyle.nonnormal_color
+    radius: float = DistributionScatterStyle.radius
+    alpha: float = DistributionScatterStyle.alpha
+    normal_visible: bool = DistributionScatterStyle.normal_visible
+    normal_label: str = DistributionScatterStyle.normal_label
+    nonnormal_label: str = DistributionScatterStyle.nonnormal_label
+
+
+class DistributionScatter(PlotObj, Configurable[DistributionScatterConfig]):
     """Scatter-plots each raw measurement point per commit."""
 
-    def __init__(self, style: Mapping[str, object] | DistributionScatterStyle | None = None) -> None:
+    def __init__(self, **params: dict[str, Any]) -> None:
         """Initialize the DistributionScatter plot object.
 
         Args:
-            style (Mapping[str, object] | DistributionScatterStyle): Style configuration for the scatter plot.
-                If a dictionary is provided, it should contain keys matching the attributes of DistributionScatterStyle.
-                If a DistributionScatterStyle object is provided, it will be used directly.
+            **params: Configuration parameters for the distribution scatter plot.
         """
         # Accept either a raw dict (from YAML) or our Style object
-        if isinstance(style, DistributionScatterStyle):
-            self.style = style
-        else:
-            data = dict(style or {})
-            self.style = DistributionScatterStyle(
-                normal_color=str(data.get("normal_color", DistributionScatterStyle.normal_color)),
-                nonnormal_color=str(data.get("nonnormal_color", DistributionScatterStyle.nonnormal_color)),
-                radius=float(str(data.get("radius", DistributionScatterStyle.radius))),
-                alpha=float(str(data.get("alpha", DistributionScatterStyle.alpha))),
-                normal_visible=bool(data.get("normal_visible", DistributionScatterStyle.normal_visible)),
-                normal_label=str(data.get("normal_label", DistributionScatterStyle.normal_label)),
-                nonnormal_label=str(data.get("nonnormal_label", DistributionScatterStyle.nonnormal_label)),
-            )
+        super().__init__(DistributionScatterConfig, **params)
 
     def add(self, ctx: Context, fig: figure) -> None:
         """Add the distribution scatter plot to the figure.
@@ -81,11 +80,11 @@ class DistributionScatter(PlotObj):
             x="x",
             y="y",
             source=normal_src,
-            radius=self.style.radius,
-            alpha=self.style.alpha,
-            color=self.style.normal_color,
-            legend_label=self.style.normal_label,
-            visible=self.style.normal_visible,
+            radius=self.config.radius,
+            alpha=self.config.alpha,
+            color=self.config.normal_color,
+            legend_label=self.config.normal_label,
+            visible=self.config.normal_visible,
         )
 
         # non-normal
@@ -94,9 +93,9 @@ class DistributionScatter(PlotObj):
             x="x",
             y="y",
             source=nonnorm_src,
-            radius=self.style.radius,
-            alpha=self.style.alpha,
-            color=self.style.nonnormal_color,
-            legend_label=self.style.nonnormal_label,
+            radius=self.config.radius,
+            alpha=self.config.alpha,
+            color=self.config.nonnormal_color,
+            legend_label=self.config.nonnormal_label,
             visible=True,
         )

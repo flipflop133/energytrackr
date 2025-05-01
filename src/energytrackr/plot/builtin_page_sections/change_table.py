@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from jinja2 import Environment
 
 from energytrackr.plot.config import get_settings
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import PageObj
+from energytrackr.plot.core.interfaces import Configurable, PageObj
 from energytrackr.utils.logger import logger
 from energytrackr.utils.utils import get_local_env
 
@@ -35,21 +37,28 @@ group_map = {
 }
 
 
-class ChangeTable(PageObj):
+@dataclass(frozen=False)
+class ChangeTableConfig:
+    """Configuration for the ChangeTable class."""
+
+    template: Path = Path(__file__).with_name("templates") / "change_table.html"
+    columns: list[dict[str, str]] | None = None
+
+
+class ChangeTable(PageObj, Configurable[ChangeTableConfig]):
     """Renders a table of every commit with computed metrics."""
 
-    def __init__(self, template: str | None = None, columns: list[dict[str, str]] | None = None) -> None:
+    def __init__(self, **params: dict[str, Any]) -> None:
         """Initializes the ChangeTable object.
 
         Args:
-            template (str | None): Optional path to a custom template file.
-                If None, defaults to the package template located in templates/change_table.html.
-            columns (list[dict[str, str]] | None): Optional list of dictionaries defining the columns to be displayed.
+            **params: Additional parameters for configuration.
         """
         # Columns and template location
+        super().__init__(ChangeTableConfig, **params)
         cols: list[dict[str, str]] = []
-        if columns is None:
-            self.columns = [
+        if self.config.columns is None:
+            self.config.columns = [
                 {"key": "short_hash", "label": "Commit"},
                 {"key": "message", "label": "Message"},
                 {"key": "commit_date", "label": "Date"},
@@ -59,7 +68,7 @@ class ChangeTable(PageObj):
                 {"group": "tests"},
             ]
         else:
-            for c in columns:
+            for c in self.config.columns:
                 if "group" in c:
                     keys = group_map[c["group"]]
                     if include := c.get("include"):
@@ -69,9 +78,18 @@ class ChangeTable(PageObj):
                     cols.extend({"key": k, "label": label} for k, label in keys)
                 else:
                     cols.append({"key": c["key"], "label": c.get("label", c["key"])})
-            self.columns = cols
-        tpl_dir = Path(__file__).with_name("templates")
-        self.template_path = Path(template) if template else tpl_dir / "change_table.html"
+            self.config.columns = cols
+
+    @property
+    def template_path(self) -> Path:
+        """Returns the path to the template file."""
+        return self.config.template
+
+    @property
+    def columns(self) -> list[dict[str, str]]:
+        """Returns the list of columns for the change table."""
+        assert self.config.columns is not None, "Columns not set in config"
+        return self.config.columns
 
     def render(self, env: Environment, ctx: Context) -> str:
         """Renders the change table section as an HTML string using a Jinja2 template.

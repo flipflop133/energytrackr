@@ -7,6 +7,7 @@ encoding their own PageObj in YAML.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -15,23 +16,29 @@ import pandas as pd
 from jinja2 import Environment
 
 from energytrackr.plot.core.context import Context
-from energytrackr.plot.core.interfaces import PageObj
+from energytrackr.plot.core.interfaces import Configurable, PageObj
 from energytrackr.utils.logger import logger
 from energytrackr.utils.utils import get_local_env
 
 
-class SummaryBox(PageObj):
+@dataclass(frozen=True)
+class SummaryBoxConfig:
+    """Configuration for the SummaryBox page section."""
+
+    template: str = str(Path(__file__).with_name("templates") / "summary_box.html")
+
+
+class SummaryBox(PageObj, Configurable[SummaryBoxConfig]):
     """Render general & statistical summary values."""
 
-    def __init__(self, template: str | None = None) -> None:
-        """Initialize the SummaryBox page section.
+    def __init__(self, **params: dict[str, Any]) -> None:
+        """Initialize the SummaryBox with a template path."""
+        super().__init__(SummaryBoxConfig, **params)
 
-        Args:
-            template (str | None): Optional path to a custom template file.
-                If None, defaults to the package template located in templates/summary_box.html.
-        """
-        # fallback to package template under templates/summary_box.html
-        self.template_path = template or str(Path(__file__).with_name("templates") / "summary_box.html")
+    @property
+    def template_path(self) -> str:
+        """Get the path to the template file."""
+        return self.config.template
 
     def render(self, env: Environment, ctx: Context) -> str:
         """Renders the summary box using a Jinja2 template.
@@ -54,10 +61,11 @@ class SummaryBox(PageObj):
             return "<p><strong>Error:</strong> summary template missing.</p>"
 
         tmpl = get_local_env(env, self.template_path).get_template(Path(self.template_path).name)
-        summary = self.compute_overall_summary(ctx.energy_fields[0], ctx)
+        summary = self._compute_overall_summary(ctx.energy_fields[0], ctx)
         return tmpl.render(column=ctx.energy_fields[0], **summary)
 
-    def compute_overall_summary(self, energy_column: str, ctx: Context) -> dict[str, Any]:
+    @staticmethod
+    def _compute_overall_summary(energy_column: str, ctx: Context) -> dict[str, Any]:
         """Compute an overall summary of energy-related statistics for a given column.
 
         Args:
@@ -83,7 +91,7 @@ class SummaryBox(PageObj):
         normality = ctx.artefacts["normality_flags"]
         changes = ctx.artefacts["change_events"]
         if (df := ctx.artefacts.get("df", pd.DataFrame())) is not None:
-            outliers_removed_count = len(df) - len(self._filter_outliers(df, energy_column))
+            outliers_removed_count = ctx.stats.get("commits_removed", 0)
             mean_energy = df[energy_column].mean()
             median_energy = df[energy_column].median()
             std_energy = df[energy_column].std()
@@ -119,23 +127,3 @@ class SummaryBox(PageObj):
             "outliers_removed": outliers_removed_count,
         }
         return summary
-
-    @staticmethod
-    def _filter_outliers(df: pd.DataFrame, column: str, multiplier: float = 1.5) -> pd.DataFrame:
-        """Filters outliers from a DataFrame column based on the Interquartile Range (IQR) method.
-
-        Parameters:
-            df (pd.DataFrame): The input DataFrame containing the data.
-            column (str): The name of the column to filter for outliers.
-            multiplier (float, optional): The multiplier for the IQR to define the outlier bounds.
-                Defaults to 1.5.
-
-        Returns:
-            pd.DataFrame: A DataFrame with outliers removed from the specified column.
-        """
-        q1: float = df[column].quantile(0.25)
-        q3: float = df[column].quantile(0.75)
-        iqr: float = q3 - q1
-        lower_bound: float = q1 - multiplier * iqr
-        upper_bound: float = q3 + multiplier * iqr
-        return df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
