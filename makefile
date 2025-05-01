@@ -96,7 +96,7 @@ precommit:
 
 docs:
 	$(VENV)/bin/sphinx-build \
-	  -b html \
+	  -W -b html \
 	  $(DOCS_DIR)/source \
 	  $(DOCS_BUILD)
 
