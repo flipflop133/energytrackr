@@ -102,3 +102,6 @@ clean-docs:
 
 apidoc:
 	$(VENV)/bin/sphinx-apidoc -o $(DOCS_DIR)/source/api src/energytrackr
+
+apidoc-force:
+	$(VENV)/bin/sphinx-apidoc -f -o $(DOCS_DIR)/source/api src/energytrackr

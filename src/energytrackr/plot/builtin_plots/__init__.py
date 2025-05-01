@@ -1,0 +1,1 @@
+"""Builtin plots for energytrackr."""

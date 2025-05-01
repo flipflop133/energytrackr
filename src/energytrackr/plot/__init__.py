@@ -1,0 +1,1 @@
+"""Plot module for energytrackr."""
