@@ -1,4 +1,3 @@
-# src/energytrackr/plot/builtin_data_transforms/commit_stats.py
 """Commit statistics transform for energy data analysis."""
 
 from dataclasses import dataclass
@@ -23,8 +22,7 @@ class CommitStatsConfig:
 class CommitStats(Transform, Configurable[CommitStatsConfig]):
     """Compute commit statistics for a given column in the DataFrame.
 
-    Groups the DataFrame by commit, computes median, std, count,
-    filters out commits with too few measurements, and writes:
+    Groups the DataFrame by commit, computes median, std, count, filters out commits with too few measurements, and writes:
       ctx.stats["valid_commits"]  -> list of commit hashes
       ctx.stats["short_hashes"]   -> list of 7-char hashes
       ctx.stats["x_indices"]      -> [0, 1, 2, ...]

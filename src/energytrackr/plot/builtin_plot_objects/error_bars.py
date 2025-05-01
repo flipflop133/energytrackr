@@ -38,7 +38,7 @@ class ErrorBars(PlotObj, Configurable[ErrorBarsConfig]):
         legend (str): Label for the error bars in the plot legend.
 
     Methods:
-        add(ctx: Context, **params: Any) -> None:
+        add(ctx: Context, ``**params``: Any) -> None:
             Adds error bars to the given plot context using median values and their associated errors.
             The error bars are drawn as vertical segments from (x, median - error) to (x, median + error).
             Uses data from ctx.stats: "x_indices", "medians", and "y_errors".

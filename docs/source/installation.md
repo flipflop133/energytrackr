@@ -46,7 +46,7 @@ pip install -r docs/requirements.txt
 
 > Create this file if it doesn't exist:
 
-```txt
+```text
 # docs/requirements.txt
 sphinx
 myst-parser
@@ -175,7 +175,3 @@ sudo ./system_setup.sh setup
 # Validate system
 python main.py stability-test
 ```
-
----
-
-Still stuck? Check the [FAQ](faq.md) or open an issue on GitHub.

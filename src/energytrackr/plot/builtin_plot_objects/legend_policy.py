@@ -26,13 +26,7 @@ class LegendPolicyConfig:
 
 
 class LegendPolicy(PlotObj, Configurable[LegendPolicyConfig]):
-    """A PlotObj that sets click_policy on all legend entries.
-
-    YAML usage:
-      - module: plot.builtin_plot_objects.legend_policy:LegendPolicy
-        params:
-          policy: hide             # "hide", "mute", "disable"
-    """
+    """A PlotObj that sets click_policy on all legend entries."""
 
     def __init__(self, **params: dict[str, Any]) -> None:
         """Initialize the LegendPolicy with a click policy.

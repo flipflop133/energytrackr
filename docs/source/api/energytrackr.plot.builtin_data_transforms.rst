@@ -35,6 +35,7 @@ energytrackr.plot.builtin\_data\_transforms.detect\_changes module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 energytrackr.plot.builtin\_data\_transforms.filter\_outliers module
 -------------------------------------------------------------------

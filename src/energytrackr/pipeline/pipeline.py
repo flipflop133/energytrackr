@@ -287,19 +287,14 @@ def run_pre_test_stages_for_commit(commit_hexsha: str, repo_path: str) -> dict[s
 def log_context_buffer(context: dict[str, Any]) -> None:
     """Logs the buffered log messages from the provided context dictionary.
 
-    This function retrieves a list of log messages from the "log_buffer" key
-    in the context dictionary and logs them using the appropriate log level.
-    It also includes the commit ID (retrieved from the "commit" key) in the
-    log headers. If no log messages are present in the buffer, the function
-    exits without logging anything.
+    Retrieves log messages from the "log_buffer" key in the context dictionary and logs them
+    using the appropriate log level. Includes the commit ID (from the "commit" key) in the
+    log headers. If no log messages are present, exits without logging.
 
     Args:
-        context (dict[str, Any]): A dictionary containing the log buffer and
-            commit information. Expected keys:
-            - "log_buffer" (list[tuple[int, str]]): A list of tuples where each
-              tuple contains a log level (int) and a log message (str).
-            - "commit" (str): A string representing the commit ID. Defaults to
-              "UNKNOWN" if not provided.
+        context (dict[str, Any]): Dictionary containing:
+            - "log_buffer" (list[tuple[int, str]]): List of (log level, message) tuples.
+            - "commit" (str): Commit ID (defaults to "UNKNOWN" if not present).
     """
     logs = context.get("log_buffer", [])
     commit_id = context.get("commit", "UNKNOWN")

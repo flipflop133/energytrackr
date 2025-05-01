@@ -6,7 +6,7 @@ Assuming you’re using **Markdown** + **Sphinx** + **MyST**, here’s how to bu
 
 Create a `docs/requirements.txt` file:
 
-```txt
+```text
 sphinx
 myst-parser
 furo

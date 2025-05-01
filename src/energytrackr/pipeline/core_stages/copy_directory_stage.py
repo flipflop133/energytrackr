@@ -17,9 +17,9 @@ class CopyDirectoryStage(PipelineStage):
 
         Args:
             context (dict[str, Any]): A dictionary containing contextual information.
-                Expected keys:
-                    - 'source_dir': str | Path — path to the source directory
-                    - 'target_dir': str | Path — path to the destination directory
+            Expected keys:
+                - 'source_dir': str | Path — path to the source directory
+                - 'target_dir': str | Path — path to the destination directory
 
         Raises:
             MissingContextKeyError: If the required keys are missing in the context.

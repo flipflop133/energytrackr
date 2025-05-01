@@ -1,14 +1,4 @@
-"""MedianLine - default line/glyph object for the modular plot system.
-
-YAML usage
-~~~~~~~~~~
-```yaml
-plot:
-  objects:
-    - {module: plot.builtin_plot_objects.median_line:MedianLine,
-       params: {color: blue, line_width: 2}}
-```
-"""
+"""MedianLine - default line/glyph object for the modular plot system."""
 
 from __future__ import annotations
 

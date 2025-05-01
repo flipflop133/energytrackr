@@ -19,8 +19,8 @@ class VerifyPerfStage(PipelineStage):
 
         Args:
             context (dict[str, Any]): The pipeline context.
-                Expected keys:
-                    - "abort_pipeline": bool — indicates if the pipeline should be aborted.
+            Expected keys:
+                - "abort_pipeline": bool — indicates if the pipeline should be aborted.
         """
         # read perf_event_paranoid
         command_result = run_command("cat /proc/sys/kernel/perf_event_paranoid")

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
-from pandas import Series
 
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import Configurable, Transform
@@ -81,7 +80,7 @@ class FilterOutliers(Transform, Configurable[OutlierFilterConfig]):
         commits = df[self.commit_col].drop_duplicates().tolist()
         return pd.Series(agg_series.loc[commits].values, index=commits)
 
-    def _compute_rolling_quartiles(self, commit_scores: pd.Series) -> tuple[Series[Any], Series[Any], Series[Any]]:
+    def _compute_rolling_quartiles(self, commit_scores: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
         q1 = commit_scores.rolling(self.window, center=True, min_periods=1).quantile(0.25)
         q3 = commit_scores.rolling(self.window, center=True, min_periods=1).quantile(0.75)
         iqr = q3 - q1

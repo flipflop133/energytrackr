@@ -44,8 +44,8 @@ class ContextLogger(logging.Logger):
         - msg (str): The message to log.
         - context (dict[str, Any] | None, optional): A dictionary containing additional context for
           the log message. Defaults to None.
-        - *args (Any): Additional positional arguments for the log message.
-        - **kwargs (Any): Additional keyword arguments for the log message.
+        - args (Any): Additional positional arguments for the log message.
+        - kwargs (Any): Additional keyword arguments for the log message.
     """
 
     def _log_with_context(

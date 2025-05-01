@@ -43,14 +43,7 @@ class ChangeMagnitude:
 
 @dataclass
 class ChangeEvent:
-    """Represents a change event with associated metadata.
-
-    Attributes:
-        index (int): The index of the change event.
-        severity (float): The severity level of the change event.
-        direction (str): The direction of the change event (e.g., "up", "down").
-        cohen_d (float): The Cohen's d effect size associated with the change event.
-    """
+    """Represents a change event with associated metadata."""
 
     index: int
     direction: str

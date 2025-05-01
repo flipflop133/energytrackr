@@ -22,6 +22,7 @@ energytrackr.plot.config module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 energytrackr.plot.pipeline module
 ---------------------------------

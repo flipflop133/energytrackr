@@ -59,6 +59,7 @@ energytrackr.plot.builtin\_plot\_objects.error\_bars module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 energytrackr.plot.builtin\_plot\_objects.legend\_policy module
 --------------------------------------------------------------
@@ -67,6 +68,7 @@ energytrackr.plot.builtin\_plot\_objects.legend\_policy module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 energytrackr.plot.builtin\_plot\_objects.macd\_line module
 ----------------------------------------------------------

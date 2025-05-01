@@ -59,6 +59,8 @@ class ReportCfg(BaseModel):
 class Thresholds(BaseModel):
     """Configuration model for statistical thresholds used in energy analysis.
 
+    :no-index:
+
     Attributes:
         normality_p (float): Significance level for normality tests (default: 0.05).
         welch_p (float): Significance level for Welch's t-test (default: 0.05).

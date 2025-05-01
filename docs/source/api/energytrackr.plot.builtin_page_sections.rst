@@ -27,6 +27,7 @@ energytrackr.plot.builtin\_page\_sections.level\_legend module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 energytrackr.plot.builtin\_page\_sections.plot\_embed module
 ------------------------------------------------------------
