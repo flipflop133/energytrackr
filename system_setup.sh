@@ -188,11 +188,27 @@ manage_rfkill() {
 
 apply_power_settings() {
     bool "$TUNE_CPU" && {
-        log "CPU governor userspace, freq ${CPU_FREQ_KHZ} kHz"
-        echo userspace | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-        for f in scaling_{min,max}; do
-            echo "$CPU_FREQ_KHZ" | tee /sys/devices/system/cpu/cpu*/cpufreq/${f}_freq
-        done
+        local governor
+        local available
+        available=$(</sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors)
+
+        if [[ $available =~ userspace ]]; then
+            governor=userspace
+        elif [[ $available =~ powersave ]]; then
+            governor=powersave
+            warn "Userspace governor not available, falling back to powersave"
+        else
+            warn "Neither userspace nor powersave governor available, skipping CPU tuning"
+            governor=""
+        fi
+
+        if [[ -n $governor ]]; then
+            log "CPU governor $governor, freq ${CPU_FREQ_KHZ} kHz"
+            echo "$governor" | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+            for f in scaling_{min,max}; do
+                echo "$CPU_FREQ_KHZ" | tee /sys/devices/system/cpu/cpu*/cpufreq/${f}_freq
+            done
+        fi
     }
 
     bool "$TUNE_UNCORE" && {
