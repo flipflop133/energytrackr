@@ -40,6 +40,8 @@ install: venv
 
 install-dev: install
 	@echo "Installing dev/test/docs dependencies..."
+	$(PIP) install --upgrade pip
+	$(PIP) install -r $(REQ)
 	$(PIP) install -r $(REQ_DEV)
 	$(PIP) install -r $(REQ_DOCS)
 	$(PIP) install -r $(REQ_TEST)
