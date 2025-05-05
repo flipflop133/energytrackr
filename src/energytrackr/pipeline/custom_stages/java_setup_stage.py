@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 from energytrackr.pipeline.stage_interface import PipelineStage
+from energytrackr.utils.exceptions import JavaHomeNotFoundError
 from energytrackr.utils.logger import logger
 
 
@@ -33,8 +34,10 @@ class JavaSetupStage(PipelineStage):
         logger.info("Setting up Java environment with JAVA_HOME: %s", java_home, context=context)
 
         # Update the environment variables in the parent process
-        os.environ["JAVA_HOME"] = java_home
-        os.environ["PATH"] = f"{java_home}/bin:" + os.environ.get("PATH", "")
+        JavaEnvManager.set_java_home(java_home)
+        # Log the updated environment variables
+        logger.info("Updated JAVA_HOME: %s", os.environ["JAVA_HOME"], context=context)
+        logger.info("Updated PATH: %s", os.environ["PATH"], context=context)
 
     @staticmethod
     def map_version_to_home(version: str) -> str:
@@ -85,6 +88,7 @@ class JavaSetupStage(PipelineStage):
             Optional[str]: The Java version specified in the POM file, or None if not found.
         """
         # 1. Parse the POM file
+        tree = ET.parse(pom_file)
         try:
             tree = ET.parse(pom_file)
         except ET.ParseError:
@@ -318,3 +322,45 @@ class JavaSetupStage(PipelineStage):
                     return properties.get(key)
                 return version
         return None
+
+
+class JavaEnvManager:
+    """Manages JAVA_HOME and PATH environment variables for Java installations."""
+
+    @staticmethod
+    def set_java_home(java_home: str) -> None:
+        """Set JAVA_HOME and update PATH by replacing any existing Java bin entries.
+
+        This will:
+        1. Remove any occurrences of the old JAVA_HOME/bin in PATH.
+        2. Avoid duplicating the new java_home/bin if it's already present.
+        3. Prepend the new java_home/bin to PATH.
+
+        Args:
+            java_home (str): Absolute path to the Java home directory.
+
+        Raises:
+            JavaHomeNotFoundError: If the provided java_home path does not exist.
+        """
+        # Validate the provided java_home
+        if not os.path.isdir(java_home):
+            raise JavaHomeNotFoundError(java_home)
+
+        # Normalize the new java bin path
+        new_bin: str = os.path.normpath(os.path.join(java_home, "bin"))
+
+        # Capture and normalize the old java bin path, if JAVA_HOME was set
+        old_home: str | None = os.environ.get("JAVA_HOME")
+        old_bin: str | None
+        old_bin = os.path.normpath(os.path.join(old_home, "bin")) if old_home else None
+
+        # Set the new JAVA_HOME
+        os.environ["JAVA_HOME"] = java_home
+
+        # Rebuild PATH, filtering out any old or duplicate java bin entries
+        original_path: str = os.environ.get("PATH", "")
+        parts = original_path.split(os.pathsep)
+        filtered_parts = [part for part in parts if os.path.normpath(part) not in {old_bin, new_bin}]
+
+        # Prepend the new java bin and update PATH
+        os.environ["PATH"] = os.pathsep.join([new_bin, *filtered_parts])

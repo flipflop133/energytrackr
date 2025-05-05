@@ -16,8 +16,7 @@
         "compile_commands": [
             "mvn clean test-compile"
         ],
-        "newest_commit": "57dbebc884455205ea221f942723a496d399f86a",
-        "num_commits": 400
+        "newest_commit": "703ca9cb69b5004a652482589d7ef85402717127"
     },
     "results": {
         "file": "energy_usage.csv"

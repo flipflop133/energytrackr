@@ -285,26 +285,25 @@ def run_pre_test_stages_for_commit(commit_hexsha: str, repo_path: str) -> dict[s
 
 
 def log_context_buffer(context: dict[str, Any]) -> None:
-    """Logs the buffered log messages from the provided context dictionary.
+    """Flushes buffered log calls from a context dict to the main logger.
 
-    Retrieves log messages from the "log_buffer" key in the context dictionary and logs them
-    using the appropriate log level. Includes the commit ID (from the "commit" key) in the
-    log headers. If no log messages are present, exits without logging.
+    Reads the list of buffered entries under `context["log_buffer"]`, and replays
+    each one (including its original format string and args).
 
     Args:
-        context (dict[str, Any]): Dictionary containing:
-            - "log_buffer" (list[tuple[int, str]]): List of (log level, message) tuples.
-            - "commit" (str): Commit ID (defaults to "UNKNOWN" if not present).
+        context: A dict which should contain:
+            - "log_buffer": List of tuples (level, msg, args, kwargs)
+            - "commit": Optional str commit identifier for header logging
     """
-    logs = context.get("log_buffer", [])
-    commit_id = context.get("commit", "UNKNOWN")
+    buffer: list[tuple[int, str, tuple[Any, ...], dict[str, Any]]] = context.get("log_buffer", [])
+    commit_id: str = context.get("commit", "UNKNOWN")
 
-    if not logs:
+    if not buffer:
         return
 
     logger.info("----- Logs for commit %s -----", commit_id[:8])
-    for level, msg in logs:
-        logger.log(level, msg)
+    for level, fmt, args, kwargs in buffer:
+        logger.log(level, fmt, *args, **kwargs)
     logger.info("----- End of logs for %s -----\n", commit_id[:8])
 
 

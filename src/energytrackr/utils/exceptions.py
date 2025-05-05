@@ -288,3 +288,15 @@ class MustImplementError(TypeError):
             cls (type): The class or interface that must be implemented.
         """
         super().__init__(f"{class_name} must implement {cls}.")
+
+
+class JavaHomeNotFoundError(ValueError):
+    """Exception raised when the specified JAVA_HOME path does not exist or is not a directory."""
+
+    def __init__(self, java_home: str) -> None:
+        """Initialize the exception with the invalid JAVA_HOME path.
+
+        Args:
+            java_home (str): The JAVA_HOME path that does not exist or is not a directory.
+        """
+        super().__init__(f"java_home path does not exist or is not a directory: {java_home}")
