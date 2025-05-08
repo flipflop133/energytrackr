@@ -11,11 +11,12 @@
         "num_runs": 15,
         "num_repeats": 1,
         "randomize_tasks": true,
-        "batch_size": 100,
+        "batch_size": 20,
         "compile_commands": [
             "mvn clean test-compile"
         ],
-        "num_commits": 100
+        "num_commits": 500,
+        "newest_commit": "09ae884420989167bcd73abf7e695a786cb0683d"
     },
     "results": {
         "file": "energy_usage.csv"
