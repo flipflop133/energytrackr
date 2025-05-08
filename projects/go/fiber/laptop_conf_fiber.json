@@ -16,7 +16,8 @@
         "compile_commands": [
             "go mod tidy",
             "go test -c -o test_binary"
-        ]
+        ],
+        "num_commits": 2000
     },
     "results": {
         "file": "energy_usage.csv"

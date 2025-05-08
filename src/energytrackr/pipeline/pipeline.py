@@ -4,6 +4,7 @@ import concurrent.futures
 import os
 import random
 import shutil
+import sys
 from typing import Any
 
 import git
@@ -64,7 +65,7 @@ def compile_stages() -> dict[str, list[PipelineStage]]:
     return {"pre_stages": pre_stages, "pre_test_stages": pre_test_stages, "batch_stages": batch_stages}
 
 
-def setup_project_dirs(config: PipelineConfig) -> str:
+def setup_project_dirs(config: PipelineConfig, config_dir: str) -> str:
     """Set up project, cache directories and return their paths.
 
     Args:
@@ -74,11 +75,11 @@ def setup_project_dirs(config: PipelineConfig) -> str:
         tuple[str, str, str]: Paths for project directory, cache directory, and repository path.
     """
     project_name = os.path.basename(config.repo.url).replace(".git", "").lower()
-    project_dir = os.path.join("projects", project_name)
-    cache_dir = os.path.join(project_dir, ".cache")
+    cache_dir = os.path.join(config_dir, ".cache")
+    logger.info("Setting up cache directory: %s", cache_dir)
     os.makedirs(cache_dir, exist_ok=True)
-    os.makedirs(project_dir, exist_ok=True)
-    repo_path = os.path.abspath(os.path.join(project_dir, f".cache/.cache_{project_name}"))
+    repo_path = os.path.abspath(os.path.join(cache_dir, f".cache_{project_name}"))
+    logger.info("Setting up project directories: %s", repo_path)
     return repo_path
 
 
@@ -180,10 +181,12 @@ def measure(config_path: str) -> None:
         Exceptions raised during the execution of repository operations or pipeline processing.
     """
     load_pipeline_config(config_path)
+    # Retrieve the configuration folder
+    config_folder = os.path.dirname(config_path)
     config = Config.get_config()
 
     # Set up directories and repository
-    repo_path = setup_project_dirs(config)
+    repo_path = setup_project_dirs(config, config_folder)
     repo = clone_or_open_repo(repo_path, config.repo.url, config.repo.clone_options)
 
     # (Optional) run system-level setup commands.
@@ -426,9 +429,8 @@ class Pipeline:
                 log_context_buffer(result)
 
                 if result.get("abort_pipeline"):
-                    logger.warning("Aborting pre-test stages for commit %s", commit_hexsha)
-                    failed_commits.add(commit_hexsha)
-                    return
+                    logger.warning("Aborting pipeline due to commit %s", commit_hexsha)
+                    sys.exit(1)
 
                 if result.get("build_failed"):
                     logger.warning("Build failed for commit %s", commit_hexsha)

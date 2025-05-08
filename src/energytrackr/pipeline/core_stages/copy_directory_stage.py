@@ -34,9 +34,11 @@ class CopyDirectoryStage(PipelineStage):
         if not source.is_dir():
             raise SourceDirectoryNotFoundError(source)
 
-        if target.exists():
-            logger.info("Target directory already exists: %s", target, context=context)
-        else:
-            logger.info("Copying directory from %s to %s", source, target, context=context)
-            shutil.copytree(src=source, dst=target)
-            logger.info("Copy completed.", context=context)
+        logger.info("Copying directory from %s to %s", source, target, context=context)
+        try:
+            shutil.copytree(src=source, dst=target, dirs_exist_ok=True)
+        except Exception as e:
+            logger.error("Error copying directory: %s", e, context=context)
+            context["abort_pipeline"] = True
+            return
+        logger.info("Copy completed.", context=context)
