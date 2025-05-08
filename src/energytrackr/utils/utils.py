@@ -7,6 +7,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from energytrackr.config.config_store import Config
 from energytrackr.utils.logger import logger
 
 
@@ -35,7 +36,8 @@ def run_command(
         stderr=subprocess.PIPE,
         text=True,  # Ensures stdout and stderr are returned as strings
     ) as process:
-        stdout, stderr = process.communicate(timeout=60)
+        config = Config.get_config()
+        stdout, stderr = process.communicate(timeout=config.timeout)
         retcode = process.returncode
 
     if retcode:

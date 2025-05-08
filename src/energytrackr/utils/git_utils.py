@@ -59,6 +59,9 @@ def gather_commits(repo: Repo) -> list[Commit]:
 
     # commits granularity
     # Get all commits from the branch in descending order (newest-first)
+    if not conf.repo.branch or conf.repo.branch not in repo.branches:
+        logger.warning("Branch %s not found in the repository. Using default branch.", conf.repo.branch)
+        conf.repo.branch = repo.active_branch.name
     commits = list(repo.iter_commits(conf.repo.branch))
     # Reverse to get ascending order (oldest-first) to make filtering more intuitive
     commits = list(reversed(commits))

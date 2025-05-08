@@ -385,7 +385,7 @@ class Pipeline:
             for future in concurrent.futures.as_completed(futures):
                 commit_hexsha = futures[future]
                 try:
-                    result = future.result(timeout=60)
+                    result = future.result(timeout=self.config.timeout)
                 except Exception:
                     logger.exception(f"Commit {commit_hexsha} generated an exception.")
                     return

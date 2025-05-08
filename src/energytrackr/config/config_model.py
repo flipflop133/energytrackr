@@ -38,7 +38,7 @@ class RepositoryDefinition(BaseModel):
         description="URL of the repository to be tested.",
         examples=["https://github.com/signalfx/signalfx-java"],
     )
-    branch: str = Field(..., description="Branch to be used for testing.", examples=["main"])
+    branch: str | None = Field(None, description="Branch to be used for testing.", examples=["main"])
     clone_options: list[str] | None = Field(
         default=None,
         description="Additional options for cloning the repository.",
@@ -201,4 +201,9 @@ class PipelineConfig(BaseModel):
     regression_detection: RegressionDetectionDefinition = Field(
         default_factory=RegressionDetectionDefinition,
         description="Configuration for regression detection context commits.",
+    )
+    timeout: int = Field(
+        default=120,
+        description="Timeout for executions.",
+        examples=[120],
     )

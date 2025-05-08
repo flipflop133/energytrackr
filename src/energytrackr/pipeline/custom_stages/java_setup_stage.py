@@ -28,6 +28,7 @@ class JavaSetupStage(PipelineStage):
 
         if not (version := self.extract_java_version("pom.xml", context)):
             logger.error("Valid Java version not found. Skipping Java setup stage.", context=context)
+            logger.error("Skipping Java setup stage. Defaulting to system Java.", context=context)
             return
 
         java_home = self.map_version_to_home(version)
