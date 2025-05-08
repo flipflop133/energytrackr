@@ -66,7 +66,7 @@ class MeasureEnergyStage(PipelineStage):
         commit_hash = context["commit"].hexsha
         repo_path = context["repo_path"]
         assert repo_path is not None, "Repository path is not set in the configuration."
-        output_file = Path(repo_path).parent / "energy_measurements" / f"energy_results_{self.timestamp}.csv"
+        output_file = Path(repo_path).parent.parent / "energy_measurements" / f"energy_results_{self.timestamp}.csv"
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
         with output_file.open("a") as fh:

@@ -3,6 +3,7 @@
 import concurrent.futures
 import os
 import random
+import shutil
 from typing import Any
 
 import git
@@ -41,14 +42,14 @@ pre_test_stages: list[PipelineStage] = [
     CopyDirectoryStage(),
     SetDirectoryStage(),
     CheckoutStage(),
-    JavaSetupStage(),
+    # JavaSetupStage(),
     BuildStage(),
 ]
 
 batch_stages: list[PipelineStage] = [
     TemperatureCheckStage(),
     SetDirectoryStage(),
-    JavaSetupStage(),
+    # JavaSetupStage(),
     MeasureEnergyStage(),
     PostTestStage(),
 ]
@@ -307,6 +308,36 @@ def log_context_buffer(context: dict[str, Any]) -> None:
     logger.info("----- End of logs for %s -----\n", commit_id[:8])
 
 
+def clean_cache_dir(repo_path: str) -> None:
+    """Remove all entries in the cache directory (siblings of the cloned repo) to free disk space.
+
+    Given that repo_path points to:
+        <project_dir>/.cache/.cache_<project_name>
+    this will delete everything under `<project_dir>/.cache/` except the live repo folder.
+
+    Args:
+        repo_path (str): Absolute path to the cloned repository.
+    """
+    cache_dir = os.path.dirname(repo_path)
+    if not os.path.isdir(cache_dir):
+        logger.warning("Cache directory %s does not exist", cache_dir)
+        return
+
+    for entry in os.listdir(cache_dir):
+        entry_path = os.path.join(cache_dir, entry)
+        # skip the active repo clone itself
+        if os.path.abspath(entry_path) == os.path.abspath(repo_path):
+            continue
+        try:
+            if os.path.isdir(entry_path):
+                shutil.rmtree(entry_path)
+            else:
+                os.remove(entry_path)
+            logger.info("Removed cache entry: %s", entry_path)
+        except Exception as e:
+            logger.warning("Failed to remove cache entry %s: %s", entry_path, e)
+
+
 class Pipeline:
     """Orchestrates the provided stages for each commit in sequence."""
 
@@ -369,6 +400,8 @@ class Pipeline:
                 self._run_pre_test_stages(unique_commit_hexshas, failed_commits, progress)
                 batch_to_process = [commit for commit in batch if commit.hexsha not in failed_commits]
                 self._run_batch_stages(batch_to_process, progress)
+
+                clean_cache_dir(self.repo_path)
                 progress.advance(pipeline_task)
 
     def _run_pre_test_stages(self, unique_commit_hexshas: list[str], failed_commits: set[str], progress: Progress) -> None:
