@@ -6,7 +6,7 @@
     },
     "execution_plan": {
         "mode": "tests",
-        "ignore_failures": false,
+        "ignore_failures": true,
         "granularity": "commits",
         "test_command": "./test_binary -test.v",
         "num_runs": 30,

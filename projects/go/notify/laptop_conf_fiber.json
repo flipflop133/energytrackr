@@ -1,0 +1,35 @@
+{
+    "config_version": "1.0.0",
+    "repo": {
+        "url": "https://github.com/rjeczalik/notify",
+        "branch": "main"
+    },
+    "execution_plan": {
+        "mode": "tests",
+        "ignore_failures": true,
+        "granularity": "commits",
+        "test_command": "./test_binary -test.v",
+        "num_runs": 30,
+        "num_repeats": 1,
+        "randomize_tasks": true,
+        "batch_size": 30,
+        "compile_commands": [
+            "go mod tidy",
+            "go test -c -o test_binary"
+        ],
+        "num_commits": 100
+    },
+    "results": {
+        "file": "energy_usage.csv"
+    },
+    "limits": {
+        "temperature_safe_limit": 65000,
+        "energy_regression_percent": 20
+    },
+    "tracked_file_extensions": [
+        "go",
+        "mod",
+        "sum"
+    ],
+    "cpu_thermal_file": "/sys/class/hwmon/hwmon5/temp1_input"
+}

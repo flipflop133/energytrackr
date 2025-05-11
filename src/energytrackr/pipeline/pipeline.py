@@ -407,40 +407,66 @@ class Pipeline:
                 clean_cache_dir(self.repo_path)
                 progress.advance(pipeline_task)
 
-    def _run_pre_test_stages(self, unique_commit_hexshas: list[str], failed_commits: set[str], progress: Progress) -> None:
-        pre_test_task = progress.add_task("Pre batch stages", total=len(unique_commit_hexshas))
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            futures = {
-                executor.submit(
-                    run_pre_test_stages_for_commit,
-                    commit_hexsha,
-                    self.repo_path,
-                ): commit_hexsha
-                for commit_hexsha in unique_commit_hexshas
-            }
-            for future in concurrent.futures.as_completed(futures):
-                commit_hexsha = futures[future]
-                try:
-                    result = future.result(timeout=self.config.timeout)
-                except Exception:
-                    logger.exception(f"Commit {commit_hexsha} generated an exception.")
-                    return
+    def _run_pre_test_stages(
+        self,
+        unique_commit_hexshas: list[str],
+        failed_commits: set[str],
+        progress: Progress,
+    ) -> None:
+        """Run all pre-test stages on each unique commit, optionally in parallel.
 
-                log_context_buffer(result)
+        Args:
+            unique_commit_hexshas: List of commit SHAs to process.
+            failed_commits: A set to which failed SHAs will be added.
+            progress: Rich Progress instance for updating a sub-task bar.
+        """
+        use_mp: bool = getattr(self.config.execution_plan, "use_multiprocessing", False)
+        logger.info("Using multiprocessing: %s", use_mp)
+        total = len(unique_commit_hexshas)
+        subtask = progress.add_task("Pre batch stages", total=total)
 
-                if result.get("abort_pipeline"):
-                    logger.warning("Aborting pipeline due to commit %s", commit_hexsha)
+        if use_mp:
+            # parallel execution
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                futures = {
+                    executor.submit(run_pre_test_stages_for_commit, sha, self.repo_path): sha for sha in unique_commit_hexshas
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    sha = futures[future]
+                    try:
+                        ctx = future.result(timeout=self.config.timeout)
+                    except Exception:
+                        logger.exception("Commit %s generated an exception.", sha)
+                        progress.advance(subtask)
+                        continue
+
+                    log_context_buffer(ctx)
+                    if ctx.get("abort_pipeline"):
+                        logger.warning("Aborting pipeline due to commit %s", sha)
+                        sys.exit(1)
+                    if ctx.get("build_failed"):
+                        logger.warning("Build failed for commit %s", sha)
+                        failed_commits.add(sha)
+
+                    desc = f"Pre batch stages (failed: {len(failed_commits)})" if failed_commits else "Pre batch stages"
+                    progress.update(subtask, advance=1, description=desc)
+            progress.remove_task(subtask)
+
+        else:
+            # sequential execution
+            for sha in unique_commit_hexshas:
+                ctx = run_pre_test_stages_for_commit(sha, self.repo_path)
+                log_context_buffer(ctx)
+                if ctx.get("abort_pipeline"):
+                    logger.warning("Aborting pipeline due to commit %s", sha)
                     sys.exit(1)
+                if ctx.get("build_failed"):
+                    logger.warning("Build failed for commit %s", sha)
+                    failed_commits.add(sha)
 
-                if result.get("build_failed"):
-                    logger.warning("Build failed for commit %s", commit_hexsha)
-                    failed_commits.add(commit_hexsha)
-
-                description = "Pre batch stages"
-                if failed_commits:
-                    description += f" (failed: {len(failed_commits)})"
-                progress.update(pre_test_task, advance=1, description=description)
-        progress.remove_task(pre_test_task)
+                desc = f"Pre batch stages (failed: {len(failed_commits)})" if failed_commits else "Pre batch stages"
+                progress.update(subtask, advance=1, description=desc)
+            progress.remove_task(subtask)
 
     def _run_batch_stages(self, batch_to_process: list[git.Commit], progress: Progress) -> None:
         batch_stage_task = progress.add_task(
