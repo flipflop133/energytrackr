@@ -20,10 +20,10 @@ energytrackr:
       - module: energytrackr.plot.builtin_data_transforms.load_csv:LoadCSV
         params:
           csv_columns: ["commit", "energy-pkg", "energy-core"]
-      # - module: energytrackr.plot.builtin_data_transforms.filter_outliers:FilterOutliers
-      #   params:
-      #     commit_col: commit
-      #     energy_col: energy-pkg
+      - module: energytrackr.plot.builtin_data_transforms.filter_outliers:FilterOutliers
+        params:
+          commit_col: commit
+          energy_col: energy-pkg
       - module: energytrackr.plot.builtin_data_transforms.commit_stats:CommitStats
         params:
           column: energy-pkg

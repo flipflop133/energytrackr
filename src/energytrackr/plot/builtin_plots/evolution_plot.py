@@ -1,4 +1,4 @@
-"""EvolutionPlot using the BasePlot template and FontMixin."""
+"""EvolutionPlot module with commit-zoom selector and fixed y-axis."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 from bokeh.models import ColumnDataSource
 from bokeh.plotting import figure
 
-from energytrackr.plot.builtin_plots.mixins import FontMixin, RangeToolMixin, draw_additional_objects
+from energytrackr.plot.builtin_plots.mixins import FontMixin, SingleCommitZoomMixin, draw_additional_objects
 from energytrackr.plot.builtin_plots.registry import register_plot
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import BasePlot, Configurable
@@ -16,18 +16,23 @@ from energytrackr.plot.core.interfaces import BasePlot, Configurable
 
 @dataclass(frozen=True)
 class EvolutionPlotConfig:
-    """Configuration for the EvolutionPlot."""
+    """Configuration for EvolutionPlot, including how wide the zoom box is."""
 
     template: str = "templates/base_plot.html"
     objects: list[str] = field(default_factory=list)
+    zoom_window: int = 5  # number of commits on each side to show
 
 
 @register_plot
-class EvolutionPlot(RangeToolMixin, FontMixin, BasePlot, Configurable[EvolutionPlotConfig]):
-    """Candlestick-like evolution of energy per commit."""
+class EvolutionPlot(SingleCommitZoomMixin, FontMixin, BasePlot, Configurable[EvolutionPlotConfig]):
+    """Energy-per-commit evolution plot with commit zoom and fixed y-axis."""
 
     def __init__(self, **params: dict[str, Any]) -> None:
-        """Initialize the EvolutionPlot with configuration parameters."""
+        """Initialize with optional `zoom_window` parameter.
+
+        Args:
+            **params: Arbitrary configuration parameters for EvolutionPlotConfig.
+        """
         super().__init__(EvolutionPlotConfig, **params)
 
     def _make_sources(self, ctx: Context) -> dict[str, ColumnDataSource]:  # noqa: PLR6301
@@ -40,9 +45,10 @@ class EvolutionPlot(RangeToolMixin, FontMixin, BasePlot, Configurable[EvolutionP
         draw_additional_objects(self.config.objects, fig, ctx)
 
     def _configure(self, fig: figure, ctx: Context) -> None:
-        # Apply font settings
+        """Apply fonts, axis labels, and freeze the y-axis to initial full-data range."""
         super()._configure(fig, ctx)
-        # Axis labels
+
+        # labels
         fig.xaxis[0].axis_label = "Commit (oldest → newest)"
         fig.yaxis[0].axis_label = f"Median {ctx.energy_fields[0]} (J)"
 

@@ -305,3 +305,44 @@ class RangeToolMixin:
         range_tool = RangeTool(x_range=fig.x_range)
         overview.add_tools(range_tool)
         overview.toolbar_location = None
+
+
+class SingleCommitZoomMixin:
+    """Adds an AutocompleteInput to zoom the x-range around one commit."""
+
+    def _wrap_layout(self, fig: figure, ctx: Context) -> Column:  # noqa: PLR6301
+        """Wrap layout with an AutocompleteInput that zooms on one commit.
+
+        This keeps the y_range intact by never touching it.
+
+        Args:
+            fig: The Bokeh figure to wrap.
+            ctx: The Context containing stats, including 'short_hashes'.
+
+        Returns:
+            A Column layout with the selector above the figure.
+        """
+        labels = ctx.stats["short_hashes"]
+
+        selector = AutocompleteInput(
+            title="Go to commit:",
+            value=labels[0],
+            completions=labels,
+            width=300,
+            case_sensitive=False,
+            min_characters=1,
+        )
+
+        callback = CustomJS(
+            args={"plot": fig, "commits": labels, "w": 5},
+            code="""
+                const idx = commits.indexOf(cb_obj.value);
+                if (idx >= 0) {
+                    plot.x_range.start = Math.max(0, idx - w);
+                    plot.x_range.end   = Math.min(commits.length - 1, idx + w);
+                }
+            """,
+        )
+        selector.js_on_change("value", callback)
+
+        return column(selector, fig, sizing_mode="stretch_width")
