@@ -149,9 +149,10 @@
     <div class="card">
         <table class="change-table">
             <caption>
-                <button id="toggle-change-btn" aria-pressed="false">
-                    Show Only Changes <span class="icon">⌄</span>
+                <button id="toggle-change-btn" aria-pressed="true">
+                    Show All <span class="icon">⌃</span>
                 </button>
+
             </caption>
             <thead>
                 <tr>
@@ -195,20 +196,29 @@
         const icon = btn.querySelector(".icon");
         const rows = document.querySelectorAll(".change-table tbody tr");
 
+        // 1) Initialize into "only changes" view
+        btn.setAttribute("aria-pressed", "true");
+        btn.firstChild.textContent = "Show All ";
+        icon.textContent = "⌃";
+
+        // 2) On load, hide anything that's NOT an increase or decrease
+        rows.forEach(row => {
+            const isChange = row.classList.contains("increase") || row.classList.contains("decrease");
+            row.style.display = isChange ? "" : "none";
+        });
+
+        // 3) Toggle handler
         btn.addEventListener("click", () => {
             const showOnly = btn.getAttribute("aria-pressed") === "false";
             btn.setAttribute("aria-pressed", String(showOnly));
 
-            // Update button text & icon
             btn.firstChild.textContent = showOnly
                 ? "Show All "
                 : "Show Only Changes ";
             icon.textContent = showOnly ? "⌃" : "⌄";
 
-            // Toggle row visibility
             rows.forEach(row => {
-                const isChange = row.classList.contains("increase") ||
-                    row.classList.contains("decrease");
+                const isChange = row.classList.contains("increase") || row.classList.contains("decrease");
                 row.style.display = showOnly
                     ? (isChange ? "" : "none")
                     : "";
@@ -216,4 +226,5 @@
         });
     });
 </script>
+
 {% endblock %}

@@ -138,8 +138,9 @@ class DetectChanges(Transform, Configurable[DetectChangesConfig]):
         if len(baseline) < self.thr["min_values_for_normality_test"] or len(test) < self.thr["min_values_for_normality_test"]:
             return None
 
+        level = None
         if (p_value := self._compute_p_value(baseline, test)) >= self.thr["welch_p"]:
-            return None
+            level = 0
 
         cohen_d = self._compute_cohen_d(baseline, test)
         effect_cat = self.classify_effect_size(cohen_d)
@@ -160,7 +161,8 @@ class DetectChanges(Transform, Configurable[DetectChangesConfig]):
             practical_level=practical,
         )
         commit = ctx.stats.get("valid_commits", [])[index]
-        level = 5 if self.detect_level_5(ctx, commit) else self._determine_level(cohen_d, pct, practical)
+        if level is None:
+            level = 5 if self.detect_level_5(ctx, commit) else self._determine_level(cohen_d, pct, practical)
         return ChangeEvent(
             index=index,
             direction=self._get_direction(baseline_med, test_med),
