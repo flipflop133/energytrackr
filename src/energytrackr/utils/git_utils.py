@@ -152,6 +152,7 @@ def get_commit_details_from_git(commit_hash: str, repo: Repo) -> dict[str, Any]:
 
     commit_date = commit_obj.committed_datetime.strftime("%Y-%m-%d")
     commit_summary = commit_obj.summary
+    commit_message = commit_obj.message
     commit_files = list(commit_obj.stats.files.keys())
     commit_link = "N/A"
     if repo.remotes:
@@ -160,6 +161,7 @@ def get_commit_details_from_git(commit_hash: str, repo: Repo) -> dict[str, Any]:
 
     return {
         "commit_summary": commit_summary,
+        "commit_message": commit_message,
         "commit_link": commit_link,
         "commit_date": commit_date,
         "files_modified": commit_files,
