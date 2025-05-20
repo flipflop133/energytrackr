@@ -17,7 +17,7 @@ The pipeline automates:
 
 ## 📁 1. Prepare a Configuration File
 
-You need to create a config file in JSON format that follows your `config.schema.json` structure. This includes:
+You need to create a config file in YAML format that follows your `config.schema.yml` structure. This includes:
 
 - Repository URL
 - Branch or tags to analyze
@@ -27,23 +27,8 @@ You need to create a config file in JSON format that follows your `config.schema
 
 Example:
 
-```json
-{
-  "repo": {
-    "url": "https://github.com/example/project.git",
-    "branch": "main"
-  },
-  "execution_plan": {
-    "granularity": "commits",
-    "num_commits": 10,
-    "num_runs": 1,
-    "num_repeats": 30,
-    "batch_size": 5,
-    "randomize_tasks": true
-  },
-  "test_command": "./run-tests.sh"
-}
-```
+TODO add example
+
 
 ---
 
@@ -89,7 +74,7 @@ This checks system temperature and performance counter stability.
 ### Run Measurement
 
 ```bash
-python main.py measure --config path/to/config.json
+python main.py measure --config path/to/config.yml
 ```
 
 - This runs the entire pipeline
@@ -166,6 +151,6 @@ tmux new -s energy
 | Step           | Command                                                    |
 | -------------- | ---------------------------------------------------------- |
 | Stability test | `python main.py stability-test`                            |
-| Run pipeline   | `python main.py measure --config config.json`              |
+| Run pipeline   | `python main.py measure --config config.yml`               |
 | Sort results   | `python main.py sort results.csv /path/to/repo sorted.csv` |
 | Plot results   | `python main.py plot sorted.csv`                           |

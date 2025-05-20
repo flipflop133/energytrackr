@@ -72,7 +72,7 @@ def dummy_context() -> dict[str, str | bool]:
 def test_run_pre_test_stages_for_commit_success(monkeypatch: pytest.MonkeyPatch, tmp_path: str, dummy_commit: Commit) -> None:
     """Test successful execution of pre-test stages for a commit."""
     Config.reset()
-    sample_path = Path(__file__).parent.parent / "config" / "sample_conf.json"
+    sample_path = Path(__file__).parent.parent / "config" / "sample_conf.yml"
 
     # Load the config using your app code
     load_pipeline_config(str(sample_path))

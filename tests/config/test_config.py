@@ -1,6 +1,6 @@
 """Unit tests for the configuration module."""
 
-import json
+import yaml
 from pathlib import Path
 
 import pytest
@@ -30,10 +30,10 @@ def test_compile_commands_required_for_benchmarks() -> None:
 
 
 def test_load_pipeline_config() -> None:
-    """Test the `load_pipeline_config` function to ensure it correctly loads a pipeline configuration from a JSON file.
+    """Test the `load_pipeline_config` function to ensure it correctly loads a pipeline configuration from a YAML file.
 
     Steps:
-    1. Copy the contents of a sample configuration file (`sample_conf.json`) to a
+    1. Copy the contents of a sample configuration file (`sample_conf.yml`) to a
         temporary file in the provided `tmp_path`.
     2. Use the `load_pipeline_config` function to load the configuration from the
         temporary file.
@@ -46,9 +46,9 @@ def test_load_pipeline_config() -> None:
     - The `execution_plan.num_commits` attribute should match the expected number
       of commits.
     """
-    # Copy sample_conf.json to a temp path
+    # Copy sample_conf.yml to a temp path
     Config.reset()
-    sample_path = Path("tests/config/sample_conf.json")
+    sample_path = Path("tests/config/sample_conf.yml")
 
     # Load the config using your app code
     load_pipeline_config(str(sample_path))
@@ -77,8 +77,8 @@ def test_get_config_without_set_raises() -> None:
 def test_set_config_twice_raises() -> None:
     """Test that trying to set the config twice raises an error."""
     # Load a valid sample config
-    config_path = Path(__file__).parent / "sample_conf.json"
-    config_data = json.loads(config_path.read_text())
+    config_path = Path(__file__).parent / "sample_conf.yml"
+    config_data = yaml.safe_load(config_path.read_text())
     config_obj = PipelineConfig(**config_data)
 
     Config.reset()
