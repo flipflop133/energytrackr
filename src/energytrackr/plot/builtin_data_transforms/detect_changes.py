@@ -1,5 +1,6 @@
 """Detect changes in distributions of energy data over time."""
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,6 +10,7 @@ from scipy.stats import ttest_ind
 from energytrackr.plot.config import get_settings
 from energytrackr.plot.core.context import Context
 from energytrackr.plot.core.interfaces import Configurable, Transform
+from energytrackr.utils.logger import logger
 
 
 @dataclass
@@ -60,6 +62,7 @@ class DetectChangesConfig:
 
     column: str | None = None
     thresholds: dict | None = None
+    tags: list[str] | None = None  # e.g. [“cpu”, “module:io”]
 
 
 class DetectChanges(Transform, Configurable[DetectChangesConfig]):
@@ -100,12 +103,12 @@ class DetectChanges(Transform, Configurable[DetectChangesConfig]):
         for idx in range(1, len(distributions)):
             baseline = distributions[idx - 1]
             test = distributions[idx]
-            if event := self._process_pair(idx, baseline, test):
+            if event := self._process_pair(idx, baseline, test, ctx):
                 changes.append(event)
 
         ctx.artefacts["change_events"] = changes
 
-    def _process_pair(self, index: int, baseline: np.ndarray, test: np.ndarray) -> ChangeEvent | None:
+    def _process_pair(self, index: int, baseline: np.ndarray, test: np.ndarray, ctx: Context) -> ChangeEvent | None:
         """Analyze a pair of baseline and test samples to detect statistically significant changes.
 
         This method compares two numeric sample arrays (baseline and test) at a given index, performing statistical tests and
@@ -115,6 +118,7 @@ class DetectChanges(Transform, Configurable[DetectChangesConfig]):
             index (int): The index corresponding to the pair of samples being analyzed.
             baseline (np.ndarray): The baseline sample data.
             test (np.ndarray): The test sample data.
+            ctx (Context): The context containing the DataFrame and other artefacts.
 
         Returns:
             ChangeEvent | None: A ChangeEvent object describing the detected change if statistically significant, or None if
@@ -134,8 +138,9 @@ class DetectChanges(Transform, Configurable[DetectChangesConfig]):
         if len(baseline) < self.thr["min_values_for_normality_test"] or len(test) < self.thr["min_values_for_normality_test"]:
             return None
 
+        level = None
         if (p_value := self._compute_p_value(baseline, test)) >= self.thr["welch_p"]:
-            return None
+            level = 0
 
         cohen_d = self._compute_cohen_d(baseline, test)
         effect_cat = self.classify_effect_size(cohen_d)
@@ -155,7 +160,9 @@ class DetectChanges(Transform, Configurable[DetectChangesConfig]):
             abs_diff=abs_diff,
             practical_level=practical,
         )
-
+        commit = ctx.stats.get("valid_commits", [])[index]
+        if level is None:
+            level = 5 if self.detect_level_5(ctx, commit) else self._determine_level(cohen_d, pct, practical)
         return ChangeEvent(
             index=index,
             direction=self._get_direction(baseline_med, test_med),
@@ -163,7 +170,7 @@ class DetectChanges(Transform, Configurable[DetectChangesConfig]):
             effect_size=effect_size,
             change_magnitude=change_magnitude,
             context_tags=None,
-            level=self._determine_level(cohen_d, pct, practical),
+            level=level,
         )
 
     @staticmethod
@@ -220,6 +227,30 @@ class DetectChanges(Transform, Configurable[DetectChangesConfig]):
             level = max(level, 4)
         # Context tags (future) would bump to 5
         return level
+
+    def detect_level_5(self, ctx: Context, commit: str) -> bool:
+        """Detect level 5 changes based on context tags.
+
+        Args:
+            ctx (Context): The context containing the DataFrame and other artefacts.
+            commit (str): The commit hash to check for level 5 changes.
+
+        Returns:
+            bool: True if level 5 changes are detected, False otherwise.
+        """
+        if not self.config.tags:
+            return False
+        commit_msg = ctx.artefacts["commit_details"][commit].get("commit_message", "")
+        if not commit_msg:
+            logger.warning("No commit message found for commit %s", commit)
+            return False
+        tags = self.config.tags
+        for tag in tags:
+            # Match tag as a whole word, case-insensitive
+            if re.search(rf"\b{re.escape(tag)}\b", commit_msg, re.IGNORECASE):
+                logger.info("Detected level 5 change: tag '%s' found in commit message.", tag)
+                return True
+        return False
 
     def classify_effect_size(self, d: float) -> str:
         """Classify the effect size based on Cohen's d value.

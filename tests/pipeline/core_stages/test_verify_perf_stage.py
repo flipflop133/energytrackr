@@ -1,6 +1,6 @@
 """Unit tests for the VerifyPerfStage class."""
 
-import json
+import yaml
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -51,8 +51,8 @@ def make_config(ignore_failures: bool = False) -> PipelineConfig:
         "setup_commands": [],
         "results": {"file": "results.csv"},
     }
-    config_path = Path("temp_config.json")
-    config_path.write_text(json.dumps(config_dict))
+    config_path = Path("temp_config.yml")
+    config_path.write_text(yaml.dump(config_dict))
 
     load_pipeline_config(str(config_path))
     return Config.get_config()

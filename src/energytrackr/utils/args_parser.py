@@ -14,7 +14,7 @@ def parse_args() -> argparse.Namespace:
 
     # measure subcommand
     measure_parser = subparsers.add_parser("measure", help="Run energy measurement")
-    measure_parser.add_argument("--config", default="config.json", help="Path to config file")
+    measure_parser.add_argument("--config", default="config.yml", help="Path to config file")
 
     # sort subcommand
     sort_parser = subparsers.add_parser("sort", help="Sort a result file")

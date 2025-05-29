@@ -134,17 +134,6 @@ class LimitsDefinition(BaseModel):
         description="The maximum safe operating temperature (in milli-degrees).",
         examples=[65000],
     )
-    energy_regression_percent: int = Field(..., description="Permitted percentage increase in energy usage.", examples=[20])
-
-
-class ResultsDefinition(BaseModel):
-    """Configuration for output results."""
-
-    file: str = Field(
-        ...,
-        description="Path to the file where energy usage results are stored.",
-        examples=["energy_usage.csv"],
-    )
 
 
 class RegressionDetectionDefinition(BaseModel):
@@ -196,7 +185,6 @@ class PipelineConfig(BaseModel):
         description="List of shell commands to setup the environment.",
         examples=[["export JAVA_HOME=/usr/lib/jvm/java-8-openjdk", "export PATH=$JAVA_HOME/bin:$PATH"]],
     )
-    results: ResultsDefinition | None = Field(default=None, description="Results configuration for output files.")
 
     regression_detection: RegressionDetectionDefinition = Field(
         default_factory=RegressionDetectionDefinition,

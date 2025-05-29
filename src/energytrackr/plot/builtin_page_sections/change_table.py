@@ -26,7 +26,7 @@ group_map = {
         ("std_val", "Std Dev (J)"),
     ],
     "tests": [
-        ("p_value", "p-value"),
+        ("p_value", "p-value (Welch-test)"),
         ("cohen_str", "Cohen d"),
         ("effect_cat", "Effect"),
         ("pct_change", "Δ %"),
@@ -147,11 +147,15 @@ class ChangeTable(PageObj, Configurable[ChangeTableConfig]):
                 "practical": ev.change_magnitude.practical_level if ev else "N/A",
                 "level": ev.level if ev else "-",
                 "row_class": (
-                    "increase"
+                    "baseline"
+                    if ev is None and i == 0
+                    else "nochange"
+                    if ev and ev.level == 0
+                    else "increase"
                     if ev and ev.direction == "increase"
                     else "decrease"
                     if ev and ev.direction == "decrease"
-                    else ""
+                    else "nochange"
                 ),
             })
         settings = get_settings()

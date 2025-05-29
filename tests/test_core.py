@@ -1,7 +1,7 @@
 """Test cases for the core functionality of the pipeline."""
 
 import argparse
-import json
+import yaml
 from pathlib import Path
 
 import git
@@ -46,9 +46,9 @@ def test_gather_commits(tmp_path: Path) -> None:
         commit: Commit = repo.index.commit(f"Commit {i}")
         commit_hashes.append(commit.hexsha)
 
-    # Step 2: Load base config from tests/sample_conf.json
-    sample_path = Path(__file__).parent / "config/sample_conf.json"
-    config_dict = json.loads(sample_path.read_text())
+    # Step 2: Load base config from tests/sample_conf.yml
+    sample_path = Path(__file__).parent / "config/sample_conf.yml"
+    config_dict = yaml.safe_load(sample_path.read_text())
 
     # Step 3: Patch repo URL and branch to point to temp repo
     config_dict["repo"]["url"] = str(repo_dir)
@@ -56,8 +56,8 @@ def test_gather_commits(tmp_path: Path) -> None:
     config_dict["execution_plan"]["granularity"] = "commits"
     config_dict["execution_plan"]["num_commits"] = 3
 
-    config_file: Path = tmp_path / "config.json"
-    config_file.write_text(json.dumps(config_dict))
+    config_file: Path = tmp_path / "config.yml"
+    config_file.write_text(yaml.safe_dump(config_dict))
 
     # Step 4: Run test logic
     load_pipeline_config(str(config_file))
@@ -121,8 +121,8 @@ def test_gather_commits_branches(tmp_path: Path) -> None:
         "results": {"file": "results.csv"},
     }
 
-    config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps(config))
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(yaml.safe_dump(config))
     load_pipeline_config(str(config_path))
 
     commits = gather_commits(repo)
@@ -168,8 +168,8 @@ def test_gather_commits_tags(tmp_path: Path) -> None:
         "results": {"file": "results.csv"},
     }
 
-    config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps(config))
+    config_file = tmp_path / "config.yml"
+    config_file.write_text(yaml.safe_dump(config))
     load_pipeline_config(str(config_file))
 
     commits = gather_commits(repo)
@@ -226,8 +226,8 @@ def test_gather_commits_oldest_and_newest(tmp_path: Path) -> None:
         "results": {"file": "results.csv"},
     }
 
-    config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps(config))
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(yaml.safe_dump(config))
     load_pipeline_config(str(config_path))
 
     # Run and extract resulting commits
@@ -253,11 +253,11 @@ def test_compile_stages() -> None:
 
 def test_parse_args_measure(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test parsing arguments for the measure command."""
-    test_args: list[str] = ["measure", "--config", "test.json"]
+    test_args: list[str] = ["measure", "--config", "test.yml"]
     monkeypatch.setattr("sys.argv", ["main.py", *test_args])
     args = parse_args()
     assert args.command == "measure"
-    assert args.config == "test.json"
+    assert args.config == "test.yml"
 
 
 def test_parse_args_sort(monkeypatch: pytest.MonkeyPatch) -> None:

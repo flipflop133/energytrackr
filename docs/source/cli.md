@@ -35,19 +35,19 @@ python main.py <command> [options]
 Runs the pipeline and saves results to a CSV file.
 
 ```bash
-python main.py measure --config path/to/config.json
+python main.py measure --config path/to/config.yml
 ```
 
 ### Options
 
-| Option     | Description                  | Default       |
-| ---------- | ---------------------------- | ------------- |
-| `--config` | Path to the config JSON file | `config.json` |
+| Option     | Description                  | Default      |
+| ---------- | ---------------------------- | ------------ |
+| `--config` | Path to the config YAML file | `config.yml` |
 
 ### Example
 
 ```bash
-python main.py measure --config configs/myproject.json
+python main.py measure --config configs/myproject.yml
 ```
 
 ---
@@ -139,7 +139,7 @@ This ensures the plot will reflect correct commit chronology.
 python main.py stability-test
 
 # Run the pipeline on a config file
-python main.py measure --config configs/sample.json
+python main.py measure --config configs/sample.yml
 
 # Sort and analyze results
 python main.py sort results.csv ./projects/sample/ sorted.csv

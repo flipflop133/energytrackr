@@ -53,6 +53,8 @@ class ChangeEventMarkers(PlotObj, Configurable[ChangeEventMarkersConfig]):
             return
         # Regression / improvement boxes
         for e in events:
+            if not e.level:
+                continue
             color = "red" if e.direction == "increase" else "green"
             fig.add_layout(
                 BoxAnnotation(
