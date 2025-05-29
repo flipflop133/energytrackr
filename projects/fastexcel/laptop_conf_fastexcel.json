@@ -1,0 +1,40 @@
+{
+    "config_version": "1.0.0",
+    "repo": {
+        "url": "https://github.com/dhatim/fastexcel",
+        "branch": "master"
+    },
+    "execution_plan": {
+        "mode": "tests",
+        "ignore_failures": true,
+        "granularity": "commits",
+        "test_command": "mvn test",
+        "num_runs": 15,
+        "num_repeats": 1,
+        "randomize_tasks": true,
+        "batch_size": 100,
+        "compile_commands": [
+            "mvn clean test-compile"
+        ],
+        "oldest_commit": "b9785779ee140ab295a03188f95ef4b6a0236a9e"
+    },
+    "results": {
+        "file": "energy_usage.csv"
+    },
+    "limits": {
+        "temperature_safe_limit": 65000,
+        "energy_regression_percent": 20
+    },
+    "tracked_file_extensions": [
+        "java",
+        "xml",
+        "properties",
+        "yaml",
+        "yml"
+    ],
+    "cpu_thermal_file": "/sys/class/hwmon/hwmon5/temp1_input",
+    "regression_detection": {
+        "min_commits_before": 0
+    },
+    "timeout": 60000
+}
