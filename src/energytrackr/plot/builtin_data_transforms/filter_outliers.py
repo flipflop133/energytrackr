@@ -19,6 +19,7 @@ class OutlierFilterConfig:
     agg: str = "median"
     commit_col: str = "commit_hash"
     energy_col: str = "energy_median"
+    min_energy_threshold: float | None = None
 
 
 class FilterOutliers(Transform, Configurable[OutlierFilterConfig]):
@@ -71,9 +72,16 @@ class FilterOutliers(Transform, Configurable[OutlierFilterConfig]):
         is_outlier = self._detect_outliers(commit_scores, q1, q3, iqr)
         transient_commits = self._find_transient_outliers(commit_scores, is_outlier)
 
-        df_filtered = self._remove_commits(df, transient_commits)
+        if self.config.min_energy_threshold is not None:
+            low_energy_commits = commit_scores[commit_scores < self.config.min_energy_threshold].index
+        else:
+            low_energy_commits = pd.Index([])
+
+        all_to_remove = transient_commits.union(low_energy_commits)
+        df_filtered = self._remove_commits(df, all_to_remove)
+
         ctx.artefacts["df"] = df_filtered
-        ctx.stats["commits_removed"] = len(transient_commits)
+        ctx.stats["commits_removed"] = len(all_to_remove)
 
     def _aggregate_commit_scores(self, df: pd.DataFrame) -> pd.Series:
         agg_series = getattr(df.groupby(self.commit_col)[self.energy_col], self.agg)()
