@@ -9,14 +9,14 @@
         "ignore_failures": true,
         "granularity": "commits",
         "test_command": "mvn surefire:test",
-        "num_runs": 15,
+        "num_runs": 30,
         "num_repeats": 1,
         "randomize_tasks": true,
-        "batch_size": 100,
+        "batch_size": 30,
         "compile_commands": [
             "mvn clean test-compile"
         ],
-        "newest_commit": "b1cbeb57dddf85482a7aee4496996afec0f5d615"
+        "oldest_commit": "e536b75ab58d0500552c6d80f09f6463d70a91d8"
     },
     "results": {
         "file": "energy_usage.csv"
