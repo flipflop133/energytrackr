@@ -115,7 +115,8 @@ class SummaryBox(PageObj, Configurable[SummaryBoxConfig]):
             if latest_commit
             else None,
             "total_commits": len(ctx.stats["valid_commits"]),
-            "significant_changes": len(changes),
+            "significant_changes": sum(1 for e in changes if e.level > 0 and e.direction == "increase")
+            + sum(1 for e in changes if e.level > 0 and e.direction == "decrease"),
             "regressions": sum(1 for e in changes if e.level > 0 and e.direction == "increase"),
             "improvements": sum(1 for e in changes if e.level > 0 and e.direction == "decrease"),
             "mean_energy": mean_energy,
